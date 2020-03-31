@@ -4,7 +4,7 @@
 
 The focus of this project and the provided code is to showcase a basic integration of
 ray tracing within an existing Vulkan sample, using the
-[`VK_NV_ray_tracing`](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/html/vkspec.html#VK_NV_ray_tracing) extension.
+[`VK_KHR_ray_tracing`](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VK_KHR_ray_tracing) extension.
 The following tutorials starts from a the end of the previous ray tracing tutorial and provides step-by-step instructions to modify and add methods and functions.
 The sections are organized by components, with subsections identifying the modified functions.
 
@@ -16,7 +16,7 @@ Instead of having examples fully functional, those tutorial starts from a progra
 
 The first tutorial is starting from a Vulkan code example, which can load multiple OBJ and render them using the rasterizer, and adds step-by-step what is require to do ray tracing.
 
-### [**Start Ray Tracing Tutorial**](https://nvpro-samples.github.io/vk_raytracing_tutorial/)
+### [**Start Ray Tracing Tutorial**](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/)
 
 ![resultRaytraceShadowMedieval](docs/Images/resultRaytraceShadowMedieval.png)
 
@@ -24,4 +24,4 @@ The first tutorial is starting from a Vulkan code example, which can load multip
 
 From this point on, you can continue creating your own ray types and shaders, and experiment with more advanced ray tracing based algorithms.
 
-### [**All Extra Tutorials**](https://nvpro-samples.github.io/vk_raytracing_tutorial/vkrt_tuto_further.md.html)
+### [**All Extra Tutorials**](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/vkrt_tuto_further.md.html)

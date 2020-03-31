@@ -41,12 +41,12 @@ As an example, create a new file called `raytrace2.rchit`, and add it to Visual 
 
 ~~~~ C++
 #version 460
-#extension GL_NV_ray_tracing : require
+#extension GL_EXT_ray_tracing : require
 #extension GL_GOOGLE_include_directive : enable
 
 #include "raycommon.glsl"
 
-layout(location = 0) rayPayloadInNV hitPayload prd;
+layout(location = 0) rayPayloadInEXT hitPayload prd;
 
 void main()
 {
@@ -75,7 +75,7 @@ Then add a new hit group group immediately after adding the first hit group:
 
 ## `raytrace.rgen`
 
-As a test, you can try changing the `sbtRecordOffset` parameter of the `traceNV` call in `raytrace.rgen`.
+As a test, you can try changing the `sbtRecordOffset` parameter of the `traceRayEXT` call in `raytrace.rgen`.
 If you set the offset to `1`, then all ray hits will use the new CHIT, and the raytraced output should look like the image below:
 
 ![](Images/manyhits2.png)
@@ -170,10 +170,10 @@ In the HelloVulkan class, we will add a structure to hold the hit group data.
 
 ## `raytrace2.rchit`
 
-In the closest hit shader, we can retrieve the shader record using the `layout(shaderRecordNV)` descriptor
+In the closest hit shader, we can retrieve the shader record using the `layout(shaderRecordEXT)` descriptor
 
 ~~~~ C++
-layout(shaderRecordNV) buffer sr_ { vec4 c; } shaderRec;
+layout(shaderRecordEXT) buffer sr_ { vec4 c; } shaderRec;
 ~~~~
 
 and use this information to return the color:
@@ -199,7 +199,7 @@ In `main`, after we set which hit group an instance will use, we can add the dat
 Since we are no longer compacting all handles in a continuous buffer, we need to fill the SBT as described above.
 
 After retrieving the handles of all 5 groups (raygen, miss, miss shadow, hit0, and hit1)
-using `getRayTracingShaderGroupHandlesNV`, store the pointers to easily retrieve them.
+using `getRayTracingShaderGroupHandlesKHR`, store the pointers to easily retrieve them.
 
 ~~~~ C++
   // Retrieve the handle pointers

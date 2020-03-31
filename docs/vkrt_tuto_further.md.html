@@ -35,7 +35,7 @@ information to discard hits over time.
 Reflections can be implemented by shooting new rays from the closest hit shader, or by iteratively shooting them from
 the raygen shader. This example shows the limitations and differences of these implementations.
 
-* Calling traceNV() from the closest hit shader (recursive)
+* Calling traceRayEXT() from the closest hit shader (recursive)
 * Adding more data to the ray payload to continue the ray from the raygen shader. 
 
 ![Hundread of Reflections](Images/reflections.png height= "300px") 
@@ -82,7 +82,7 @@ explains what is needed to get procedural hit group working.
 Replacing if/else by callable shaders. The code to execute the lighting is done in separate callable shaders instead of been part of the code.
 
 * Adding multiple callable shaders
-* Calling ExecuteCallableNV from  the closest hit shader
+* Calling ExecuteCallableEXT from  the closest hit shader
 
 ![Infinite | Spot | Point from callable shaders](Images/callable.png height= "300px")
 

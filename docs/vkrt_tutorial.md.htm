@@ -273,7 +273,7 @@ In the `HelloVulkan` class declaration, we can now add the `createBottomLevelAS(
 void createBottomLevelAS();
 ````
 
-The implementation loops over all the loaded models and fills in an array of `vk::GeometryNV` before
+The implementation loops over all the loaded models and fills in an array of `nvvkpp::RaytracingBuilderKHR::Blas` before
 triggering a build of all BLAS's in a batch. The resulting acceleration structures will be stored
 within the helper in the order of construction, so that they can be directly referenced by index later.
 
@@ -475,8 +475,8 @@ builds or better performance.
 
 ```` C
 void buildTlas(const std::vector<Instance>&          instances,
-                 vk::BuildAccelerationStructureFlagsNV flags =
-                     vk::BuildAccelerationStructureFlagBitsNV::ePreferFastTrace)
+                 vk::BuildAccelerationStructureFlagsKHR flags =
+                     vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace)
 {
   m_tlas.flags = flags;
 
@@ -633,7 +633,7 @@ In the header, we declare the objects related to this additional descriptor set:
   vk::DescriptorSet                                  m_rtDescSet;
 ````
 
-The acceleration structure will be accessible by the Ray Generation shader, as we want to call `TraceNV()` from this
+The acceleration structure will be accessible by the Ray Generation shader, as we want to call `TraceRayEXT()` from this
 shader. Later in this document, we will also make it accessible from the Closest Hit shader, in order to send rays from
 there as well. The output image is the offscreen buffer used by the rasterization, and will be written only by the
 RayGen shader.
@@ -805,7 +805,7 @@ ray trace some geometry, the Vulkan ray tracing extension typically uses at leas
 
 * The **ray generation** shader will be the starting point for ray tracing, and will be called for each pixel. It will
   typically initialize a ray starting at the location of the camera, in a direction given by evaluating the camera lens
-  model at the pixel location. It will then invoke `traceNV()`, that will shoot the ray in the scene. Other shaders below
+  model at the pixel location. It will then invoke `traceRayEXT()`, that will shoot the ray in the scene. Other shaders below
   will process further events, and return their result to the ray generation shader through the ray payload.
 
 * The **miss** shader is executed when a ray does not intersect any geometry. For instance, it might sample an
@@ -839,7 +839,7 @@ Two more shader types can optionally be used:
  
 * The **any hit** shader is executed on each potential intersection: when searching for the hit point closest to the ray
   origin, several candidates may be found on the way. The any hit shader can frequently be used to efficiently implement
-  alpha-testing. If the alpha test fails, the ray traversal can continue without having to call `traceNV()` again. The
+  alpha-testing. If the alpha test fails, the ray traversal can continue without having to call `traceRayEXT()` again. The
   built-in any hit shader is simply a pass-through returning the intersection to the traversal engine, which will
   determine which ray intersection is the closest.
 
@@ -864,12 +864,12 @@ The `shaders` folder now contains 3 more files:
   shader program simply writes a constant color into the output buffer.
 
 * `raytrace.rmiss` defines the miss shader. This shader will be executed when no geometry is hit, and will write a
-  constant color into the ray payload `rayPayloadInNV`, which is provided automatically. Since our current ray generation
+  constant color into the ray payload `rayPayloadInEXT`, which is provided automatically. Since our current ray generation
   program does not trace any rays for now, this shader will not be called.
 
 * `raytrace.rchit` contains a very simple closest hit shader. It will be executed upon hitting the geometry (our
-  triangles). As the miss shader, it takes the ray payload `rayPayloadInNV`. It also has a second input defining the
-  intersection attributes `hitAttributeNV` as provided by the intersection shader, i.e. the barycentric coordinates. This
+  triangles). As the miss shader, it takes the ray payload `rayPayloadInEXT`. It also has a second input defining the
+  intersection attributes `hitAttributeEXT` as provided by the intersection shader, i.e. the barycentric coordinates. This
   shader simply writes a constant color to the payload.
 
 In the header file, let's add the definition of the ray tracing pipeline building method, and the storage members of the
@@ -1028,7 +1028,7 @@ itself, but hit groups can comprise up to 3 shaders (intersection, any hit, clos
 The ray generation and closest hit shaders can trace rays, making the ray tracing a potentially recursive process. To
 allow the underlying RTX layer to optimize the pipeline we indicate the maximum recursion depth used by our shaders. For
 the simplistic shaders we currently have, we set this depth to 1, meaning that even if the shaders would trigger
-recursion (ie. a hit shader calling `TraceNV()`), this recursion would be prevented by setting the result of this trace
+recursion (ie. a hit shader calling `TraceRayEXT()`), this recursion would be prevented by setting the result of this trace
 call as a miss. Note that it is preferable to keep the recursion level as low as possible, replacing it by a loop
 formulation instead.
 
@@ -1329,7 +1329,7 @@ cam;
     `set = 1` comes from the fact that it is the second descriptor set in `raytrace()`.
 
 When tracing a ray, the hit or miss shaders need to be able to return some information to the shader program that
-invoked the ray tracing. This is done through the use of a payload, identified by the `rayPayloadNV` qualifier.
+invoked the ray tracing. This is done through the use of a payload, identified by the `rayPayloadEXT` qualifier.
 
 Since the payload struct will be reused in several shaders, we create a new shader file `raycommon.glsl` and add it to
 the Visual Studio folder.
@@ -1351,25 +1351,25 @@ we also enable:
 #include "raycommon.glsl"
 ~~~~
 
-The payload, identified with `rayPayloadNV` is then our `hitPayload` structure.
+The payload, identified with `rayPayloadEXT` is then our `hitPayload` structure.
 
 ```` C
-layout(location = 0) rayPayloadNV hitPayload prd;
+layout(location = 0) rayPayloadEXT hitPayload prd;
 ````
 
 ### Note
 
-> In incoming shaders, like miss and closest hit, the payload will be `rayPayloadInNV`.
+> In incoming shaders, like miss and closest hit, the payload will be `rayPayloadInEXT`.
 
 The `main` function of the shader then starts by computing the floating-point pixel coordinates, normalized between 0
-and 1. The `gl_LaunchIDNV` contains the integer coordinates of the pixel being rendered, while `gl_LaunchSizeNV`
-corresponds to the image size provided when calling `traceRaysNV`.
+and 1. The `gl_LaunchIDEXT` contains the integer coordinates of the pixel being rendered, while `gl_LaunchSizeEXT`
+corresponds to the image size provided when calling `traceRayEXT`.
 
 ```` C
 void main()
 {
-    const vec2 pixelCenter = vec2(gl_LaunchIDNV.xy) + vec2(0.5);
-    const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeNV.xy);
+    const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
+    const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
     vec2 d = inUV * 2.0 - 1.0;
 ````
 
@@ -1388,12 +1388,12 @@ potential intersections along the ray. Those distances can be useful to reduce t
 before or after a given point do not matter. A typical use case is for computing ambient occlusion.
 
 ```` C
-  uint  rayFlags = gl_RayFlagsOpaqueNV;
+  uint  rayFlags = gl_RayFlagsOpaqueEXT;
   float tMin     = 0.001;
   float tMax     = 10000.0;
 ````
 
-We now trace the ray itself, by first providing `traceNV` with the top-level acceleration structure and the ray masks.
+We now trace the ray itself, by first providing `traceRayEXT` with the top-level acceleration structure and the ray masks.
 The `cullMask` value is a mask that will be binary AND-ed with the mask of the geometry instances. Since all instances
 have a `0xFF` flag as well, they will all be visible. The next 3 parameters indicate which hit group would be called
 when hitting a surface. For example, a single object may be associated to 2 hit groups representing the behavior when
@@ -1405,10 +1405,10 @@ groups for a single instance. This is particularly useful if the instance offset
 in the acceleration structure. A stride of 0 indicates that all hit groups are packed together, and the instance offset
 can be used directly to find them in the SBT. The index of the miss shader comes next, followed by the ray origin,
 direction and extents. The last parameter identifies the payload that will be carried by the ray, by giving its location
-index. The last `0` corresponds to the location of our payload, `layout(location = 0) rayPayloadNV hitPayload prd;`.
+index. The last `0` corresponds to the location of our payload, `layout(location = 0) rayPayloadEXT hitPayload prd;`.
 
 ```` C  
-  traceNV(topLevelAS,     // acceleration structure
+  traceRayEXT(topLevelAS,     // acceleration structure
           rayFlags,       // rayFlags
           0xFF,           // cullMask
           0,              // sbtRecordOffset
@@ -1425,7 +1425,7 @@ index. The last `0` corresponds to the location of our payload, `layout(location
 Finally, we write the resulting payload into the output buffer.
 
 ```` C
-    imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(prd.hitValue, 1.0));
+    imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(prd.hitValue, 1.0));
 }
 ````
 
@@ -1443,7 +1443,7 @@ fact that `clearColor` is the first member in the struct, and do not even declar
 #extension GL_GOOGLE_include_directive : enable
 #include "raycommon.glsl"
 
-layout(location = 0) rayPayloadInNV hitPayload prd;
+layout(location = 0) rayPayloadInEXT hitPayload prd;
 
 layout(push_constant) uniform Constants
 {
@@ -1486,7 +1486,7 @@ We first include the payload definition and the OBJ-Wavefront structures
 Then we describe the resources according to the descriptor set layout
 
 ```` C
-layout(location = 0) rayPayloadInNV hitPayload prd;
+layout(location = 0) rayPayloadInEXT hitPayload prd;
 
 layout(binding = 2, set = 1, scalar) buffer ScnDesc { sceneDesc i[]; } scnDesc;
 layout(binding = 5, set = 1, scalar) buffer Vertices { Vertex v[]; } vertices[];
@@ -1539,7 +1539,7 @@ The world-space position could be calculated in two ways, the first one being to
 shader. But this could have precision issues if the hit point is very far.
 
 ```` C
-  vec3 worldPos = gl_WorldRayOriginNV + gl_WorldRayDirectionNV * gl_HitTNV;
+  vec3 worldPos = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
 ````
 
 Another solution, more precise, consists in computing the position by interpolation, as for the normal
@@ -1636,7 +1636,7 @@ supports textures to modulate the surface albedo.
   }
   
   // Specular
-  vec3 specular = computeSpecular(mat, gl_WorldRayDirectionNV, L, normal);
+  vec3 specular = computeSpecular(mat, gl_WorldRayDirectionEXT, L, normal);
 ````
 
 The final lighting is then computed as
@@ -1764,7 +1764,7 @@ rays will be traced from the closest hit shader, we add `vkSS::eClosestHitKHR` t
 The closest hit shader now needs to be aware of the acceleration structure to be able to shoot rays:
 
 ```` C
-layout(binding = 0, set = 0) uniform accelerationStructureNV topLevelAS;
+layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 ````
 
 Those rays will also carry a payload, which will need to be defined at a different location from the payload of the
@@ -1772,12 +1772,12 @@ current ray. In this case, the payload will be a simple Boolean value indicating
 not:
 
 ```` C
-layout(location = 1) rayPayloadNV bool isShadowed;
+layout(location = 1) rayPayloadEXT bool isShadowed;
 ````
 
 In the `main` function, instead of simply setting our payload to `prd.hitValue = c;`, we will initiate a new ray. Note that
 the index of the miss shader is now 1, since the SBT has 2 miss shaders. The payload location is defined to match 
-the declaration `layout(location = 1)` above. Note, when invoking `traceNV()`  we are setting 
+the declaration `layout(location = 1)` above. Note, when invoking `traceRayEXT()`  we are setting 
 the flags with 
 
 * `gl_RayFlagsSkipClosestHitShaderKHR`: Will not invoke the hit shader, only the miss shader
@@ -1803,12 +1803,12 @@ the specular term will then look like this:
   {
     float tMin   = 0.001;
     float tMax   = lightDistance;
-    vec3  origin = gl_WorldRayOriginNV + gl_WorldRayDirectionNV * gl_HitTNV;
+    vec3  origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
     vec3  rayDir = L;
     uint  flags =
-        gl_RayFlagsTerminateOnFirstHitNV | gl_RayFlagsOpaqueNV | gl_RayFlagsSkipClosestHitShaderNV;
+        gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
     isShadowed = true;
-    traceNV(topLevelAS,  // acceleration structure
+    traceRayEXT(topLevelAS,  // acceleration structure
             flags,       // rayFlags
             0xFF,        // cullMask
             0,           // sbtRecordOffset
@@ -1828,7 +1828,7 @@ the specular term will then look like this:
     else
     {
       // Specular
-      specular = computeSpecular(mat, gl_WorldRayDirectionNV, L, normal);
+      specular = computeSpecular(mat, gl_WorldRayDirectionEXT, L, normal);
     }
   }
 ````

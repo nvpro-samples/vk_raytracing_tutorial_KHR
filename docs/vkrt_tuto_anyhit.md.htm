@@ -31,7 +31,7 @@ Create a new shader file `raytrace.rahit` and rerun CMake to have it added to th
 This shader starts like `raytrace.chit`, but uses less information.
 ~~~~ C++
 #version 460
-#extension GL_NV_ray_tracing : require
+#extension GL_EXT_ray_tracing : require
 #extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_EXT_scalar_block_layout : enable
 #extension GL_GOOGLE_include_directive : enable
@@ -41,7 +41,7 @@ This shader starts like `raytrace.chit`, but uses less information.
 #include "wavefront.glsl"
 
 // clang-format off
-layout(location = 0) rayPayloadInNV hitPayload prd;
+layout(location = 0) rayPayloadInEXT hitPayload prd;
 
 layout(binding = 2, set = 1, scalar) buffer ScnDesc { sceneDesc i[]; } scnDesc;
 layout(binding = 4, set = 1)  buffer MatIndexColorBuffer { int i[]; } matIndex[];
@@ -80,9 +80,9 @@ Now we will apply transparency:
 
 ~~~~ C++
   if (mat.dissolve == 0.0)
-      ignoreIntersectionNV();
+      ignoreIntersectionEXT();
   else if(rnd(prd.seed) > mat.dissolve)
-     ignoreIntersectionNV();
+     ignoreIntersectionEXT();
 }
 ~~~~
 
@@ -183,23 +183,23 @@ First, `seed` will need to be available in the any hit shader, which is the reas
 Change the local `seed` to `prd.seed` everywhere.
 
 ~~~~ C++
-prd.seed = tea(gl_LaunchIDNV.y * gl_LaunchSizeNV.x + gl_LaunchIDNV.x, pushC.frame);
+prd.seed = tea(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, pushC.frame);
 ~~~~
 
-For optimization, the `TraceNV` call was using the `gl_RayFlagsOpaqueNV` flag. But
+For optimization, the `TraceRayEXT` call was using the `gl_RayFlagsOpaqueEXT` flag. But
 this will skip the any hit shader, so change it to
 
 ~~~~ C++
-uint  rayFlags = gl_RayFlagsNoneNV;
+uint  rayFlags = gl_RayFlagsNoneEXT;
 ~~~~
 
 ## `raytrace.rchit`
 
-Similarly, in the closest hit shader, change the flag to `gl_RayFlagsSkipClosestHitShaderNV`, as we want to enable the any hit and miss shaders, but we still don't care
+Similarly, in the closest hit shader, change the flag to `gl_RayFlagsSkipClosestHitShaderEXT`, as we want to enable the any hit and miss shaders, but we still don't care
 about the closest hit shader for shadow rays. This will enable transparent shadows.
 
 ~~~~ C++
-uint  flags = gl_RayFlagsSkipClosestHitShaderNV;
+uint  flags = gl_RayFlagsSkipClosestHitShaderEXT;
 ~~~~
 
 # Scene and Model

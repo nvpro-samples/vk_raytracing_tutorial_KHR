@@ -62,7 +62,7 @@ All the information will need to be hold in buffers, which will be available to 
   nvvkBuffer          m_spheresMatIndexBuffer;  // Define which sphere uses which material
 ~~~~
 
-Finally, there are two functions, one to create the spheres, and one that will create the `VkGeometryNV` for the BLAS.
+Finally, there are two functions, one to create the spheres, and one that will create the intermediate structure for the BLAS.
 
 ~~~~ C++
   void                                createSpheres();
@@ -382,7 +382,7 @@ We first declare the extensions and include common files.
 
 ~~~~ C++
 #version 460
-#extension GL_NV_ray_tracing : require
+#extension GL_EXT_ray_tracing : require
 #extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_EXT_scalar_block_layout : enable
 #extension GL_GOOGLE_include_directive : enable
@@ -393,7 +393,7 @@ We first declare the extensions and include common files.
 Then we **must** add the following, otherwise the intersection shader will not report any hit.
 
 ~~~~ C++
-hitAttributeNV vec3 HitAttribute;
+hitAttributeEXT vec3 HitAttribute;
 ~~~~
 
 The following is the topology of all spheres, which we will be able to retrieve using `gl_PrimitiveID`.
@@ -464,8 +464,8 @@ Retrieving the ray is straight forward
 void main()
 {
   Ray ray;
-  ray.origin    = gl_WorldRayOriginNV;
-  ray.direction = gl_WorldRayDirectionNV;
+  ray.origin    = gl_WorldRayOriginEXT;
+  ray.direction = gl_WorldRayDirectionEXT;
 ~~~~
 
 And getting the information about the geometry enclosed in the Aabb can be done like this.
@@ -495,13 +495,13 @@ Now we just need to know if we will hit a sphere or a cube.
   }
   ~~~~
 
-Intersection information is reported using `reportIntersectionNV`, with a distance from the origin and a second argument (hitKind) that can be used to differentiate the primitive type.
+Intersection information is reported using `reportIntersectionEXT`, with a distance from the origin and a second argument (hitKind) that can be used to differentiate the primitive type.
 
 ~~~~ C++
 
   // Report hit point
   if(tHit > 0)
-    reportIntersectionNV(tHit, hitKind);
+    reportIntersectionEXT(tHit, hitKind);
 }
 ~~~~
 
@@ -513,10 +513,10 @@ The new closest hit can be found [here](shaders/raytrace2.rchit)
 
 This shader is almost identical to original `raytrace.rchit`, but since the primitive is implicit, we will only need to compute the normal for the primitive that was hit.
 
-We retrieve the world position from the ray and the `gl_HitTNV` which was set in the intersection shader.
+We retrieve the world position from the ray and the `gl_HitTEXT` which was set in the intersection shader.
 
 ~~~~ C++
-  vec3 worldPos = gl_WorldRayOriginNV + gl_WorldRayDirectionNV * gl_HitTNV;
+  vec3 worldPos = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
 ~~~~
 
 The sphere information is retrieved the same way as in the `raytrace.rint` shader.
@@ -532,13 +532,13 @@ Then we compute the normal, as for a sphere.
   vec3 normal = normalize(worldPos - instance.center);
 ~~~~
 
-To know if we have intersect a cube rather than a sphere, we are using  `gl_HitKindNV`, which was set in the second argument of `reportIntersectionNV`.
+To know if we have intersect a cube rather than a sphere, we are using  `gl_HitKindEXT`, which was set in the second argument of `reportIntersectionEXT`.
 
 So when this is a cube, we set the normal to the major axis.
 
 ~~~~ C++
   // Computing the normal for a cube if the hit intersection was reported as 1
-  if(gl_HitKindNV == KIND_CUBE)  // Aabb
+  if(gl_HitKindEXT == KIND_CUBE)  // Aabb
   {
     vec3  absN = abs(normal);
     float maxC = max(max(absN.x, absN.y), absN.z);

@@ -2,8 +2,8 @@
 
 # Environment Setup
 
-To get support for `VK_NV_ray_tracing`, please install an [NVIDIA driver](http://www.nvidia.com/Download/index.aspx?lang=en-us)
-with version 440.97 or later, and the [Vulkan SDK](http://vulkan.lunarg.com/sdk/home) version 1.1.126.0 or later.
+To get support for `VK_KHR_ray_tracing`, please install an [Vulkan NVIDIA driver](https://developer.nvidia.com/vulkan-driver)
+with version 442.81 or later, and the [Vulkan SDK](http://vulkan.lunarg.com/sdk/home) version 1.2.136.0 or later.
 
 This tutorial is a modification of [`ray_tracing__simple`](https://github.com/nvpro-samples/vk_raytracing_tutorial/tree/master/ray_tracing__simple), which is the result of the ray tracing tutorial. 
 All following instructions are based on the modification of this project.
@@ -33,8 +33,20 @@ The directory structure should be looking like:
 **********************************************************
 
 
+
 !!! Warning
     **Run CMake** in vk_raytracing_tutorial.
+
+## Beta Installation
+
+If you are in the Beta period 
+
+* Latest driver: https://developer.nvidia.com/vulkan-driver
+* Latest Vulkan headers: https://github.com/KhronosGroup/Vulkan-Headers
+* When running CMake, modify VULKAN > VULKAN_HEADERS_OVERRIDE_INCLUDE_DIR to the path to beta vulkan headers. 
+  Ex. under C:\Vulkan\Beta, copy the folder vulkan\ which contains all headers. 
+  VULKAN_HEADERS_OVERRIDE_INCLUDE_DIR should point to C:\Vulkan\Beta
+
 
 <!-- Markdeep: -->
 <link rel="stylesheet" href="vkrt_tutorial.css?">

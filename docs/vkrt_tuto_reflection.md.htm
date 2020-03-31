@@ -42,7 +42,7 @@ Ks 0.95 0.95 0.95
 
 # Recursive Reflections
 
-Vulkan ray tracing allows recursive calls to traceNV, up to a limit defined by `VkPhysicalDeviceRayTracingPropertiesKHR`.
+Vulkan ray tracing allows recursive calls to traceRayEXT, up to a limit defined by `VkPhysicalDeviceRayTracingPropertiesKHR`.
 
 In `createRtPipeline()` in `hello_vulkan.cpp`, bring the maximum recursion depth up to 10, making sure not to exceed the physical device's maximum recursion limit:
 
@@ -63,7 +63,7 @@ In the `hitPayload` struct in `raycommon.glsl`, add the following:
 
 ## `raytrace.rgen`
 
-In the ray generation shader, we will initialize all payload values before calling `traceNV`.
+In the ray generation shader, we will initialize all payload values before calling `traceRayEXT`.
 
 ~~~~ C++
   prd.depth       = 0;
@@ -80,12 +80,12 @@ At the end of the closest hit shader, before setting `prd.hitValue`, we need to 
   if(mat.illum == 3 && prd.depth < 10)
   {
     vec3 origin   = worldPos;
-    vec3 rayDir   = reflect(gl_WorldRayDirectionNV, normal);
+    vec3 rayDir   = reflect(gl_WorldRayDirectionEXT, normal);
     prd.attenuation *= mat.specular;
 
     prd.depth++;
-    traceNV(topLevelAS,         // acceleration structure
-            gl_RayFlagsNoneNV,  // rayFlags
+    traceRayEXT(topLevelAS,         // acceleration structure
+            gl_RayFlagsNoneEXT,  // rayFlags
             0xFF,               // cullMask
             0,                  // sbtRecordOffset
             0,                  // sbtRecordStride
@@ -143,7 +143,7 @@ Initialize the new members of the payload:
   prd.rayDir      = direction.xyz;
 ~~~~
 
-Instead of calling traceNV only once, we will call it in a loop until we are done.
+Instead of calling traceRayEXT only once, we will call it in a loop until we are done.
 
 Wrap the trace call in `raytrace.rgen` like this:
 
@@ -151,7 +151,7 @@ Wrap the trace call in `raytrace.rgen` like this:
   vec3 hitValue = vec3(0);
   for(;;)
   {
-    traceNV( /*.. */);
+    traceRayEXT( /*.. */);
 
     hitValue += prd.hitValue * prd.attenuation;
 
@@ -168,7 +168,7 @@ Wrap the trace call in `raytrace.rgen` like this:
 And make sure to write the correct value
 
 ~~~~ C++
-imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(hitValue, 1.0));
+imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(hitValue, 1.0));
 ~~~~
 
 ## `raytrace.rchit`
@@ -179,7 +179,7 @@ We no longer need to shoot rays from the closest hit shader, so we can replace t
   if(mat.illum == 3)
   {
     vec3 origin = worldPos;
-    vec3 rayDir = reflect(gl_WorldRayDirectionNV, normal);
+    vec3 rayDir = reflect(gl_WorldRayDirectionEXT, normal);
     prd.attenuation *= mat.specular;
     prd.done      = 0;
     prd.rayOrigin = origin;

@@ -20,10 +20,10 @@ It is similar to an indirect function call, whitout having to link those shaders
 
 Data can only access data passed in to the callable from parent stage. There will be only one structure pass at a time and should be declared like for payload.
 
-In the parent stage, using the `callableDataNV` storage qualifier, it could be declared like:
+In the parent stage, using the `callableDataEXT` storage qualifier, it could be declared like:
 
 ~~~~ C++
-layout(location = 0) callableDataNV rayLight cLight;
+layout(location = 0) callableDataEXT rayLight cLight;
 ~~~~
 
 where `rayLight` struct is defined in a shared file.
@@ -38,22 +38,22 @@ struct rayLight
 };
 ~~~~
 
-And in the incoming callable shader, you must use the `callableDataInNV` storage qualifier.
+And in the incoming callable shader, you must use the `callableDataInEXT` storage qualifier.
 
 ~~~~ C++
-layout(location = 0) callableDataInNV rayLight cLight;
+layout(location = 0) callableDataInEXT rayLight cLight;
 ~~~~
 
 # Execution
 
-To execute one of the callable shader, the parent stage need to call `executeCallableNV`.
+To execute one of the callable shader, the parent stage need to call `executeCallableEXT`.
 
 The first parameter is the SBT record index, the second one correspond to the 'location' index.
 
 Example of how it is called.
 
 ~~~~ C++
-executeCallableNV(pushC.lightType, 0);
+executeCallableEXT(pushC.lightType, 0);
 ~~~~
 
 
@@ -181,7 +181,7 @@ cLight.inHitPosition = worldPos;
     cLight.outLightDistance = 10000000;
   }
 #else
-  executeCallableNV(pushC.lightType, 0);
+  executeCallableEXT(pushC.lightType, 0);
 #endif
 ~~~~
 

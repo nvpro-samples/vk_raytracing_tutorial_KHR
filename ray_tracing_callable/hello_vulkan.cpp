@@ -804,13 +804,13 @@ void HelloVulkan::createRtPipeline()
       nvvkpp::util::createShaderModule(m_device,
                                        nvh::loadFile("shaders/light_inf.rcall.spv", true, paths));
 
-  stages.push_back({{}, vk::ShaderStageFlagBits::eCallableNV, call0, "main"});
+  stages.push_back({{}, vk::ShaderStageFlagBits::eCallableKHR, call0, "main"});
   callGroup.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(callGroup);
-  stages.push_back({{}, vk::ShaderStageFlagBits::eCallableNV, call1, "main"});
+  stages.push_back({{}, vk::ShaderStageFlagBits::eCallableKHR, call1, "main"});
   callGroup.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(callGroup);
-  stages.push_back({{}, vk::ShaderStageFlagBits::eCallableNV, call2, "main"});
+  stages.push_back({{}, vk::ShaderStageFlagBits::eCallableKHR, call2, "main"});
   callGroup.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(callGroup);
 
