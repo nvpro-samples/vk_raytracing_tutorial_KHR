@@ -1,0 +1,50 @@
+# NVIDIA Iray Viewer OBJ exporter
+
+#Error: Object scnCamera of type ELEMENT_TYPE_CAMERA cannot be exported
+
+mtllib cube_multi.mtl
+
+o  cube
+v  -0.5 -0.5 -0.5
+v  -0.5 -0.5 0.5
+v  -0.5 0.5 -0.5
+v  -0.5 0.5 0.5
+v  0.5 -0.5 -0.5
+v  0.5 -0.5 0.5
+v  0.5 0.5 -0.5
+v  0.5 0.5 0.5
+
+
+vn  -1 0 0
+vn  0 0 1
+vn  1 0 0
+vn  0 0 -1
+vn  0 -1 0
+vn  0 1 0
+
+
+vt  0 0 0
+vt  1 0 0
+vt  1 1 0
+vt  0 1 0
+
+
+f  1/1/1  2/2/1  4/3/1  
+f  1/1/1  4/3/1  3/4/1  
+usemtl yellow
+f  2/1/2  6/2/2  8/3/2  
+f  2/1/2  8/3/2  4/4/2  
+usemtl blue
+f  6/1/3  5/2/3  7/3/3  
+f  6/1/3  7/3/3  8/4/3  
+usemtl red
+f  5/1/4  1/2/4  3/3/4  
+f  5/1/4  3/3/4  7/4/4  
+usemtl green
+f  5/1/5  6/2/5  2/3/5  
+f  5/1/5  2/3/5  1/4/5  
+usemtl magenta
+f  3/1/6  4/2/6  8/3/6  
+f  3/1/6  8/3/6  7/4/6  
+
+

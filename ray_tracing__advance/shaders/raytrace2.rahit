@@ -1,0 +1,31 @@
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+
+#include "random.glsl"
+#include "raycommon.glsl"
+#include "wavefront.glsl"
+
+// clang-format off
+layout(location = 0) rayPayloadInEXT hitPayload prd;
+
+layout(binding = 1, set = 1, scalar) buffer MatColorBufferObject { WaveFrontMaterial m[]; } materials[];
+layout(binding = 7, set = 1, scalar) buffer allImplicits_ {Implicit i[];} allImplicits;
+// clang-format on
+
+void main()
+{
+  // Material of the object
+  Implicit          impl = allImplicits.i[gl_PrimitiveID];
+  WaveFrontMaterial mat  = materials[gl_InstanceCustomIndexEXT].m[impl.matId];
+
+  if(mat.illum != 4)
+    return;
+
+  if(mat.dissolve == 0.0)
+    ignoreIntersectionEXT();
+  else if(rnd(prd.seed) > mat.dissolve)
+    ignoreIntersectionEXT();
+}

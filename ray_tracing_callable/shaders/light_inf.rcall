@@ -1,0 +1,24 @@
+#version 460 core
+#extension GL_NV_ray_tracing : enable
+#extension GL_GOOGLE_include_directive : enable
+#include "raycommon.glsl"
+
+layout(location = 0) callableDataInNV rayLight cLight;
+
+layout(push_constant) uniform Constants
+{
+  vec4  clearColor;
+  vec3  lightPosition;
+  float lightIntensity;
+  vec3  lightDirection;
+  float lightSpotCutoff;
+  float lightSpotOuterCutoff;
+  int   lightType;
+};
+
+void main()
+{
+  cLight.outLightDistance = 10000000;
+  cLight.outIntensity     = 1.0;
+  cLight.outLightDir      = normalize(-lightDirection);
+}

@@ -1,0 +1,29 @@
+#version 460 core
+#extension GL_NV_ray_tracing : enable
+#extension GL_GOOGLE_include_directive : enable
+#include "raycommon.glsl"
+
+layout(location = 0) callableDataInNV rayLight cLight;
+
+layout(push_constant) uniform Constants
+{
+  vec4  clearColor;
+  vec3  lightPosition;
+  float lightIntensity;
+  vec3  lightDirection;
+  float lightSpotCutoff;
+  float lightSpotOuterCutoff;
+  int   lightType;
+};
+
+void main()
+{
+  vec3 lDir               = lightPosition - cLight.inHitPosition;
+  cLight.outLightDistance = length(lDir);
+  cLight.outIntensity     = lightIntensity / (cLight.outLightDistance * cLight.outLightDistance);
+  cLight.outLightDir      = normalize(lDir);
+  float theta             = dot(cLight.outLightDir, normalize(-lightDirection));
+  float epsilon           = lightSpotCutoff - lightSpotOuterCutoff;
+  float spotIntensity     = clamp((theta - lightSpotOuterCutoff) / epsilon, 0.0, 1.0);
+  cLight.outIntensity *= spotIntensity;
+}

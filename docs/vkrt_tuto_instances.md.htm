@@ -1,0 +1,308 @@
+﻿<meta charset="utf-8" lang="en">
+**NVIDIA Vulkan Ray Tracing Tutorial**
+**Instances**
+
+<small>Authors: [Martin-Karl Lefrançois](https://devblogs.nvidia.com/author/mlefrancois/), Neil Bickford </small>
+
+
+![](Images/VkInstances.png)
+
+This is an extension of the Vulkan ray tracing [tutorial](vkrt_tutorial.md.htm).
+
+Ray tracing can easily handle having many object instances at once. For instance, a top level acceleration structure can
+have many different instances of a bottom level acceleration structure. However, when we have many different objects, we
+can run into problems with memory allocation. Many Vulkan implementations support no more than 4096 allocations, while
+our current application creates 4 allocations per object (Vertex, Index, and Material), then one for the BLAS. That
+means we are hitting the limit with just above 1000 objects.
+
+(insert setup.md.html here)
+
+# Many Instances
+
+First, let's look how the scene would look like when we have just a few objects, with many instances.
+
+In `main.cpp`, add the following includes:
+
+~~~~ C++
+#include <random>
+~~~~
+
+Then replace the calls to `helloVk.loadModel` in `main()` by
+
+~~~~ C++
+  // Creation of the example
+  helloVk.loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths));
+  helloVk.loadModel(nvh::findFile("media/scenes/cube_multi.obj", defaultSearchPaths));
+  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths));
+
+  std::random_device              rd;  // Will be used to obtain a seed for the random number engine
+  std::mt19937                    gen(rd());  // Standard mersenne_twister_engine seeded with rd()
+  std::normal_distribution<float> dis(1.0f, 1.0f);
+  std::normal_distribution<float> disn(0.05f, 0.05f);
+
+  for(int n = 0; n < 2000; ++n)
+  {
+    HelloVulkan::ObjInstance inst;
+    inst.objIndex       = n % 2;
+    inst.txtOffset      = 0;
+    float         scale = fabsf(disn(gen));
+    nvmath::mat4f mat =
+        nvmath::translation_mat4(nvmath::vec3f{dis(gen), 2.0f + dis(gen), dis(gen)});
+    mat              = mat * nvmath::rotation_mat4_x(dis(gen));
+    mat              = mat * nvmath::scale_mat4(nvmath::vec3f(scale));
+    inst.transform   = mat;
+    inst.transformIT = nvmath::transpose(nvmath::invert((inst.transform)));
+    helloVk.m_objInstance.push_back(inst);
+  }
+~~~~
+
+!!! Note:
+    This will create 3 models (OBJ) and their instances, and then add 2000 instances 
+    distributed between green cubes and cubes with one color per face.
+
+# Many Objects
+
+Instead of creating many instances, create many objects.
+
+Remove the previous code and replace it with the following
+
+~~~~ C++
+  // Creation of the example
+  std::random_device              rd;  //Will be used to obtain a seed for the random number engine
+  std::mt19937                    gen(rd());  //Standard mersenne_twister_engine seeded with rd()
+  std::normal_distribution<float> dis(1.0f, 1.0f);
+  std::normal_distribution<float> disn(0.05f, 0.05f);
+  for(int n = 0; n < 2000; ++n)
+  {
+    helloVk.loadModel(nvh::findFile("media/scenes/cube_multi.obj", defaultSearchPaths));
+    HelloVulkan::ObjInstance& inst = helloVk.m_objInstance.back();
+
+    float         scale = fabsf(disn(gen));
+    nvmath::mat4f mat =
+        nvmath::translation_mat4(nvmath::vec3f{dis(gen), 2.0f + dis(gen), dis(gen)});
+    mat              = mat * nvmath::rotation_mat4_x(dis(gen));
+    mat              = mat * nvmath::scale_mat4(nvmath::vec3f(scale));
+    inst.transform   = mat;
+    inst.transformIT = nvmath::transpose(nvmath::invert((inst.transform)));
+  }
+
+  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths));
+~~~~
+
+The example might still work, but the console will print the following error after loading 1363 objects. All other objects allocated after the 1363rd will fail to be displayed.
+!!! Error
+    Error: VUID_Undefined
+    Number of currently valid memory objects is not less than the maximum allowed (4096).
+      - Object[0] -  Type Device
+
+!!! Note:
+    This is the best case; the application can run out of memory and crash if substantially more objects are created (e.g. 20,000)
+
+# Device Memory Allocator (DMA)
+
+It is possible to use a memory allocator to fix this issue.
+
+## `hello_vulkan.h`
+
+In `hello_vulkan.h`, add the following defines at the top of the file to indicate which allocator to use
+
+~~~~ C++
+// #VKRay
+//#define ALLOC_DEDICATED
+#define ALLOC_DMA
+~~~~
+
+
+Replace the definition of buffers and textures and include the right allocator.
+
+~~~~ C++
+#if defined(ALLOC_DEDICATED)
+#include "nvvkpp/allocator_dedicated_vkpp.hpp"
+using nvvkBuffer  = nvvkpp::BufferDedicated;
+using nvvkTexture = nvvkpp::TextureDedicated;
+#elif defined(ALLOC_DMA)
+#include "nvvkpp/allocator_dma_vkpp.hpp"
+using nvvkBuffer  = nvvkpp::BufferDma;
+using nvvkTexture = nvvkpp::TextureDma;
+#endif
+~~~~
+
+And do the same for the allocator
+
+~~~~ C++
+#if defined(ALLOC_DEDICATED)
+  nvvkpp::AllocatorDedicated m_alloc;  // Allocator for buffer, images, acceleration structures
+#elif defined(ALLOC_DMA)
+  nvvkpp::AllocatorDma        m_alloc;  // Allocator for buffer, images, acceleration structures
+  nvvk::DeviceMemoryAllocator m_dmaAllocator;
+#endif
+~~~~
+
+## `hello_vulkan.cpp`
+
+In the source file there are also a few changes to make.
+
+DMA needs to be initialized, which will be done in the `setup()` function:
+
+~~~~ C++
+#if defined(ALLOC_DEDICATED)
+  m_alloc.init(device, physicalDevice);
+#elif defined(ALLOC_DMA)
+  m_dmaAllocator.init(device, physicalDevice);
+  m_alloc.init(device, &m_dmaAllocator);
+#endif
+~~~~
+
+When using DMA, memory buffer mapping is done through the DMA interface (instead of the VKDevice). Therefore, change the lines at the end of `updateUniformBuffer()` to
+
+~~~~ C++
+#if defined(ALLOC_DEDICATED)
+  void* data = m_device.mapMemory(m_cameraMat.allocation, 0, sizeof(CameraMatrices));
+  memcpy(data, &ubo, sizeof(ubo));
+  m_device.unmapMemory(m_cameraMat.allocation);
+#elif defined(ALLOC_DMA)
+  void* data = m_dmaAllocator.map(m_cameraMat.allocation);
+  memcpy(data, &ubo, sizeof(ubo));
+  m_dmaAllocator.unmap(m_cameraMat.allocation);
+#endif
+~~~~
+
+The RaytracerBuilder was made to allow various allocators, but we still need to pass the right one in its setup function. Change the last line of `initRayTracing()` to
+
+~~~~ C++
+#if defined(ALLOC_DEDICATED)
+  m_rtBuilder.setup(m_device, m_physicalDevice, m_graphicsQueueIndex);
+#elif defined(ALLOC_DMA)
+  m_rtBuilder.setup(m_device, m_dmaAllocator, m_graphicsQueueIndex);
+#endif
+~~~~
+
+## Destruction
+
+The VMA allocator need to be released in `HelloVulkan::destroyResources()` after the last `m_alloc.destroy`.
+
+~~~~ C++
+#if defined(ALLOC_DMA)
+  m_dmaAllocator.deinit();
+#endif
+~~~~
+
+# Result
+
+Instead of thousands of allocations, our example will have only 14 allocations. Note that some of these allocations are allocated by Dear ImGui, and not by DMA. These are the 14 objects with blue borders below:
+
+![Memory](Images/VkInstanceNsight1.png)
+
+Finally, here is the Vulkan Device Memory view from Nsight Graphics:
+![VkMemory](Images/VkInstanceNsight2.png)
+
+
+
+# VMA: Vulkan Memory Allocator
+
+We can also modify the code to use the [Vulkan Memory Allocator](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator) from AMD.
+
+Download [vk_mem_alloc.h](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator/blob/master/src/vk_mem_alloc.h) from GitHub and add this to the `current` folder.
+
+There is already a variation of the allocator for VMA, which is located under [nvpro-samples](https://github.com/nvpro-samples/shared_sources/tree/master/nvvkpp). This allocator has the same simple interface as the `AllocatorDedicated` class in `allocator_dedicated_vkpp.hpp`, but will use VMA for memory management.
+
+VMA might use dedicated memory, which we do, so you need to add the following extension to the 
+creation of the context in `main.cpp`.
+
+~~~~ C++
+  contextInfo.addDeviceExtension(VK_KHR_BIND_MEMORY_2_EXTENSION_NAME);
+~~~~  
+
+## hello_vulkan.h
+
+Follow the changes done before and add the following
+
+~~~~ C++
+#define ALLOC_VMA
+~~~~ 
+
+~~~~ C++
+#elif defined(ALLOC_VMA)
+#include "nvvkpp/allocator_vma_vkpp.hpp"
+using nvvkBuffer  = nvvkpp::BufferVma;
+using nvvkTexture = nvvkpp::TextureVma;
+~~~~
+
+~~~~ C++ 
+#elif defined(ALLOC_VMA)
+  nvvkpp::AllocatorVma m_alloc;  // Allocator for buffer, images, acceleration structures
+  VmaAllocator         m_vmaAllocator;
+~~~~
+
+
+## hello_vulkan.cpp
+First, the following should only be defined once in the entire program, and it should be defined before `#include "hello_vulkan.h"`:
+
+~~~~ C++
+#define VMA_IMPLEMENTATION
+~~~~
+
+In `setup()`
+
+~~~~ C++
+#elif defined(ALLOC_VMA)
+  VmaAllocatorCreateInfo allocatorInfo = {};
+  allocatorInfo.physicalDevice         = physicalDevice;
+  allocatorInfo.device                 = device;
+  allocatorInfo.flags |=
+      VMA_ALLOCATOR_CREATE_KHR_DEDICATED_ALLOCATION_BIT | VMA_ALLOCATOR_CREATE_KHR_BIND_MEMORY2_BIT;
+  vmaCreateAllocator(&allocatorInfo, &m_vmaAllocator);
+  m_alloc.init(device, m_vmaAllocator);
+~~~~
+
+In `updateUniformBuffer()`
+
+~~~~ C++
+#elif defined(ALLOC_VMA)
+  void* data;
+  vmaMapMemory(m_vmaAllocator, m_cameraMat.allocation, &data);
+  memcpy(data, &ubo, sizeof(ubo));
+  vmaUnmapMemory(m_vmaAllocator, m_cameraMat.allocation);
+~~~~
+
+In `destroyResources()`
+
+~~~~ C++
+#elif defined(ALLOC_VMA)
+  vmaDestroyAllocator(m_vmaAllocator);
+~~~~
+
+In `initRayTracing()`
+
+~~~~ C++
+#elif defined(ALLOC_VMA)
+  m_rtBuilder.setup(m_device, m_vmaAllocator, m_graphicsQueueIndex);
+~~~~
+
+Additionally, VMA has its own usage flags, so since `VMA_MEMORY_USAGE_CPU_TO_GPU` maps to `vkMP::eHostVisible` and `vkMP::eHostCoherent`, change the call to `m_alloc.createBuffer` in `HelloVulkan::createUniformBuffer()` to
+
+~~~~ C++
+  m_cameraMat = m_alloc.createBuffer(sizeof(CameraMatrices), vkBU::eUniformBuffer,
+#if defined(ALLOC_DEDICATED) || defined(ALLOC_DMA)
+                                     vkMP::eHostVisible | vkMP::eHostCoherent
+#elif defined(ALLOC_VMA)
+                                     VMA_MEMORY_USAGE_CPU_TO_GPU
+#endif
+  );
+~~~~
+
+
+# Final Code
+
+You can find the final code in the folder [ray_tracing_instances](https://github.com/nvpro-samples/vk_raytracing_tutorial/tree/master/ray_tracing_instances)
+
+
+
+<!-- Markdeep: -->
+<link rel="stylesheet" href="vkrt_tutorial.css?">
+<script> window.markdeepOptions = { tocStyle: "medium" };</script>
+<script src="markdeep.min.js" charset="utf-8"></script>
+<script src="https://developer.nvidia.com/sites/default/files/akamai/gameworks/whitepapers/markdeep.min.js" charset="utf-8"></script>
+<script>
+    window.alreadyProcessedMarkdeep || (document.body.style.visibility = "visible")
+</script>

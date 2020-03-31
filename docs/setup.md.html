@@ -1,0 +1,45 @@
+﻿                        <meta charset="utf-8">
+
+# Environment Setup
+
+To get support for `VK_NV_ray_tracing`, please install an [NVIDIA driver](http://www.nvidia.com/Download/index.aspx?lang=en-us)
+with version 440.97 or later, and the [Vulkan SDK](http://vulkan.lunarg.com/sdk/home) version 1.1.126.0 or later.
+
+This tutorial is a modification of [`ray_tracing__simple`](https://github.com/nvpro-samples/vk_raytracing_tutorial/tree/master/ray_tracing__simple), which is the result of the ray tracing tutorial. 
+All following instructions are based on the modification of this project.
+
+Besides the current repository, you will also need to clone or download the following repositories:
+
+* [shared_sources](https://github.com/nvpro-samples/shared_sources): The primary framework that all samples depend on.
+* [shared_external](https://github.com/nvpro-samples/shared_external): Third party libraries that are provided pre-compiled, mostly for Windows x64 / MSVC.
+
+The directory structure should be looking like:
+
+**********************************************************
+*   \ 
+*   |
+*   +-- 📂 shared_external
+*   |
+*   +-- 📂 shared_sources
+*   |   
+*   +-- 📂 vk_raytracing_tutorial
+*   |   |
+*   |   +-- 📂 ray_tracing__simple (<-- Start here)
+*   |   |   
+*   |   +-- 📂 ray_tracing_...
+*   |   ⋮   
+*   |
+*   ⋮
+**********************************************************
+
+
+!!! Warning
+    **Run CMake** in vk_raytracing_tutorial.
+
+<!-- Markdeep: -->
+<link rel="stylesheet" href="vkrt_tutorial.css?">
+<script> window.markdeepOptions = { tocStyle: "medium" };</script>
+<script src="https://developer.nvidia.com/sites/default/files/akamai/gameworks/whitepapers/markdeep.min.js" charset="utf-8"></script>
+<script>
+    window.alreadyProcessedMarkdeep || (document.body.style.visibility = "visible")
+</script>

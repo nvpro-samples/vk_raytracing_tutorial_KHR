@@ -1,0 +1,87 @@
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+#include "raycommon.glsl"
+#include "wavefront.glsl"
+
+hitAttributeEXT vec3 HitAttribute;
+
+layout(binding = 7, set = 1, scalar) buffer allImpl_
+{
+  Implicit i[];
+}
+allImplicits;
+
+
+struct Ray
+{
+  vec3 origin;
+  vec3 direction;
+};
+
+// Ray-Sphere intersection
+// http://viclw17.github.io/2018/07/16/raytracing-ray-sphere-intersection/
+float hitSphere(const Sphere s, const Ray r)
+{
+  vec3  oc           = r.origin - s.center;
+  float a            = dot(r.direction, r.direction);
+  float b            = 2.0 * dot(oc, r.direction);
+  float c            = dot(oc, oc) - s.radius * s.radius;
+  float discriminant = b * b - 4 * a * c;
+  if(discriminant < 0)
+  {
+    return -1.0;
+  }
+  else
+  {
+    return (-b - sqrt(discriminant)) / (2.0 * a);
+  }
+}
+
+// Ray-AABB intersection
+float hitAabb(const Aabb aabb, const Ray r)
+{
+  vec3  invDir = 1.0 / r.direction;
+  vec3  tbot   = invDir * (aabb.minimum - r.origin);
+  vec3  ttop   = invDir * (aabb.maximum - r.origin);
+  vec3  tmin   = min(ttop, tbot);
+  vec3  tmax   = max(ttop, tbot);
+  float t0     = max(tmin.x, max(tmin.y, tmin.z));
+  float t1     = min(tmax.x, min(tmax.y, tmax.z));
+  return t1 > max(t0, 0.0) ? t0 : -1.0;
+}
+
+void main()
+{
+  Ray ray;
+  ray.origin    = gl_WorldRayOriginEXT;
+  ray.direction = gl_WorldRayDirectionEXT;
+
+  // Sphere data
+  Implicit impl = allImplicits.i[gl_PrimitiveID];
+
+  float tHit    = -1;
+  int   hitKind = impl.objType;
+  if(hitKind == KIND_SPHERE)
+  {
+    Sphere sphere;
+    sphere.center = (impl.maximum + impl.minimum) * 0.5;
+    sphere.radius = impl.maximum.y - sphere.center.y;
+    // Sphere intersection
+    tHit = hitSphere(sphere, ray);
+  }
+  else
+  {
+    // AABB intersection
+    Aabb aabb;
+    aabb.minimum = impl.minimum;
+    aabb.maximum = impl.maximum;
+    tHit         = hitAabb(aabb, ray);
+  }
+
+  // Report hit point
+  if(tHit > 0)
+    reportIntersectionEXT(tHit, hitKind);
+}

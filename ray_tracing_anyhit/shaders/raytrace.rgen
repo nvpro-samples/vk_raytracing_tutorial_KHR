@@ -1,0 +1,92 @@
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_GOOGLE_include_directive : enable
+#include "random.glsl"
+#include "raycommon.glsl"
+
+layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
+layout(binding = 1, set = 0, rgba32f) uniform image2D image;
+
+layout(location = 0) rayPayloadEXT hitPayload prd;
+
+layout(binding = 0, set = 1) uniform CameraProperties
+{
+  mat4 view;
+  mat4 proj;
+  mat4 viewInverse;
+  mat4 projInverse;
+}
+cam;
+
+layout(push_constant) uniform Constants
+{
+  vec4  clearColor;
+  vec3  lightPosition;
+  float lightIntensity;
+  int   lightType;
+  int   frame;
+}
+pushC;
+
+const int NBSAMPLES = 10;
+
+void main()
+{
+  // Initialize the random number
+  uint seed = tea(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, pushC.frame);
+
+  vec3 hitValues = vec3(0);
+
+  for(int smpl = 0; smpl < NBSAMPLES; smpl++)
+  {
+    float r1 = rnd(seed);
+    float r2 = rnd(seed);
+
+    // Subpixel jitter: send the ray through a different position inside the pixel
+    // each time, to provide antialiasing.
+    vec2 subpixel_jitter = pushC.frame == 0 ? vec2(0.5f, 0.5f) : vec2(r1, r2);
+
+    const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + subpixel_jitter;
+    const vec2 inUV        = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
+    vec2       d           = inUV * 2.0 - 1.0;
+
+    vec4 origin    = cam.viewInverse * vec4(0, 0, 0, 1);
+    vec4 target    = cam.projInverse * vec4(d.x, d.y, 1, 1);
+    vec4 direction = cam.viewInverse * vec4(normalize(target.xyz), 0);
+
+    uint  rayFlags = gl_RayFlagsNoneEXT;
+    float tMin     = 0.001;
+    float tMax     = 10000.0;
+
+    prd.seed = tea(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, pushC.frame);
+
+    traceRayEXT(topLevelAS,     // acceleration structure
+                rayFlags,       // rayFlags
+                0xFF,           // cullMask
+                0,              // sbtRecordOffset
+                0,              // sbtRecordStride
+                0,              // missIndex
+                origin.xyz,     // ray origin
+                tMin,           // ray min range
+                direction.xyz,  // ray direction
+                tMax,           // ray max range
+                0               // payload (location = 0)
+    );
+
+    hitValues += prd.hitValue;
+  }
+  prd.hitValue = hitValues / NBSAMPLES;
+
+  // Do accumulation over time
+  if(pushC.frame > 0)
+  {
+    float a         = 1.0f / float(pushC.frame + 1);
+    vec3  old_color = imageLoad(image, ivec2(gl_LaunchIDEXT.xy)).xyz;
+    imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(mix(old_color, prd.hitValue, a), 1.f));
+  }
+  else
+  {
+    // First frame, replace the value in the buffer
+    imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(prd.hitValue, 1.f));
+  }
+}

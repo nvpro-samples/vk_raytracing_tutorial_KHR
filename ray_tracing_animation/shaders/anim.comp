@@ -1,0 +1,45 @@
+#version 460
+#extension GL_ARB_separate_shader_objects : enable
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+#include "wavefront.glsl"
+
+layout(binding = 0, scalar) buffer Vertices
+{
+  Vertex v[];
+}
+vertices;
+
+layout(push_constant) uniform shaderInformation
+{
+  float iTime;
+}
+pushc;
+
+void main()
+{
+  Vertex v0 = vertices.v[gl_GlobalInvocationID.x];
+
+  // Compute vertex position
+  const float PI       = 3.14159265;
+  const float signY    = (v0.pos.y >= 0 ? 1 : -1);
+  const float radius   = length(v0.pos.xz);
+  const float argument = pushc.iTime * 4 + radius * PI;
+  const float s        = sin(argument);
+  v0.pos.y             = signY * abs(s) * 0.5;
+
+  // Compute normal
+  if(radius == 0.0f)
+  {
+    v0.nrm = vec3(0.0f, signY, 0.0f);
+  }
+  else
+  {
+    const float c        = cos(argument);
+    const float xzFactor = -PI * s * c;
+    const float yFactor  = 2.0f * signY * radius * abs(s);
+    v0.nrm               = normalize(vec3(v0.pos.x * xzFactor, yFactor, v0.pos.z * xzFactor));
+  }
+
+  vertices.v[gl_GlobalInvocationID.x] = v0;
+}
