@@ -12,12 +12,12 @@ This is an extension of the Vulkan ray tracing [tutorial](vkrt_tutorial.md.htm).
 # Ray Query
 
 This extension is allowing to execute ray intersection queries in any shader stages. In this example, we will add 
-ray queries to the fragment shader to cast shadow rays.
+ray queries [(GLSL_EXT_ray_query)](https://github.com/KhronosGroup/GLSL/blob/master/extensions/ext/GLSL_EXT_ray_query.txt) to the fragment shader to cast shadow rays.
 
 In the contrary to all other examples, with this one, we are removing code. There are no need to have a SBT and a raytracing pipeline, the only thing that 
 will matter, is the creation of the acceleration structure.
 
-Starting from the end of the tutorial, [ray_tracing__simple](https://github.com/nvpro-samples/vk_raytracing_tutorial/tree/master/ray_tracing__simple) we will remove 
+Starting from the end of the tutorial, [ray_tracing__simple](https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/tree/master/ray_tracing__simple) we will remove 
 all functions that were dedicated to ray tracing and keep only the construction of the BLAS and TLAS.
 
 # Cleanup 
@@ -121,19 +121,9 @@ if(rayQueryGetIntersectionTypeEXT(rayQuery, true) != gl_RayQueryCommittedInterse
 ~~~~
 
 
-
-
-
-
-
-
-
-!!! Info Ray Query
-    Information about [Ray Query](https://github.com/KhronosGroup/GLSL/blob/master/extensions/ext/GLSL_EXT_ray_query.txt) extension.
-
 # Final Code 
 
-You can find the final code in the folder [ray_tracing_reflections](https://github.com/nvpro-samples/vk_raytracing_tutorial/tree/master/ray_tracing_reflections)
+You can find the final code in the folder [ray_tracing_rayquery](https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/tree/master/ray_tracing_rayquery)
 
 
 <!-- Markdeep: -->
