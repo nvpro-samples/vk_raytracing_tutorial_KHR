@@ -1601,6 +1601,7 @@ tracing descriptor set. Add the binding of the material buffer and the array of 
 ```` C
 layout(binding = 1, set = 1, scalar) buffer MatColorBufferObject { WaveFrontMaterial m[]; } materials[];
 layout(binding = 3, set = 1) uniform sampler2D textureSamplers[];
+layout(binding = 4, set = 1)  buffer MatIndexColorBuffer { int i[]; } matIndex[];
 ````
 
 The declaration of the material is the same as that used for the rasterizer and is defined in

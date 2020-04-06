@@ -202,7 +202,7 @@ Finally, here is the Vulkan Device Memory view from Nsight Graphics:
 
 We can also modify the code to use the [Vulkan Memory Allocator](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator) from AMD.
 
-Download [vk_mem_alloc.h](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator/blob/master/src/vk_mem_alloc.h) from GitHub and add this to the `current` folder.
+Download [vk_mem_alloc.h](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator/blob/master/src/vk_mem_alloc.h) from GitHub and add this to the `shared_sources` folder.
 
 There is already a variation of the allocator for VMA, which is located under [nvpro-samples](https://github.com/nvpro-samples/shared_sources/tree/master/nvvkpp). This allocator has the same simple interface as the `AllocatorDedicated` class in `allocator_dedicated_vkpp.hpp`, but will use VMA for memory management.
 
@@ -249,8 +249,7 @@ In `setup()`
   VmaAllocatorCreateInfo allocatorInfo = {};
   allocatorInfo.physicalDevice         = physicalDevice;
   allocatorInfo.device                 = device;
-  allocatorInfo.flags |=
-      VMA_ALLOCATOR_CREATE_KHR_DEDICATED_ALLOCATION_BIT | VMA_ALLOCATOR_CREATE_KHR_BIND_MEMORY2_BIT;
+  allocatorInfo.flags                  = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
   vmaCreateAllocator(&allocatorInfo, &m_vmaAllocator);
   m_alloc.init(device, m_vmaAllocator);
 ~~~~

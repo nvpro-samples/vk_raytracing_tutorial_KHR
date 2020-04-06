@@ -186,6 +186,10 @@ At the begining of `HelloVulkan::raytrace`, call
 
 The application will now antialias the image when ray tracing is enabled.
 
+Adding `resetFrame()` in `HelloVulkan::onResize()` will also take care of clearing the buffer while resizing the window.
+
+
+
 ## Resetting Frame on UI Change
 
 The frame number should also be reset when any parts of the scene change, such as the light direction or the background color. In `renderUI()` in `main.cpp`, check for UI changes and reset the frame number when they happen:
