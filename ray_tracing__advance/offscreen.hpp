@@ -51,7 +51,7 @@ public:
 
   const vk::RenderPass&  renderPass() { return m_renderPass; }
   const vk::Framebuffer& frameBuffer() { return m_framebuffer; }
-  const nvvk::Texture&     colorTexture() { return m_colorTexture; }
+  const nvvk::Texture&   colorTexture() { return m_colorTexture; }
 
 private:
   nvvk::DescriptorSetBindings m_dsetLayoutBinding;
@@ -64,12 +64,12 @@ private:
   vk::Framebuffer             m_framebuffer;
 
   nvvk::Texture m_colorTexture;
-  vk::Format  m_colorFormat{vk::Format::eR32G32B32A32Sfloat};
+  vk::Format    m_colorFormat{vk::Format::eR32G32B32A32Sfloat};
   nvvk::Texture m_depthTexture;
-  vk::Format  m_depthFormat{vk::Format::eD32Sfloat};
+  vk::Format    m_depthFormat{vk::Format::eD32Sfloat};
 
-  nvvk::Allocator*  m_alloc;  // Allocator for buffer, images, acceleration structures
-  vk::Device      m_device;
-  int             m_graphicsQueueIndex{0};
-  nvvk::DebugUtil m_debug;  // Utility to name objects
+  nvvk::Allocator* m_alloc{nullptr};  // Allocator for buffer, images, acceleration structures
+  vk::Device       m_device;
+  int              m_graphicsQueueIndex{0};
+  nvvk::DebugUtil  m_debug;  // Utility to name objects
 };

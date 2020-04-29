@@ -39,7 +39,7 @@ class Raytracer
 public:
   void setup(const vk::Device&         device,
              const vk::PhysicalDevice& physicalDevice,
-             nvvk::Allocator*            allocator,
+             nvvk::Allocator*          allocator,
              uint32_t                  queueFamily);
   void destroy();
 
@@ -58,7 +58,7 @@ public:
                 ObjPushConstants&        sceneConstants);
 
 private:
-  nvvk::Allocator*     m_alloc;  // Allocator for buffer, images, acceleration structures
+  nvvk::Allocator*   m_alloc{nullptr};  // Allocator for buffer, images, acceleration structures
   vk::PhysicalDevice m_physicalDevice;
   vk::Device         m_device;
   int                m_graphicsQueueIndex{0};
@@ -74,7 +74,7 @@ private:
   std::vector<vk::RayTracingShaderGroupCreateInfoKHR> m_rtShaderGroups;
   vk::PipelineLayout                                  m_rtPipelineLayout;
   vk::Pipeline                                        m_rtPipeline;
-  nvvk::Buffer                                          m_rtSBTBuffer;
+  nvvk::Buffer                                        m_rtSBTBuffer;
 
   struct RtPushConstants
   {
