@@ -65,30 +65,29 @@ In `HelloVulkan::createRtPipeline()`, immediately after adding the closest-hit s
 3 callable shaders, for each type of light. 
 
 ~~~~ C++
-// Callable shaders
-vk::RayTracingShaderGroupCreateInfoKHR callGroup{vk::RayTracingShaderGroupTypeKHR::eGeneral,
-                                                VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
-                                                VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
+  // Callable shaders
+  vk::RayTracingShaderGroupCreateInfoKHR callGroup{vk::RayTracingShaderGroupTypeKHR::eGeneral,
+                                                   VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
+                                                   VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
 
-vk::ShaderModule call0 =
-    nvvkpp::util::createShaderModule(m_device,
-                                     nvh::loadFile("shaders/light_point.rcall.spv", true, paths));
-vk::ShaderModule call1 =
-    nvvkpp::util::createShaderModule(m_device,
-                                     nvh::loadFile("shaders/light_spot.rcall.spv", true, paths));
-vk::ShaderModule call2 =
-    nvvkpp::util::createShaderModule(m_device,
-                                     nvh::loadFile("shaders/light_inf.rcall.spv", true, paths));
+  vk::ShaderModule call0 =
+      nvvk::createShaderModule(m_device,
+                               nvh::loadFile("shaders/light_point.rcall.spv", true, paths));
+  vk::ShaderModule call1 =
+      nvvk::createShaderModule(m_device,
+                               nvh::loadFile("shaders/light_spot.rcall.spv", true, paths));
+  vk::ShaderModule call2 =
+      nvvk::createShaderModule(m_device, nvh::loadFile("shaders/light_inf.rcall.spv", true, paths));
 
-stages.push_back({{}, vk::ShaderStageFlagBits::eCallableKHR, call0, "main"});
-callGroup.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
-m_rtShaderGroups.push_back(callGroup);
-stages.push_back({{}, vk::ShaderStageFlagBits::eCallableKHR, call1, "main"});
-callGroup.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
-m_rtShaderGroups.push_back(callGroup);
-stages.push_back({{}, vk::ShaderStageFlagBits::eCallableKHR, call2, "main"});
-callGroup.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
-m_rtShaderGroups.push_back(callGroup);
+  stages.push_back({{}, vk::ShaderStageFlagBits::eCallableKHR, call0, "main"});
+  callGroup.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
+  m_rtShaderGroups.push_back(callGroup);
+  stages.push_back({{}, vk::ShaderStageFlagBits::eCallableKHR, call1, "main"});
+  callGroup.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
+  m_rtShaderGroups.push_back(callGroup);
+  stages.push_back({{}, vk::ShaderStageFlagBits::eCallableKHR, call2, "main"});
+  callGroup.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
+  m_rtShaderGroups.push_back(callGroup);
 ~~~~
 
 And at the end of the function, delete the shaders.

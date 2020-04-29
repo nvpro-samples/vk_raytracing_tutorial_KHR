@@ -30,13 +30,13 @@ Remove most functions and members to keep only what is need to create the accele
 
 ~~~~ C++
 // #VKRay
-void                               initRayTracing();
-nvvkpp::RaytracingBuilderKHR::Blas objectToVkGeometryKHR(const ObjModel& model);
-void                               createBottomLevelAS();
-void                               createTopLevelAS();
+void                             initRayTracing();
+nvvk::RaytracingBuilderKHR::Blas objectToVkGeometryKHR(const ObjModel& model);
+void                             createBottomLevelAS();
+void                             createTopLevelAS();
 
 vk::PhysicalDeviceRayTracingPropertiesKHR m_rtProperties;
-nvvkpp::RaytracingBuilderKHR              m_rtBuilder;
+nvvk::RaytracingBuilderKHR                m_rtBuilder;
 ~~~~ 
 
 ## hello_vulkan (source)
@@ -61,10 +61,11 @@ m_descSetLayoutBind.emplace_back(  //
 In `HelloVulkan::updateDescriptorSet`, write the value to the descriptor set.
 
 ~~~~ C++
-vk::WriteDescriptorSetAccelerationStructureKHR descASInfo;
-descASInfo.setAccelerationStructureCount(1);
-descASInfo.setPAccelerationStructures(&m_rtBuilder.getAccelerationStructure());
-writes.emplace_back(nvvkpp::util::createWrite(m_descSet, m_descSetLayoutBind[7], &descASInfo));
+  vk::AccelerationStructureKHR                   tlas = m_rtBuilder.getAccelerationStructure();
+  vk::WriteDescriptorSetAccelerationStructureKHR descASInfo;
+  descASInfo.setAccelerationStructureCount(1);
+  descASInfo.setPAccelerationStructures(&tlas);
+  writes.emplace_back(m_descSetLayoutBind.makeWrite(m_descSet, 7, descASInfo));
 ~~~~ 
 
 

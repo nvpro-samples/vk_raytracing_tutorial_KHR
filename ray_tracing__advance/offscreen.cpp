@@ -28,10 +28,10 @@
 
 #include "offscreen.hpp"
 #include "nvh/fileoperations.hpp"
-#include "nvvkpp/commands_vkpp.hpp"
-#include "nvvkpp/descriptorsets_vkpp.hpp"
-#include "nvvkpp/pipeline_vkpp.hpp"
-#include "nvvkpp/renderpass_vkpp.hpp"
+#include "nvvk/commands_vk.hpp"
+#include "nvvk/descriptorsets_vk.hpp"
+#include "nvvk/pipeline_vk.hpp"
+#include "nvvk/renderpasses_vk.hpp"
 
 extern std::vector<std::string> defaultSearchPaths;
 
@@ -39,10 +39,10 @@ extern std::vector<std::string> defaultSearchPaths;
 // Post-processing
 //////////////////////////////////////////////////////////////////////////
 
-void Offscreen::setup(const vk::Device& device, nvvkMemAllocator& memAlloc, uint32_t queueFamily)
+void Offscreen::setup(const vk::Device& device, nvvk::Allocator* allocator, uint32_t queueFamily)
 {
-  m_device = device;
-  m_alloc.init(device, &memAlloc);
+  m_device             = device;
+  m_alloc              = allocator;
   m_graphicsQueueIndex = queueFamily;
   m_debug.setup(m_device);
 }
@@ -53,8 +53,8 @@ void Offscreen::destroy()
   m_device.destroy(m_pipelineLayout);
   m_device.destroy(m_descPool);
   m_device.destroy(m_dsetLayout);
-  m_alloc.destroy(m_colorTexture);
-  m_alloc.destroy(m_depthTexture);
+  m_alloc->destroy(m_colorTexture);
+  m_alloc->destroy(m_depthTexture);
   m_device.destroy(m_renderPass);
   m_device.destroy(m_framebuffer);
 }
@@ -64,52 +64,57 @@ void Offscreen::destroy()
 //
 void Offscreen::createFramebuffer(VkExtent2D& size)
 {
-  m_alloc.destroy(m_colorTexture);
-  m_alloc.destroy(m_depthTexture);
+  m_alloc->destroy(m_colorTexture);
+  m_alloc->destroy(m_depthTexture);
 
   // Creating the color image
-  auto colorCreateInfo = nvvkpp::image::create2DInfo(size, m_colorFormat,
-                                                     vk::ImageUsageFlagBits::eColorAttachment
-                                                         | vk::ImageUsageFlagBits::eSampled
-                                                         | vk::ImageUsageFlagBits::eStorage);
-  m_colorTexture       = m_alloc.createImage(colorCreateInfo);
+  {
+    auto colorCreateInfo = nvvk::makeImage2DCreateInfo(size, m_colorFormat,
+                                                       vk::ImageUsageFlagBits::eColorAttachment
+                                                           | vk::ImageUsageFlagBits::eSampled
+                                                           | vk::ImageUsageFlagBits::eStorage);
 
-  m_colorTexture.descriptor =
-      nvvkpp::image::create2DDescriptor(m_device, m_colorTexture.image, vk::SamplerCreateInfo{},
-                                        m_colorFormat, vk::ImageLayout::eGeneral);
+    nvvk::Image               image  = m_alloc->createImage(colorCreateInfo);
+    vk::ImageViewCreateInfo ivInfo = nvvk::makeImageViewCreateInfo(image.image, colorCreateInfo);
+    m_colorTexture                 = m_alloc->createTexture(image, ivInfo, vk::SamplerCreateInfo());
+    m_colorTexture.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+  }
+
 
   // Creating the depth buffer
-  auto depthCreateInfo =
-      nvvkpp::image::create2DInfo(size, m_depthFormat,
-                                  vk::ImageUsageFlagBits::eDepthStencilAttachment);
-  m_depthTexture = m_alloc.createImage(depthCreateInfo);
+  {
+    auto depthCreateInfo =
+        nvvk::makeImage2DCreateInfo(size, m_depthFormat,
+                                    vk::ImageUsageFlagBits::eDepthStencilAttachment);
+    nvvk::Image image = m_alloc->createImage(depthCreateInfo);
 
-  vk::ImageViewCreateInfo depthStencilView;
-  depthStencilView.setViewType(vk::ImageViewType::e2D);
-  depthStencilView.setFormat(m_depthFormat);
-  depthStencilView.setSubresourceRange({vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1});
-  depthStencilView.setImage(m_depthTexture.image);
-  m_depthTexture.descriptor.imageView = m_device.createImageView(depthStencilView);
+    vk::ImageViewCreateInfo depthStencilView;
+    depthStencilView.setViewType(vk::ImageViewType::e2D);
+    depthStencilView.setFormat(m_depthFormat);
+    depthStencilView.setSubresourceRange({vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1});
+    depthStencilView.setImage(image.image);
+
+    m_depthTexture = m_alloc->createTexture(image, depthStencilView);
+  }
 
   // Setting the image layout for both color and depth
   {
-    nvvkpp::SingleCommandBuffer genCmdBuf(m_device, m_graphicsQueueIndex);
-    auto                        cmdBuf = genCmdBuf.createCommandBuffer();
-    nvvkpp::image::setImageLayout(cmdBuf, m_colorTexture.image, vk::ImageLayout::eUndefined,
-                                  vk::ImageLayout::eGeneral);
-    nvvkpp::image::setImageLayout(cmdBuf, m_depthTexture.image, vk::ImageAspectFlagBits::eDepth,
-                                  vk::ImageLayout::eUndefined,
-                                  vk::ImageLayout::eDepthStencilAttachmentOptimal);
+    nvvk::CommandPool genCmdBuf(m_device, m_graphicsQueueIndex);
+    auto              cmdBuf = genCmdBuf.createCommandBuffer();
+    nvvk::cmdBarrierImageLayout(cmdBuf, m_colorTexture.image, vk::ImageLayout::eUndefined,
+                                vk::ImageLayout::eGeneral);
+    nvvk::cmdBarrierImageLayout(cmdBuf, m_depthTexture.image, vk::ImageLayout::eUndefined,
+                                vk::ImageLayout::eDepthStencilAttachmentOptimal,
+                                vk::ImageAspectFlagBits::eDepth);
 
-    genCmdBuf.flushCommandBuffer(cmdBuf);
+    genCmdBuf.submitAndWait(cmdBuf);
   }
 
   // Creating a renderpass for the offscreen
   if(!m_renderPass)
   {
-    m_renderPass =
-        nvvkpp::util::createRenderPass(m_device, {m_colorFormat}, m_depthFormat, 1, true, true,
-                                       vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral);
+    m_renderPass = nvvk::createRenderPass(m_device, {m_colorFormat}, m_depthFormat, 1, true, true,
+                                          vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral);
   }
 
   // Creating the frame buffer for offscreen
@@ -147,13 +152,13 @@ void Offscreen::createPipeline(vk::RenderPass& renderPass)
   // Pipeline: completely generic, no vertices
   std::vector<std::string> paths = defaultSearchPaths;
 
-  nvvkpp::GraphicsPipelineGenerator pipelineGenerator(m_device, m_pipelineLayout, renderPass);
+  nvvk::GraphicsPipelineGeneratorCombined pipelineGenerator(m_device, m_pipelineLayout, renderPass);
   pipelineGenerator.addShader(nvh::loadFile("shaders/passthrough.vert.spv", true, paths),
                               vk::ShaderStageFlagBits::eVertex);
   pipelineGenerator.addShader(nvh::loadFile("shaders/post.frag.spv", true, paths),
                               vk::ShaderStageFlagBits::eFragment);
   pipelineGenerator.rasterizationState.setCullMode(vk::CullModeFlagBits::eNone);
-  m_pipeline = pipelineGenerator.create();
+  m_pipeline = pipelineGenerator.createPipeline();
   m_debug.setObjectName(m_pipeline, "post");
 }
 
@@ -167,10 +172,10 @@ void Offscreen::createDescriptor()
   using vkDT = vk::DescriptorType;
   using vkSS = vk::ShaderStageFlagBits;
 
-  m_dsetLayoutBinding.emplace_back(vkDS(0, vkDT::eCombinedImageSampler, 1, vkSS::eFragment));
-  m_dsetLayout = nvvkpp::util::createDescriptorSetLayout(m_device, m_dsetLayoutBinding);
-  m_descPool   = nvvkpp::util::createDescriptorPool(m_device, m_dsetLayoutBinding);
-  m_dset       = nvvkpp::util::createDescriptorSet(m_device, m_descPool, m_dsetLayout);
+  m_dsetLayoutBinding.addBinding(vkDS(0, vkDT::eCombinedImageSampler, 1, vkSS::eFragment));
+  m_dsetLayout = m_dsetLayoutBinding.createLayout(m_device);
+  m_descPool   = m_dsetLayoutBinding.createPool(m_device);
+  m_dset       = nvvk::allocateDescriptorSet(m_device, m_descPool, m_dsetLayout);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -179,7 +184,7 @@ void Offscreen::createDescriptor()
 void Offscreen::updateDescriptorSet()
 {
   vk::WriteDescriptorSet writeDescriptorSets =
-      nvvkpp::util::createWrite(m_dset, m_dsetLayoutBinding[0], &m_colorTexture.descriptor);
+      m_dsetLayoutBinding.makeWrite(m_dset, 0, &m_colorTexture.descriptor);
   m_device.updateDescriptorSets(writeDescriptorSets, nullptr);
 }
 

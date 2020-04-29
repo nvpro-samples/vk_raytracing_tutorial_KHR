@@ -26,13 +26,11 @@
  */
 #pragma once
 
-#include "nvvkpp/allocator_dedicated_vkpp.hpp"
-#include "nvvkpp/appbase_vkpp.hpp"
-#include "nvvkpp/debug_util_vkpp.hpp"
-
-
-using nvvkBuffer  = nvvkpp::BufferDedicated;
-using nvvkTexture = nvvkpp::TextureDedicated;
+#define NVVK_ALLOC_DEDICATED
+#include "nvvk/allocator_vk.hpp"
+#include "nvvk/appbase_vkpp.hpp"
+#include "nvvk/debug_util_vk.hpp"
+#include "nvvk/descriptorsets_vk.hpp"
 
 //--------------------------------------------------------------------------------------------------
 // Simple rasterizer of OBJ objects
@@ -41,17 +39,21 @@ using nvvkTexture = nvvkpp::TextureDedicated;
 // - Rendering is done in an offscreen framebuffer
 // - The image of the framebuffer is displayed in post-process in a full-screen quad
 //
-class HelloVulkan : public nvvkpp::AppBase
+class HelloVulkan : public nvvk::AppBase
 {
 public:
-  void setup(const vk::Device& device, const vk::PhysicalDevice& physicalDevice, uint32_t queueFamily) override;
+  void setup(const vk::Instance&       instance,
+             const vk::Device&         device,
+             const vk::PhysicalDevice& physicalDevice,
+             uint32_t                  queueFamily) override;
   void createDescriptorSetLayout();
   void createGraphicsPipeline();
   void loadModel(const std::string& filename, nvmath::mat4f transform = nvmath::mat4f(1));
   void updateDescriptorSet();
   void createUniformBuffer();
   void createSceneDescriptionBuffer();
-  void createTextureImages(const vk::CommandBuffer& cmdBuf, const std::vector<std::string>& textures);
+  void createTextureImages(const vk::CommandBuffer&        cmdBuf,
+                           const std::vector<std::string>& textures);
   void updateUniformBuffer();
   void onResize(int /*w*/, int /*h*/) override;
   void destroyResources();
@@ -62,10 +64,10 @@ public:
   {
     uint32_t   nbIndices{0};
     uint32_t   nbVertices{0};
-    nvvkBuffer vertexBuffer;    // Device buffer of all 'Vertex'
-    nvvkBuffer indexBuffer;     // Device buffer of the indices forming triangles
-    nvvkBuffer matColorBuffer;  // Device buffer of array of 'Wavefront material'
-    nvvkBuffer matIndexBuffer;  // Device buffer of array of 'Wavefront material'
+    nvvk::Buffer vertexBuffer;    // Device buffer of all 'Vertex'
+    nvvk::Buffer indexBuffer;     // Device buffer of the indices forming triangles
+    nvvk::Buffer matColorBuffer;  // Device buffer of array of 'Wavefront material'
+    nvvk::Buffer matIndexBuffer;  // Device buffer of array of 'Wavefront material'
   };
 
   // Instance of the OBJ
@@ -92,20 +94,20 @@ public:
   std::vector<ObjInstance> m_objInstance;
 
   // Graphic pipeline
-  vk::PipelineLayout                          m_pipelineLayout;
-  vk::Pipeline                                m_graphicsPipeline;
-  std::vector<vk::DescriptorSetLayoutBinding> m_descSetLayoutBind;
-  vk::DescriptorPool                          m_descPool;
-  vk::DescriptorSetLayout                     m_descSetLayout;
-  vk::DescriptorSet                           m_descSet;
+  vk::PipelineLayout          m_pipelineLayout;
+  vk::Pipeline                m_graphicsPipeline;
+  nvvk::DescriptorSetBindings m_descSetLayoutBind;
+  vk::DescriptorPool          m_descPool;
+  vk::DescriptorSetLayout     m_descSetLayout;
+  vk::DescriptorSet           m_descSet;
 
-  nvvkBuffer               m_cameraMat;  // Device-Host of the camera matrices
-  nvvkBuffer               m_sceneDesc;  // Device buffer of the OBJ instances
-  std::vector<nvvkTexture> m_textures;   // vector of all textures of the scene
+  nvvk::Buffer               m_cameraMat;  // Device-Host of the camera matrices
+  nvvk::Buffer               m_sceneDesc;  // Device buffer of the OBJ instances
+  std::vector<nvvk::Texture> m_textures;   // vector of all textures of the scene
 
 
-  nvvkpp::AllocatorDedicated m_alloc;  // Allocator for buffer, images, acceleration structures
-  nvvkpp::DebugUtil          m_debug;  // Utility to name objects
+  nvvk::AllocatorDedicated m_alloc;  // Allocator for buffer, images, acceleration structures
+  nvvk::DebugUtil          m_debug;  // Utility to name objects
 
 
   // #Post
@@ -115,16 +117,16 @@ public:
   void updatePostDescriptorSet();
   void drawPost(vk::CommandBuffer cmdBuf);
 
-  std::vector<vk::DescriptorSetLayoutBinding> m_postDescSetLayoutBind;
-  vk::DescriptorPool                          m_postDescPool;
-  vk::DescriptorSetLayout                     m_postDescSetLayout;
-  vk::DescriptorSet                           m_postDescSet;
-  vk::Pipeline                                m_postPipeline;
-  vk::PipelineLayout                          m_postPipelineLayout;
-  vk::RenderPass                              m_offscreenRenderPass;
-  vk::Framebuffer                             m_offscreenFramebuffer;
-  nvvkTexture                                 m_offscreenColor;
-  vk::Format                                  m_offscreenColorFormat{vk::Format::eR32G32B32A32Sfloat};
-  nvvkTexture                                 m_offscreenDepth;
-  vk::Format                                  m_offscreenDepthFormat{vk::Format::eD32Sfloat};
+  nvvk::DescriptorSetBindings m_postDescSetLayoutBind;
+  vk::DescriptorPool          m_postDescPool;
+  vk::DescriptorSetLayout     m_postDescSetLayout;
+  vk::DescriptorSet           m_postDescSet;
+  vk::Pipeline                m_postPipeline;
+  vk::PipelineLayout          m_postPipelineLayout;
+  vk::RenderPass              m_offscreenRenderPass;
+  vk::Framebuffer             m_offscreenFramebuffer;
+  nvvk::Texture                 m_offscreenColor;
+  vk::Format                  m_offscreenColorFormat{vk::Format::eR32G32B32A32Sfloat};
+  nvvk::Texture                 m_offscreenDepth;
+  vk::Format                  m_offscreenDepthFormat{vk::Format::eD32Sfloat};
 };

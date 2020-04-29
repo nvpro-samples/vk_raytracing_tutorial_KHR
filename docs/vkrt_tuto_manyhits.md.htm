@@ -60,8 +60,8 @@ This new shader needs to be added to the raytracing pipeline. So, in `createRtPi
 
 ~~~~ C++
   vk::ShaderModule chit2SM =
-      nvvkpp::util::createShaderModule(m_device,  //
-                                       nvh::loadFile("shaders/raytrace2.rchit.spv", true, paths));
+      nvvk::createShaderModule(m_device,  //
+                               nvh::loadFile("shaders/raytrace2.rchit.spv", true, paths));
 ~~~~
 
 Then add a new hit group group immediately after adding the first hit group:

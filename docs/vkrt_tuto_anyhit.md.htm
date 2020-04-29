@@ -111,8 +111,8 @@ In `createRtPipeline()`, after loading `raytrace.rchit.spv`, load `raytrace.rahi
 
 ~~~~ C++
   vk::ShaderModule ahitSM =
-      nvvkpp::util::createShaderModule(m_device,  //
-                                       nvh::loadFile("shaders/raytrace.rahit.spv", true, paths));
+      nvvk::createShaderModule(m_device,  //
+                               nvh::loadFile("shaders/raytrace.rahit.spv", true, paths));
 ~~~~
 
 add the any hit shader to the hit group

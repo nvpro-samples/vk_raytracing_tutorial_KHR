@@ -6,10 +6,10 @@ struct ObjModel
 {
   uint32_t   nbIndices{0};
   uint32_t   nbVertices{0};
-  nvvkBuffer vertexBuffer;    // Device buffer of all 'Vertex'
-  nvvkBuffer indexBuffer;     // Device buffer of the indices forming triangles
-  nvvkBuffer matColorBuffer;  // Device buffer of array of 'Wavefront material'
-  nvvkBuffer matIndexBuffer;  // Device buffer of array of 'Wavefront material'
+  nvvk::Buffer vertexBuffer;    // Device buffer of all 'Vertex'
+  nvvk::Buffer indexBuffer;     // Device buffer of the indices forming triangles
+  nvvk::Buffer matColorBuffer;  // Device buffer of array of 'Wavefront material'
+  nvvk::Buffer matIndexBuffer;  // Device buffer of array of 'Wavefront material'
 };
 
 // Instance of the OBJ
@@ -54,8 +54,8 @@ struct ImplInst
 {
   std::vector<ObjImplicit> objImpl;     // All objects
   std::vector<MaterialObj> implMat;     // All materials used by implicit obj
-  nvvkBuffer               implBuf;     // Buffer of objects
-  nvvkBuffer               implMatBuf;  // Buffer of material
+  nvvk::Buffer               implBuf;     // Buffer of objects
+  nvvk::Buffer               implMatBuf;  // Buffer of material
   int                      blasId;
   nvmath::mat4f            transform{1};
 };

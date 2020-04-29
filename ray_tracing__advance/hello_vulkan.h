@@ -28,12 +28,12 @@
 
 #include "vkalloc.hpp"
 
-#include "nvvkpp/allocator_dedicated_vkpp.hpp"
-#include "nvvkpp/appbase_vkpp.hpp"
-#include "nvvkpp/debug_util_vkpp.hpp"
+#include "nvvk/allocator_dedicated_vk.hpp"
+#include "nvvk/appbase_vkpp.hpp"
+#include "nvvk/debug_util_vk.hpp"
 
 // #VKRay
-#include "nvvkpp/raytraceKHR_vkpp.hpp"
+#include "nvvk/raytraceKHR_vk.hpp"
 #include "offscreen.hpp"
 
 #include "obj.hpp"
@@ -46,10 +46,11 @@
 // - Rendering is done in an offscreen framebuffer
 // - The image of the framebuffer is displayed in post-process in a full-screen quad
 //
-class HelloVulkan : public nvvkpp::AppBase
+class HelloVulkan : public nvvk::AppBase
 {
 public:
-  void setup(const vk::Device&         device,
+  void setup(const vk::Instance&       instance,
+             const vk::Device&         device,
              const vk::PhysicalDevice& physicalDevice,
              uint32_t                  queueFamily) override;
   void createDescriptorSetLayout();
@@ -76,26 +77,25 @@ public:
 
 
   // Graphic pipeline
-  vk::PipelineLayout                          m_pipelineLayout;
-  vk::Pipeline                                m_graphicsPipeline;
-  std::vector<vk::DescriptorSetLayoutBinding> m_descSetLayoutBind;
-  vk::DescriptorPool                          m_descPool;
-  vk::DescriptorSetLayout                     m_descSetLayout;
-  vk::DescriptorSet                           m_descSet;
+  vk::PipelineLayout          m_pipelineLayout;
+  vk::Pipeline                m_graphicsPipeline;
+  nvvk::DescriptorSetBindings m_descSetLayoutBind;
+  vk::DescriptorPool          m_descPool;
+  vk::DescriptorSetLayout     m_descSetLayout;
+  vk::DescriptorSet           m_descSet;
 
   int  m_maxFrames{10};
   void resetFrame();
   void updateFrame();
 
-  nvvkBuffer               m_cameraMat;  // Device-Host of the camera matrices
-  nvvkBuffer               m_sceneDesc;  // Device buffer of the OBJ instances
-  std::vector<nvvkTexture> m_textures;   // vector of all textures of the scene
+  nvvk::Buffer               m_cameraMat;  // Device-Host of the camera matrices
+  nvvk::Buffer               m_sceneDesc;  // Device buffer of the OBJ instances
+  std::vector<nvvk::Texture> m_textures;   // vector of all textures of the scene
 
-  nvvkpp::DebugUtil m_debug;  // Utility to name objects
+  nvvk::DebugUtil m_debug;  // Utility to name objects
 
-  nvvkAllocator    m_alloc;  // Allocator for buffer, images, acceleration structures
-  nvvkMemAllocator m_memAllocator;
-
+  nvvk::Allocator    m_alloc;  // Allocator for buffer, images, acceleration structures
+  nvvk::MemAllocator m_memAllocator;
 
   // #Post
   Offscreen m_offscreen;
