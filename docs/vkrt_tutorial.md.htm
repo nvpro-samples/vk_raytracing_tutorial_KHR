@@ -101,19 +101,25 @@ Go to the `main` function of the `main.cpp` file, and find where we request Vulk
 `nvvk::ContextCreateInfo`.
 To request ray tracing capabilities, we need to explicitly
 add the
-[VK_KHR_ray_tracing](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VK_KHR_ray_tracing)
-extension as well as its dependency
-[VK_KHR_maintenance3](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VK_KHR_maintenance3.html):
+[VK_KHR_ray_tracing](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VK_KHR_ray_tracing.html)
+extension as well as its various dependencies.
 
 ```` C
 // #VKRay: Activate the ray tracing extension
 vk::PhysicalDeviceRayTracingFeaturesKHR raytracingFeature;
 contextInfo.addDeviceExtension(VK_KHR_RAY_TRACING_EXTENSION_NAME, false, &raytracingFeature);
+contextInfo.addDeviceExtension(VK_KHR_MAINTENANCE3_EXTENSION_NAME);
 contextInfo.addDeviceExtension(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
 contextInfo.addDeviceExtension(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
 contextInfo.addDeviceExtension(VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
 
 ````
+
+Before creating the device, a linked structure of features must past. Not all extensions requires a set of features, but 
+ray tracing features must be enabled before the creation of the device. By providing
+`raytracingFeature`, the context creation will query the capable features for ray tracing and will use the 
+filled structure to create the device. 
+
 
 In the `HelloVulkan` class in `hello_vulkan.h`, add an initialization function and a member storing the capabilities of
 the GPU for ray tracing:
@@ -356,6 +362,14 @@ m_debug.setObjectName(blas.as.accel, (std::string("Blas" + std::to_string(idx)).
 
 The acceleration structure builder requires some scratch memory to generate the BLAS. Since we generate all the
 BLAS's in a batch, we query the scratch memory requirements for each BLAS, and find the maximum such requirement.
+The amount of memory for the scratch is determined by filling the memory requirement structure, and setting 
+the previous created acceleration structure. At the time to write those lines, only the device can be use 
+for building the acceleration structure. The same scratch buffer is used by each BLAS, which is the reason to 
+allocate the largest size, to avoid any realocation. At the end of building all BLAS, we can dispose the scratch 
+buffer.
+
+We are querying the size the acceleration structure is taking on the device as well. This has no real use except 
+for statistics and to compare it to the compact size which can happen in a second step.
 
 ```` C
 // Estimate the amount of scratch memory required to build the BLAS, and
@@ -395,7 +409,11 @@ bufferInfo.buffer              = scratchBuffer.buffer;
 VkDeviceAddress scratchAddress = vkGetBufferDeviceAddress(m_device, &bufferInfo);
 ````
 
-To know the size that the BLAS is really taking, we use queries.
+To know the size that the BLAS is really taking, we use queries and setting the type to `VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR`. 
+This is needed if we want to compact the acceleration structure in a second step. By default, the 
+memory allocated by the creation of the acceleration structure has the size of the worst case. After creation,
+the real space can be smaller, and it is possible to copy the acceleration structure to one that is 
+using exactly what is needed. This could save over 50% of the device memory usage.
 
 ```` C
 // Query size of compact BLAS
@@ -406,9 +424,15 @@ VkQueryPool queryPool;
 vkCreateQueryPool(m_device, &qpci, nullptr, &queryPool);
 ```` 
 
-We then use a one-time command buffer to launch all the BLAS builds. Note the barrier after each
+We then use multiple command buffers to launch all the BLAS builds. We are using multiple
+command buffers instead of one, to allow the driver to allow system interuption and avoid a 
+TDR if the job was to heavy.
+
+Note the barrier after each
 build call: this is required as we reuse the scratch space across builds, and hence need to ensure
-the previous build has completed before starting the next.
+the previous build has completed before starting the next. We could have used multiple scratch buffers,
+but it would have been expensive memory wise, and the device can only build one BLAS at a time, so we 
+wouldn't be faster.
 
 ```` C
 // Query size of compact BLAS
@@ -421,10 +445,14 @@ vkCreateQueryPool(m_device, &qpci, nullptr, &queryPool);
 
 // Create a command buffer containing all the BLAS builds
 nvvk::CommandPool genCmdBuf(m_device, m_queueIndex);
-VkCommandBuffer   cmdBuf = genCmdBuf.createCommandBuffer();
 int               ctr{0};
+std::vector<VkCommandBuffer> allCmdBufs;
+allCmdBufs.reserve(m_blas.size());
 for(auto& blas : m_blas)
 {
+  VkCommandBuffer cmdBuf = genCmdBuf.createCommandBuffer();
+  allCmdBufs.push_back(cmdBuf);
+
   const VkAccelerationStructureGeometryKHR* pGeometry = blas.asGeometry.data();
   VkAccelerationStructureBuildGeometryInfoKHR bottomASInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR};
   bottomASInfo.type                      = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
@@ -460,16 +488,16 @@ for(auto& blas : m_blas)
                                                   VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR, queryPool, ctr++);
   }
 }
-genCmdBuf.submitAndWait(cmdBuf);
+genCmdBuf.submitAndWait(allCmdBufs);
+allCmdBufs.clear();
 ````
 
 While this approach has the advantage of keeping all BLAS's independent, building many BLAS's efficiently would
-require allocating a larger scratch buffer, and launch several builds simultaneously. This tutorial also
-does not use compaction, which could reduce significantly the memory footprint of the acceleration structures. Both
+require allocating a larger scratch buffer, and launch several builds simultaneously. This current tutorial 
+does not make use of compaction, which could reduce significantly the memory footprint of the acceleration structures. Both
 of those aspects will be part of a future advanced tutorial.
-We finally execute the command buffer and clean up the allocator's scratch memory and staging buffer:
 
-This part, which is optional, will compact the BLAS in the memory that it is really using. It needs to wait that all BLASes
+The following is when compation flag is enabled. This part, which is optional, will compact the BLAS in the memory that it is really using. It needs to wait that all BLASes
 are constructred, to make a copy in the more fitted memory space.
 
 ```` C
@@ -490,7 +518,7 @@ if(doCompaction)
   uint32_t               totOriginalSize{0}, totCompactSize{0};
   for(int i = 0; i < m_blas.size(); i++)
   {
-    LOGI("Reducing %i, from %d to %d \n", i, originalSizes[i], compactSizes[i]);
+    // LOGI("Reducing %i, from %d to %d \n", i, originalSizes[i], compactSizes[i]);
     totOriginalSize += (uint32_t)originalSizes[i];
     totCompactSize += (uint32_t)compactSizes[i];
 
@@ -1646,13 +1674,13 @@ void main()
   uint objId = scnDesc.i[gl_InstanceID].objId;
 
   // Indices of the triangle
-  ivec3 ind = ivec3(indices[objId].i[3 * gl_PrimitiveID + 0],   //
-                    indices[objId].i[3 * gl_PrimitiveID + 1],   //
-                    indices[objId].i[3 * gl_PrimitiveID + 2]);  //
+  ivec3 ind = ivec3(indices[nonuniformEXT(objId)].i[3 * gl_PrimitiveID + 0],   //
+                    indices[nonuniformEXT(objId)].i[3 * gl_PrimitiveID + 1],   //
+                    indices[nonuniformEXT(objId)].i[3 * gl_PrimitiveID + 2]);  //
   // Vertex of the triangle
-  Vertex v0 = vertices[objId].v[ind.x];
-  Vertex v1 = vertices[objId].v[ind.y];
-  Vertex v2 = vertices[objId].v[ind.z];
+  Vertex v0 = vertices[nonuniformEXT(objId)].v[ind.x];
+  Vertex v1 = vertices[nonuniformEXT(objId)].v[ind.y];
+  Vertex v2 = vertices[nonuniformEXT(objId)].v[ind.z];
 ````
 
 Using the hit point's barycentric coordinates, we can interpolate the normal:
@@ -1745,8 +1773,8 @@ and fetch the material definition instead:
 
 ```` C
   // Material of the object
-  int               matIdx = matIndex[objId].i[gl_PrimitiveID];
-  WaveFrontMaterial mat    = materials[objId].m[matIdx];
+  int               matIdx = matIndex[nonuniformEXT(objId)].i[gl_PrimitiveID];
+  WaveFrontMaterial mat    = materials[nonuniformEXT(objId)].m[matIdx];
 ````
 
 !!! Note Note
@@ -1764,7 +1792,7 @@ supports textures to modulate the surface albedo.
     uint txtId = mat.textureId + scnDesc.i[gl_InstanceID].txtOffset;
     vec2 texCoord =
         v0.texCoord * barycentrics.x + v1.texCoord * barycentrics.y + v2.texCoord * barycentrics.z;
-    diffuse *= texture(textureSamplers[txtId], texCoord).xyz;
+    diffuse *= texture(textureSamplers[nonuniformEXT(txtId)], texCoord).xyz;
   }
   
   // Specular

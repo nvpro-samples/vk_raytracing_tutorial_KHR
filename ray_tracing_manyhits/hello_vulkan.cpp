@@ -44,6 +44,10 @@ extern std::vector<std::string> defaultSearchPaths;
 #include "nvvk/renderpasses_vk.hpp"
 #include "nvvk/shaders_vk.hpp"
 
+#ifndef ROUND_UP
+#define ROUND_UP(v, powerOf2Alignment) (((v) + (powerOf2Alignment)-1) & ~((powerOf2Alignment)-1))
+#endif
+
 
 // Holding the camera matrices
 struct CameraMatrices
@@ -471,7 +475,7 @@ void HelloVulkan::createOffscreenRender()
                                                            | vk::ImageUsageFlagBits::eStorage);
 
 
-    nvvk::Image    image  = m_alloc.createImage(colorCreateInfo);
+    nvvk::Image             image  = m_alloc.createImage(colorCreateInfo);
     vk::ImageViewCreateInfo ivInfo = nvvk::makeImageViewCreateInfo(image.image, colorCreateInfo);
     m_offscreenColor               = m_alloc.createTexture(image, ivInfo, vk::SamplerCreateInfo());
     m_offscreenColor.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -850,9 +854,10 @@ void HelloVulkan::createRtShaderBindingTable()
   auto groupCount =
       static_cast<uint32_t>(m_rtShaderGroups.size());               // 3 shaders: raygen, miss, chit
   uint32_t groupHandleSize = m_rtProperties.shaderGroupHandleSize;  // Size of a program identifier
+  uint32_t groupAlignSize  = m_rtProperties.shaderGroupBaseAlignment;
 
   // Fetch all the shader handles used in the pipeline, so that they can be written in the SBT
-  uint32_t sbtSize = groupCount * groupHandleSize;
+  uint32_t sbtSize = groupCount * groupAlignSize;
 
   std::vector<uint8_t> shaderHandleStorage(sbtSize);
   m_device.getRayTracingShaderGroupHandlesKHR(m_rtPipeline, 0, groupCount, sbtSize,
@@ -866,9 +871,10 @@ void HelloVulkan::createRtShaderBindingTable()
   }
 
   // Sizes
-  uint32_t rayGenSize = groupHandleSize;
-  uint32_t missSize   = groupHandleSize;
-  uint32_t hitSize    = groupHandleSize + sizeof(HitRecordBuffer);
+  uint32_t rayGenSize = groupAlignSize;
+  uint32_t missSize   = groupAlignSize;
+  uint32_t hitSize =
+      ROUND_UP(groupHandleSize + static_cast<int>(sizeof(HitRecordBuffer)), groupAlignSize);
   uint32_t newSbtSize = rayGenSize + 2 * missSize + 3 * hitSize;
 
   std::vector<uint8_t> sbtBuffer(newSbtSize);
@@ -882,19 +888,22 @@ void HelloVulkan::createRtShaderBindingTable()
     memcpy(pBuffer, handles[2], groupHandleSize);  // Miss 1
     pBuffer += missSize;
 
-    memcpy(pBuffer, handles[3], groupHandleSize);  // Hit 0
-    pBuffer += groupHandleSize;
-    pBuffer += sizeof(HitRecordBuffer);  // No data
+    uint8_t* pHitBuffer = pBuffer;
+    memcpy(pHitBuffer, handles[3], groupHandleSize);  // Hit 0
+    // No data
+    pBuffer += hitSize;
 
-    memcpy(pBuffer, handles[4], groupHandleSize);  // Hit 1
-    pBuffer += groupHandleSize;
-    memcpy(pBuffer, &m_hitShaderRecord[0], sizeof(HitRecordBuffer));  // Hit 1 data
-    pBuffer += sizeof(HitRecordBuffer);
+    pHitBuffer = pBuffer;
+    memcpy(pHitBuffer, handles[4], groupHandleSize);  // Hit 1
+    pHitBuffer += groupHandleSize;
+    memcpy(pHitBuffer, &m_hitShaderRecord[0], sizeof(HitRecordBuffer));  // Hit 1 data
+    pBuffer += hitSize;
 
-    memcpy(pBuffer, handles[4], groupHandleSize);  // Hit 2
-    pBuffer += groupHandleSize;
-    memcpy(pBuffer, &m_hitShaderRecord[1], sizeof(HitRecordBuffer));  // Hit 2 data
-    pBuffer += sizeof(HitRecordBuffer);
+    pHitBuffer = pBuffer;
+    memcpy(pHitBuffer, handles[4], groupHandleSize);  // Hit 2
+    pHitBuffer += groupHandleSize;
+    memcpy(pHitBuffer, &m_hitShaderRecord[1], sizeof(HitRecordBuffer));  // Hit 2 data
+    pBuffer += hitSize;
   }
 
   // Write the handles in the SBT
@@ -932,13 +941,15 @@ void HelloVulkan::raytrace(const vk::CommandBuffer& cmdBuf, const nvmath::vec4f&
                                            | vk::ShaderStageFlagBits::eMissKHR,
                                        0, m_rtPushConstants);
 
-  vk::DeviceSize progSize = m_rtProperties.shaderGroupHandleSize;  // Size of a program identifier
-  vk::DeviceSize rayGenOffset   = 0u * progSize;  // Start at the beginning of m_sbtBuffer
-  vk::DeviceSize missOffset     = 1u * progSize;  // Jump over raygen
-  vk::DeviceSize hitGroupOffset = 3u * progSize;  // Jump over the previous shaders
-  vk::DeviceSize sbtSize        = progSize * (vk::DeviceSize)m_rtShaderGroups.size();
+  vk::DeviceSize progSize  = m_rtProperties.shaderGroupHandleSize;  // Size of a program identifier
+  vk::DeviceSize alignSize = m_rtProperties.shaderGroupBaseAlignment;
 
-  vk::DeviceSize hitGroupStride = progSize + sizeof(HitRecordBuffer);
+  vk::DeviceSize rayGenOffset   = 0u * alignSize;  // Start at the beginning of m_sbtBuffer
+  vk::DeviceSize missOffset     = 1u * alignSize;  // Jump over raygen
+  vk::DeviceSize hitGroupOffset = 3u * alignSize;  // Jump over the previous shaders
+  vk::DeviceSize sbtSize        = alignSize * (vk::DeviceSize)m_rtShaderGroups.size();
+
+  vk::DeviceSize hitGroupStride = ROUND_UP(progSize + sizeof(HitRecordBuffer), alignSize);
 
   // m_sbtBuffer holds all the shader handles: raygen, n-miss, hit...
   const vk::StridedBufferRegionKHR raygenShaderBindingTable = {m_rtSBTBuffer.buffer, rayGenOffset,

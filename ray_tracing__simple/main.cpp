@@ -121,8 +121,6 @@ int main(int argc, char** argv)
       NVPSystem::exePath() + std::string(PROJECT_RELDIRECTORY) + std::string("../"),
   };
 
-  // Enabling the extension feature
-  vk::PhysicalDeviceRayTracingFeaturesKHR raytracingFeature;
 
   // Requesting Vulkan extensions and layers
   nvvk::ContextCreateInfo contextInfo(true);
@@ -140,6 +138,7 @@ int main(int argc, char** argv)
   contextInfo.addDeviceExtension(VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME);
   contextInfo.addDeviceExtension(VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME);
   // #VKRay: Activate the ray tracing extension
+  vk::PhysicalDeviceRayTracingFeaturesKHR raytracingFeature;
   contextInfo.addDeviceExtension(VK_KHR_RAY_TRACING_EXTENSION_NAME, false, &raytracingFeature);
   contextInfo.addDeviceExtension(VK_KHR_MAINTENANCE3_EXTENSION_NAME);
   contextInfo.addDeviceExtension(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);

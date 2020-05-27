@@ -43,8 +43,8 @@ void main()
   int objId = scnDesc.i[pushC.instanceId].objId;
 
   // Material of the object
-  int               matIndex = matIdx[objId].i[gl_PrimitiveID];
-  WaveFrontMaterial mat      = materials[objId].m[matIndex];
+  int               matIndex = matIdx[nonuniformEXT(objId)].i[gl_PrimitiveID];
+  WaveFrontMaterial mat      = materials[nonuniformEXT(objId)].m[matIndex];
 
   vec3 N = normalize(fragNormal);
 
@@ -73,7 +73,7 @@ void main()
   {
     int  txtOffset  = scnDesc.i[pushC.instanceId].txtOffset;
     uint txtId      = txtOffset + mat.textureId;
-    vec3 diffuseTxt = texture(textureSamplers[txtId], fragTexCoord).xyz;
+    vec3 diffuseTxt = texture(textureSamplers[nonuniformEXT(txtId)], fragTexCoord).xyz;
     diffuse *= diffuseTxt;
   }
 

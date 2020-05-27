@@ -72,8 +72,8 @@ void main()
   }
 
   // Material of the object
-  int               matIdx = matIndex[gl_InstanceID].i[gl_PrimitiveID];
-  WaveFrontMaterial mat    = materials[gl_InstanceID].m[matIdx];
+  int               matIdx = matIndex[nonuniformEXT(gl_InstanceID)].i[gl_PrimitiveID];
+  WaveFrontMaterial mat    = materials[nonuniformEXT(gl_InstanceID)].m[matIdx];
 
   // Diffuse
   vec3  diffuse     = computeDiffuse(mat, L, normal);

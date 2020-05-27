@@ -493,7 +493,7 @@ void HelloVulkan::createOffscreenRender()
                                                            | vk::ImageUsageFlagBits::eStorage);
 
 
-    nvvk::Image               image  = m_alloc.createImage(colorCreateInfo);
+    nvvk::Image             image  = m_alloc.createImage(colorCreateInfo);
     vk::ImageViewCreateInfo ivInfo = nvvk::makeImageViewCreateInfo(image.image, colorCreateInfo);
     m_offscreenColor               = m_alloc.createTexture(image, ivInfo, vk::SamplerCreateInfo());
     m_offscreenColor.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -864,23 +864,30 @@ void HelloVulkan::createRtShaderBindingTable()
   auto groupCount =
       static_cast<uint32_t>(m_rtShaderGroups.size());               // 3 shaders: raygen, miss, chit
   uint32_t groupHandleSize = m_rtProperties.shaderGroupHandleSize;  // Size of a program identifier
+  uint32_t baseAligment    = m_rtProperties.shaderGroupBaseAlignment;  // Size of shader alignment
 
   // Fetch all the shader handles used in the pipeline, so that they can be written in the SBT
-  uint32_t sbtSize = groupCount * groupHandleSize;
+  uint32_t sbtSize = groupCount * baseAligment;
 
   std::vector<uint8_t> shaderHandleStorage(sbtSize);
   m_device.getRayTracingShaderGroupHandlesKHR(m_rtPipeline, 0, groupCount, sbtSize,
                                               shaderHandleStorage.data());
   // Write the handles in the SBT
-  nvvk::CommandPool genCmdBuf(m_device, m_graphicsQueueIndex);
-  vk::CommandBuffer cmdBuf = genCmdBuf.createCommandBuffer();
+  m_rtSBTBuffer = m_alloc.createBuffer(sbtSize, vk::BufferUsageFlagBits::eTransferSrc,
+                                       vk::MemoryPropertyFlagBits::eHostVisible
+                                           | vk::MemoryPropertyFlagBits::eHostCoherent);
+  m_debug.setObjectName(m_rtSBTBuffer.buffer, std::string("SBT").c_str());
 
-  m_rtSBTBuffer =
-      m_alloc.createBuffer(cmdBuf, shaderHandleStorage, vk::BufferUsageFlagBits::eRayTracingKHR);
-  m_debug.setObjectName(m_rtSBTBuffer.buffer, "SBT");
+  // Write the handles in the SBT
+  void* mapped = m_alloc.map(m_rtSBTBuffer);
+  auto* pData  = reinterpret_cast<uint8_t*>(mapped);
+  for(uint32_t g = 0; g < groupCount; g++)
+  {
+    memcpy(pData, shaderHandleStorage.data() + g * groupHandleSize, groupHandleSize);  // raygen
+    pData += baseAligment;
+  }
+  m_alloc.unmap(m_rtSBTBuffer);
 
-
-  genCmdBuf.submitAndWait(cmdBuf);
 
   m_alloc.finalizeAndReleaseStaging();
 }
@@ -906,7 +913,8 @@ void HelloVulkan::raytrace(const vk::CommandBuffer& cmdBuf, const nvmath::vec4f&
                                            | vk::ShaderStageFlagBits::eMissKHR,
                                        0, m_rtPushConstants);
 
-  vk::DeviceSize progSize = m_rtProperties.shaderGroupHandleSize;  // Size of a program identifier
+  vk::DeviceSize progSize =
+      m_rtProperties.shaderGroupBaseAlignment;    // Size of a program identifier
   vk::DeviceSize rayGenOffset   = 0u * progSize;  // Start at the beginning of m_sbtBuffer
   vk::DeviceSize missOffset     = 1u * progSize;  // Jump over raygen
   vk::DeviceSize hitGroupOffset = 3u * progSize;  // Jump over the previous shaders

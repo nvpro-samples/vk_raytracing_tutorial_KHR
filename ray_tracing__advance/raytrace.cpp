@@ -38,7 +38,7 @@ extern std::vector<std::string> defaultSearchPaths;
 
 void Raytracer::setup(const vk::Device&         device,
                       const vk::PhysicalDevice& physicalDevice,
-                      nvvk::Allocator*            allocator,
+                      nvvk::Allocator*          allocator,
                       uint32_t                  queueFamily)
 {
   m_device             = device;
@@ -421,23 +421,29 @@ void Raytracer::createRtShaderBindingTable()
   auto groupCount =
       static_cast<uint32_t>(m_rtShaderGroups.size());               // 3 shaders: raygen, miss, chit
   uint32_t groupHandleSize = m_rtProperties.shaderGroupHandleSize;  // Size of a program identifier
+  uint32_t baseAligment    = m_rtProperties.shaderGroupBaseAlignment;  // Size of shader alignment
 
   // Fetch all the shader handles used in the pipeline, so that they can be written in the SBT
-  uint32_t sbtSize = groupCount * groupHandleSize;
+  uint32_t sbtSize = groupCount * baseAligment;
 
   std::vector<uint8_t> shaderHandleStorage(sbtSize);
   m_device.getRayTracingShaderGroupHandlesKHR(m_rtPipeline, 0, groupCount, sbtSize,
                                               shaderHandleStorage.data());
   // Write the handles in the SBT
-  nvvk::CommandPool genCmdBuf(m_device, m_graphicsQueueIndex);
-  vk::CommandBuffer cmdBuf = genCmdBuf.createCommandBuffer();
+  m_rtSBTBuffer = m_alloc->createBuffer(sbtSize, vk::BufferUsageFlagBits::eTransferSrc,
+                                        vk::MemoryPropertyFlagBits::eHostVisible
+                                            | vk::MemoryPropertyFlagBits::eHostCoherent);
+  m_debug.setObjectName(m_rtSBTBuffer.buffer, std::string("SBT").c_str());
 
-  m_rtSBTBuffer =
-      m_alloc->createBuffer(cmdBuf, shaderHandleStorage, vk::BufferUsageFlagBits::eRayTracingKHR);
-  m_debug.setObjectName(m_rtSBTBuffer.buffer, "SBT");
-
-
-  genCmdBuf.submitAndWait(cmdBuf);
+  // Write the handles in the SBT
+  void* mapped = m_alloc->map(m_rtSBTBuffer);
+  auto* pData  = reinterpret_cast<uint8_t*>(mapped);
+  for(uint32_t g = 0; g < groupCount; g++)
+  {
+    memcpy(pData, shaderHandleStorage.data() + g * groupHandleSize, groupHandleSize);  // raygen
+    pData += baseAligment;
+  }
+  m_alloc->unmap(m_rtSBTBuffer);
 
   m_alloc->finalizeAndReleaseStaging();
 }
@@ -472,7 +478,8 @@ void Raytracer::raytrace(const vk::CommandBuffer& cmdBuf,
                                             | vk::ShaderStageFlagBits::eCallableKHR,
                                         0, m_rtPushConstants);
 
-  vk::DeviceSize progSize = m_rtProperties.shaderGroupHandleSize;  // Size of a program identifier
+  vk::DeviceSize progSize =
+      m_rtProperties.shaderGroupBaseAlignment;         // Size of a program identifier
   vk::DeviceSize rayGenOffset        = 0u * progSize;  // Start at the beginning of m_sbtBuffer
   vk::DeviceSize missOffset          = 1u * progSize;  // Jump over raygen
   vk::DeviceSize hitGroupOffset      = 3u * progSize;  // Jump over the previous shaders

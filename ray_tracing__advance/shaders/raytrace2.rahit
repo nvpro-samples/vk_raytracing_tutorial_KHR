@@ -19,7 +19,7 @@ void main()
 {
   // Material of the object
   Implicit          impl = allImplicits.i[gl_PrimitiveID];
-  WaveFrontMaterial mat  = materials[gl_InstanceCustomIndexEXT].m[impl.matId];
+  WaveFrontMaterial mat  = materials[nonuniformEXT(gl_InstanceCustomIndexEXT)].m[impl.matId];
 
   if(mat.illum != 4)
     return;

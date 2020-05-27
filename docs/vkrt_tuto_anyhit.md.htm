@@ -64,13 +64,13 @@ void main()
   // Object of this instance
   uint objId = scnDesc.i[gl_InstanceID].objId;
   // Indices of the triangle
-  uint ind = indices[objId].i[3 * gl_PrimitiveID + 0];
+  uint ind = indices[nonuniformEXT(objId)].i[3 * gl_PrimitiveID + 0];
   // Vertex of the triangle
-  Vertex v0 = vertices[objId].v[ind.x];
+  Vertex v0 = vertices[nonuniformEXT(objId)].v[ind.x];
 
   // Material of the object
-  int               matIdx = matIndex[objId].i[gl_PrimitiveID];
-  WaveFrontMaterial mat    = materials[objId].m[matIdx];
+  int               matIdx = matIndex[nonuniformEXT(objId)].i[gl_PrimitiveID];
+  WaveFrontMaterial mat    = materials[nonuniformEXT(objId)].m[matIdx];
 
   if (mat.illum != 4)
     return;
