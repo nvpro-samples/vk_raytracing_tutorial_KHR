@@ -963,7 +963,6 @@ void HelloVulkan::animationInstances(float time)
   m_alloc.destroy(stagingBuffer);
 
   m_rtBuilder.updateTlasMatrices(m_tlas);
-  m_rtBuilder.updateBlas(2);
 }
 
 void HelloVulkan::animationObject(float time)
@@ -982,6 +981,7 @@ void HelloVulkan::animationObject(float time)
                        &time);
   cmdBuf.dispatch(model.nbVertices, 1, 1);
   genCmdBuf.submitAndWait(cmdBuf);
+  m_rtBuilder.updateBlas(2);
 }
 
 //////////////////////////////////////////////////////////////////////////
