@@ -720,25 +720,27 @@ nvvk::RaytracingBuilderKHR::Blas HelloVulkan::sphereToVkGeometryKHR()
 //--------------------------------------------------------------------------------------------------
 // Creating all spheres
 //
-void HelloVulkan::createSpheres()
+void HelloVulkan::createSpheres(uint32_t nbSpheres)
 {
   std::random_device                    rd{};
   std::mt19937                          gen{rd()};
   std::normal_distribution<float>       xzd{0.f, 5.f};
-  std::normal_distribution<float>       yd{3.f, 1.f};
+  std::normal_distribution<float>       yd{6.f, 3.f};
   std::uniform_real_distribution<float> radd{.05f, .2f};
 
   // All spheres
   Sphere s;
-  for(uint32_t i = 0; i < 2000000; i++)
+  m_spheres.resize(nbSpheres);
+  for(uint32_t i = 0; i < nbSpheres; i++)
   {
-    s.center = nvmath::vec3f(xzd(gen), yd(gen), xzd(gen));
-    s.radius = radd(gen);
-    m_spheres.emplace_back(s);
+    s.center     = nvmath::vec3f(xzd(gen), yd(gen), xzd(gen));
+    s.radius     = radd(gen);
+    m_spheres[i] = std::move(s);
   }
 
   // Axis aligned bounding box of each sphere
   std::vector<Aabb> aabbs;
+  aabbs.reserve(nbSpheres);
   for(const auto& s : m_spheres)
   {
     Aabb aabb;
@@ -751,7 +753,7 @@ void HelloVulkan::createSpheres()
   MaterialObj mat;
   mat.diffuse = vec3f(0, 1, 1);
   std::vector<MaterialObj> materials;
-  std::vector<int>         matIdx;
+  std::vector<int>         matIdx(nbSpheres);
   materials.emplace_back(mat);
   mat.diffuse = vec3f(1, 1, 0);
   materials.emplace_back(mat);
@@ -759,7 +761,7 @@ void HelloVulkan::createSpheres()
   // Assign a material to each sphere
   for(size_t i = 0; i < m_spheres.size(); i++)
   {
-    matIdx.push_back(i % 2);
+    matIdx[i] = i % 2;
   }
 
   // Creating all buffers

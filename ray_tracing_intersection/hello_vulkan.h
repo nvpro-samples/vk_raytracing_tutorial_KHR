@@ -85,9 +85,9 @@ public:
   // Information pushed at each draw call
   struct ObjPushConstant
   {
-    nvmath::vec3f lightPosition{10.f, 15.f, 8.f};
+    nvmath::vec3f lightPosition{10.f, 55.f, 8.f};
     int           instanceId{0};  // To retrieve the transformation matrix
-    float         lightIntensity{100.f};
+    float         lightIntensity{1000.f};
     int           lightType{0};  // 0: point, 1: infinite
   };
   ObjPushConstant m_pushConstant;
@@ -182,5 +182,5 @@ public:
   nvvk::Buffer        m_spheresAabbBuffer;      // Buffer of all Aabb
   nvvk::Buffer        m_spheresMatColorBuffer;  // Multiple materials
   nvvk::Buffer        m_spheresMatIndexBuffer;  // Define which sphere uses which material
-  void                createSpheres();
+  void                createSpheres(uint32_t nbSpheres);
 };

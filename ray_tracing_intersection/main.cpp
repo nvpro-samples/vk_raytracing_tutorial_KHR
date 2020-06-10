@@ -69,11 +69,12 @@ void renderUI(HelloVulkan& helloVk)
     up = nvmath::vec3f(item == 0, item == 1, item == 2);
     CameraManip.setLookat(pos, eye, up);
   }
-  ImGui::SliderFloat3("Light Position", &helloVk.m_pushConstant.lightPosition.x, -20.f, 20.f);
-  ImGui::SliderFloat("Light Intensity", &helloVk.m_pushConstant.lightIntensity, 0.f, 100.f);
+  ImGui::SliderFloat3("Light Position", &helloVk.m_pushConstant.lightPosition.x, -200.f, 200.f);
+  ImGui::SliderFloat("Light Intensity", &helloVk.m_pushConstant.lightIntensity, 0.f, 1000.f);
   ImGui::RadioButton("Point", &helloVk.m_pushConstant.lightType, 0);
   ImGui::SameLine();
   ImGui::RadioButton("Infinite", &helloVk.m_pushConstant.lightType, 1);
+  ImGui::Text("Nb Spheres and Cubes: %d", helloVk.m_spheres.size());
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -177,7 +178,7 @@ int main(int argc, char** argv)
   // Creation of the example
   //  helloVk.loadModel(nvh::findFile("media/scenes/Medieval_building.obj", defaultSearchPaths));
   helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths));
-  helloVk.createSpheres();
+  helloVk.createSpheres(2000000);
 
   helloVk.createOffscreenRender();
   helloVk.createDescriptorSetLayout();
