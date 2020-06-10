@@ -25,6 +25,8 @@ include_directories("../common")
 # more than one file can be given: _compile_GLSL("GLSL_mesh.vert;GLSL_mesh.frag" "GLSL_mesh.spv" GLSL_SOURCES)
 # the SpirV validator is fine as long as files are for different pipeline stages (entry points still need to be main())
 #_compile_GLSL(<source(s)> <target spv> <LIST where files are appended>)
+SET(VULKAN_TARGET_ENV vulkan1.2)
+
 UNSET(GLSL_SOURCES)
 UNSET(SPV_OUTPUT)
 file(GLOB_RECURSE GLSL_HEADER_FILES "shaders/*.h" "shaders/*.glsl")
