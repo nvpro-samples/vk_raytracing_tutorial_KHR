@@ -1016,6 +1016,6 @@ void HelloVulkan::createCompPipelines()
       nvvk::createShaderStageInfo(m_device,
                                   nvh::loadFile("shaders/anim.comp.spv", true, defaultSearchPaths),
                                   VK_SHADER_STAGE_COMPUTE_BIT);
-  m_compPipeline = m_device.createComputePipeline({}, computePipelineCreateInfo, nullptr);
+  m_compPipeline = m_device.createComputePipeline({}, computePipelineCreateInfo).value;
   m_device.destroy(computePipelineCreateInfo.stage.module);
 }
