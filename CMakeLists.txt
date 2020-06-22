@@ -39,12 +39,11 @@ add_subdirectory(ray_tracing__simple)
 add_subdirectory(ray_tracing_animation)
 add_subdirectory(ray_tracing_anyhit)
 add_subdirectory(ray_tracing_callable)
+add_subdirectory(ray_tracing_gltf)
 add_subdirectory(ray_tracing_instances)
 add_subdirectory(ray_tracing_intersection)
 add_subdirectory(ray_tracing_jitter_cam)
 add_subdirectory(ray_tracing_manyhits)
 add_subdirectory(ray_tracing_rayquery)
 add_subdirectory(ray_tracing_reflections)
-
-
 
