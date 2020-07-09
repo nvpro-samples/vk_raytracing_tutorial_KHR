@@ -313,16 +313,17 @@ void HelloVulkan::createTextureImages(const vk::CommandBuffer&        cmdBuf,
       o << "media/textures/" << texture;
       std::string txtFile = nvh::findFile(o.str(), defaultSearchPaths);
 
-      stbi_uc* pixels =
-          stbi_load(txtFile.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+      stbi_uc* stbi_pixels = stbi_load(txtFile.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
+      std::array<stbi_uc, 4> color{255u, 0u, 255u, 255u};
+
+      stbi_uc* pixels = stbi_pixels;
       // Handle failure
-      if(!pixels)
+      if(!stbi_pixels)
       {
         texWidth = texHeight = 1;
         texChannels          = 4;
-        std::array<uint8_t, 4> color{255u, 0u, 255u, 255u};
-        pixels = reinterpret_cast<stbi_uc*>(color.data());
+        pixels               = reinterpret_cast<stbi_uc*>(color.data());
       }
 
       vk::DeviceSize bufferSize = static_cast<uint64_t>(texWidth) * texHeight * sizeof(uint8_t) * 4;
@@ -339,6 +340,8 @@ void HelloVulkan::createTextureImages(const vk::CommandBuffer&        cmdBuf,
 
         m_textures.push_back(texture);
       }
+
+      stbi_image_free(stbi_pixels);
     }
   }
 }

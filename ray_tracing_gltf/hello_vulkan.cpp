@@ -44,6 +44,7 @@ extern std::vector<std::string> defaultSearchPaths;
 #include "nvvk/pipeline_vk.hpp"
 #include "nvvk/renderpasses_vk.hpp"
 #include "nvvk/shaders_vk.hpp"
+#include "nvh/nvprint.hpp"
 
 #include "shaders/binding.glsl"
 
@@ -205,7 +206,11 @@ void HelloVulkan::loadScene(const std::string& filename)
   std::string        warn, error;
 
   if(!tcontext.LoadASCIIFromFile(&tmodel, &error, &warn, filename))
+  {
     assert(!"Error while loading scene");
+  }
+  LOGW(warn.c_str());
+  LOGE(error.c_str());
 
 
   m_gltfScene.importMaterials(tmodel);
@@ -286,31 +291,42 @@ void HelloVulkan::createTextureImages(const vk::CommandBuffer& cmdBuf, tinygltf:
   samplerCreateInfo.setMaxLod(FLT_MAX);
   vk::Format format = vk::Format::eR8G8B8A8Srgb;
 
-  if(gltfModel.images.empty())
-  {
+  auto addDefaultTexture = [this]() {
     // Make dummy image(1,1), needed as we cannot have an empty array
     nvvk::ScopeCommandBuffer cmdBuf(m_device, m_graphicsQueueIndex);
     std::array<uint8_t, 4>   white = {255, 255, 255, 255};
     m_textures.emplace_back(m_alloc.createTexture(
         cmdBuf, 4, white.data(), nvvk::makeImage2DCreateInfo(vk::Extent2D{1, 1}), {}));
-    m_debug.setObjectName(m_textures[0].image, "dummy");
+    m_debug.setObjectName(m_textures.back().image, "dummy");
+  };
+
+  if(gltfModel.images.empty())
+  {
+    addDefaultTexture();
     return;
   }
 
-  m_textures.resize(gltfModel.images.size());
+  m_textures.reserve(gltfModel.images.size());
   for(size_t i = 0; i < gltfModel.images.size(); i++)
   {
     auto&               gltfimage  = gltfModel.images[i];
     void*               buffer     = &gltfimage.image[0];
     VkDeviceSize        bufferSize = gltfimage.image.size();
     auto                imgSize    = vk::Extent2D(gltfimage.width, gltfimage.height);
+
+    if(bufferSize == 0 || gltfimage.width == -1 || gltfimage.height == -1)
+    {
+      addDefaultTexture();
+      continue;
+    }
+
     vk::ImageCreateInfo imageCreateInfo =
         nvvk::makeImage2DCreateInfo(imgSize, format, vkIU::eSampled, true);
 
     nvvk::Image image = m_alloc.createImage(cmdBuf, bufferSize, buffer, imageCreateInfo);
     nvvk::cmdGenerateMipmaps(cmdBuf, image.image, format, imgSize, imageCreateInfo.mipLevels);
     vk::ImageViewCreateInfo ivInfo = nvvk::makeImageViewCreateInfo(image.image, imageCreateInfo);
-    m_textures[i]                  = m_alloc.createTexture(image, ivInfo, samplerCreateInfo);
+    m_textures.emplace_back(m_alloc.createTexture(image, ivInfo, samplerCreateInfo));
 
     m_debug.setObjectName(m_textures[i].image, std::string("Txt" + std::to_string(i)).c_str());
   }
