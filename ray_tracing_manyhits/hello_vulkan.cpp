@@ -338,7 +338,8 @@ void HelloVulkan::createTextureImages(const vk::CommandBuffer&        cmdBuf,
       o << "media/textures/" << texture;
       std::string txtFile = nvh::findFile(o.str(), defaultSearchPaths);
 
-      stbi_uc* stbi_pixels = stbi_load(txtFile.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+      stbi_uc* stbi_pixels =
+          stbi_load(txtFile.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
       std::array<stbi_uc, 4> color{255u, 0u, 255u, 255u};
 
@@ -945,21 +946,21 @@ void HelloVulkan::raytrace(const vk::CommandBuffer& cmdBuf, const nvmath::vec4f&
                                            | vk::ShaderStageFlagBits::eMissKHR,
                                        0, m_rtPushConstants);
 
-  vk::DeviceSize progSize  = m_rtProperties.shaderGroupHandleSize;  // Size of a program identifier
-  vk::DeviceSize alignSize = m_rtProperties.shaderGroupBaseAlignment;
+  vk::DeviceSize handleSize = m_rtProperties.shaderGroupHandleSize;
+  vk::DeviceSize alignSize  = m_rtProperties.shaderGroupBaseAlignment;
 
   vk::DeviceSize rayGenOffset   = 0u * alignSize;  // Start at the beginning of m_sbtBuffer
   vk::DeviceSize missOffset     = 1u * alignSize;  // Jump over raygen
   vk::DeviceSize hitGroupOffset = 3u * alignSize;  // Jump over the previous shaders
   vk::DeviceSize sbtSize        = alignSize * (vk::DeviceSize)m_rtShaderGroups.size();
 
-  vk::DeviceSize hitGroupStride = ROUND_UP(progSize + sizeof(HitRecordBuffer), alignSize);
+  vk::DeviceSize hitGroupStride = ROUND_UP(handleSize + sizeof(HitRecordBuffer), alignSize);
 
   // m_sbtBuffer holds all the shader handles: raygen, n-miss, hit...
   const vk::StridedBufferRegionKHR raygenShaderBindingTable = {m_rtSBTBuffer.buffer, rayGenOffset,
-                                                               progSize, sbtSize};
+                                                               handleSize, sbtSize};
   const vk::StridedBufferRegionKHR missShaderBindingTable   = {m_rtSBTBuffer.buffer, missOffset,
-                                                             progSize, sbtSize};
+                                                             handleSize, sbtSize};
   const vk::StridedBufferRegionKHR hitShaderBindingTable    = {m_rtSBTBuffer.buffer, hitGroupOffset,
                                                             hitGroupStride, sbtSize};
   const vk::StridedBufferRegionKHR callableShaderBindingTable;
