@@ -39,12 +39,12 @@ extern std::vector<std::string> defaultSearchPaths;
 #include "nvh/cameramanipulator.hpp"
 #include "nvh/fileoperations.hpp"
 #include "nvh/gltfscene.hpp"
+#include "nvh/nvprint.hpp"
 #include "nvvk/commands_vk.hpp"
 #include "nvvk/descriptorsets_vk.hpp"
 #include "nvvk/pipeline_vk.hpp"
 #include "nvvk/renderpasses_vk.hpp"
 #include "nvvk/shaders_vk.hpp"
-#include "nvh/nvprint.hpp"
 
 #include "shaders/binding.glsl"
 
@@ -309,10 +309,10 @@ void HelloVulkan::createTextureImages(const vk::CommandBuffer& cmdBuf, tinygltf:
   m_textures.reserve(gltfModel.images.size());
   for(size_t i = 0; i < gltfModel.images.size(); i++)
   {
-    auto&               gltfimage  = gltfModel.images[i];
-    void*               buffer     = &gltfimage.image[0];
-    VkDeviceSize        bufferSize = gltfimage.image.size();
-    auto                imgSize    = vk::Extent2D(gltfimage.width, gltfimage.height);
+    auto&        gltfimage  = gltfModel.images[i];
+    void*        buffer     = &gltfimage.image[0];
+    VkDeviceSize bufferSize = gltfimage.image.size();
+    auto         imgSize    = vk::Extent2D(gltfimage.width, gltfimage.height);
 
     if(bufferSize == 0 || gltfimage.width == -1 || gltfimage.height == -1)
     {
@@ -690,8 +690,8 @@ void HelloVulkan::createRtDescriptorSet()
                                           vkSS::eRaygenKHR | vkSS::eClosestHitKHR));  // TLAS
   m_rtDescSetLayoutBind.addBinding(
       vkDSLB(1, vkDT::eStorageImage, 1, vkSS::eRaygenKHR));  // Output image
-  m_rtDescSetLayoutBind.addBinding(
-      vkDSLB(2, vkDT::eStorageBuffer, 1, vkSS::eClosestHitNV | vkSS::eAnyHitNV));  // Primitive info
+  m_rtDescSetLayoutBind.addBinding(vkDSLB(
+      2, vkDT::eStorageBuffer, 1, vkSS::eClosestHitKHR | vkSS::eAnyHitKHR));  // Primitive info
 
   m_rtDescPool      = m_rtDescSetLayoutBind.createPool(m_device);
   m_rtDescSetLayout = m_rtDescSetLayoutBind.createLayout(m_device);
