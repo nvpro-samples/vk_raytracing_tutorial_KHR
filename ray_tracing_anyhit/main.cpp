@@ -115,10 +115,10 @@ int main(int argc, char** argv)
 
   // Search path for shaders and other media
   defaultSearchPaths = {
-      PROJECT_ABSDIRECTORY,
-      PROJECT_ABSDIRECTORY "../",
-      NVPSystem::exePath() + std::string(PROJECT_RELDIRECTORY),
-      NVPSystem::exePath() + std::string(PROJECT_RELDIRECTORY) + std::string("../"),
+      PROJECT_ABSDIRECTORY,        // shaders
+      PROJECT_ABSDIRECTORY "../",  // media
+      PROJECT_NAME,                // installed: shaders + media
+      NVPSystem::exePath() + std::string(PROJECT_NAME),
   };
 
   // Enabling the extension feature

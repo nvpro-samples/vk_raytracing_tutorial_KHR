@@ -793,6 +793,7 @@ void HelloVulkan::createRtPipeline()
   m_rtShaderGroups.push_back(mg);
 
   // Hit Group - Closest Hit + AnyHit
+  // Payload 0
   vk::ShaderModule chitSM =
       nvvk::createShaderModule(m_device,  //
                                nvh::loadFile("shaders/raytrace.rchit.spv", true, paths));
@@ -808,6 +809,14 @@ void HelloVulkan::createRtPipeline()
   hg.setAnyHitShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(hg);
 
+  // Payload 1
+  vk::ShaderModule ahit1SM =
+      nvvk::createShaderModule(m_device,  //
+                               nvh::loadFile("shaders/raytrace_1.rahit.spv", true, paths));
+  hg.setClosestHitShader(VK_SHADER_UNUSED_KHR);  // Not used by shadow (skipped)
+  stages.push_back({{}, vk::ShaderStageFlagBits::eAnyHitKHR, ahit1SM, "main"});
+  hg.setAnyHitShader(static_cast<uint32_t>(stages.size() - 1));
+  m_rtShaderGroups.push_back(hg);
   vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo;
 
   // Push constant: we want to be able to update constants used by the shaders
@@ -843,6 +852,7 @@ void HelloVulkan::createRtPipeline()
   m_device.destroy(shadowmissSM);
   m_device.destroy(chitSM);
   m_device.destroy(ahitSM);
+  m_device.destroy(ahit1SM);
 }
 
 //--------------------------------------------------------------------------------------------------
