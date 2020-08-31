@@ -28,8 +28,9 @@ void main()
   if(mat.illum != 4)
     return;
 
+  uint seed = prd.seed;  // We don't want to modify the PRD
   if(mat.dissolve == 0.0)
     ignoreIntersectionEXT();
-  else if(rnd(prd.seed) > mat.dissolve)
+  else if(rnd(seed) > mat.dissolve)
     ignoreIntersectionEXT();
 }

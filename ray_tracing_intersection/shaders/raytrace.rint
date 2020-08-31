@@ -6,13 +6,11 @@
 #include "raycommon.glsl"
 #include "wavefront.glsl"
 
-hitAttributeEXT vec3 HitAttribute;
 
 layout(binding = 7, set = 1, scalar) buffer allSpheres_
 {
-  Sphere i[];
-}
-allSpheres;
+  Sphere allSpheres[];
+};
 
 
 struct Ray
@@ -60,7 +58,7 @@ void main()
   ray.direction = gl_WorldRayDirectionEXT;
 
   // Sphere data
-  Sphere sphere = allSpheres.i[gl_PrimitiveID];
+  Sphere sphere = allSpheres[gl_PrimitiveID];
 
   float tHit    = -1;
   int   hitKind = gl_PrimitiveID % 2 == 0 ? KIND_SPHERE : KIND_CUBE;
