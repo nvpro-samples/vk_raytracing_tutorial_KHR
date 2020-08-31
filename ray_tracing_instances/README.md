@@ -178,10 +178,10 @@ The VMA allocator need to be released in `HelloVulkan::destroyResources()` after
 
 Instead of thousands of allocations, our example will have only 14 allocations. Note that some of these allocations are allocated by Dear ImGui, and not by DMA. These are the 14 objects with blue borders below:
 
-![Memory](Images/VkInstanceNsight1.png)
+![Memory](images/VkInstanceNsight1.png)
 
 Finally, here is the Vulkan Device Memory view from Nsight Graphics:
-![VkMemory](Images/VkInstanceNsight2.png)
+![VkMemory](images/VkInstanceNsight2.png)
 
 
 

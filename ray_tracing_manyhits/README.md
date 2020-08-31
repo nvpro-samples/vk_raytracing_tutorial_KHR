@@ -1,6 +1,6 @@
 ﻿# Multiple Closest Hit Shaders - Tutorial
 
-![](Images/manyhits.png)
+![](images/manyhits.png)
 
 ## Tutorial ([Setup](../docs/setup.md))
 
@@ -77,7 +77,7 @@ Then add a new hit group group immediately after adding the first hit group:
 As a test, you can try changing the `sbtRecordOffset` parameter of the `traceRayEXT` call in `raytrace.rgen`.
 If you set the offset to `1`, then all ray hits will use the new CHIT, and the raytraced output should look like the image below:
 
-![](Images/manyhits2.png)
+![](images/manyhits2.png)
 
 !!! Warning
     After testing this out, make sure to revert this change in `raytrace.rgen` before continuing.
@@ -123,7 +123,7 @@ Back in `main.cpp`, after loading the scene's models, we can now have both `wuso
   helloVk.m_objInstance[1].hitgroup = 1;
 ~~~~
 
-![](Images/manyhits3.png)
+![](images/manyhits3.png)
 
 ## Shader Record Data `shaderRecordKHR`
 
@@ -277,7 +277,7 @@ ROUND_UP(m_rtProperties.shaderGroupHandleSize + sizeof(HitRecordBuffer), progOff
 !!! Note:
     The result should now show both `wuson` models with a yellow color.
 
-![](Images/manyhits4.png)
+![](images/manyhits4.png)
 
 ## Extending Hit
 

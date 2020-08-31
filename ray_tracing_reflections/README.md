@@ -1,6 +1,6 @@
 ﻿# Reflections - Tutorial
 
-![](Images/reflections.png)
+![](images/reflections.png)
 
 ## Tutorial ([Setup](../docs/setup.md))
 

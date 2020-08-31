@@ -1,6 +1,6 @@
 ﻿# Callable Shaders - Tutorial
 
-![](Images/callable.png)
+![](images/callable.png)
 <small>Author: [Martin-Karl Lefrançois](https://devblogs.nvidia.com/author/mlefrancois/)</small>
 
 ## Tutorial ([Setup](../docs/setup.md))

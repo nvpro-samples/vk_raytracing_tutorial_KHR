@@ -1,6 +1,6 @@
 ﻿# Jitter Camera - Tutorial
 
-![](Images/antialiasing.png)
+![](images/antialiasing.png)
 
 ## Tutorial ([Setup](../docs/setup.md))
 

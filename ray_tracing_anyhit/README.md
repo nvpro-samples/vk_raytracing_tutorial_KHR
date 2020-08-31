@@ -248,11 +248,11 @@ any hit or intersection shaders in the Hit Group. But in this example, the close
 
 This is how the current SBT looks like.
 
-![](Images/anyhit_0.png)
+![](images/anyhit_0.png)
 
 And we need to add the following to the ray tracing pipeline, a copy of the previous Hit Group, with a new AnyHit using the proper payload.
 
-![](Images/anyhit_01.png)
+![](images/anyhit_01.png)
 
 
 ### New shaders 

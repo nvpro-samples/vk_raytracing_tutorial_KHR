@@ -1,6 +1,6 @@
 ﻿# Ray Tracing Animation - Tutorial
 
-![](Images/animation2.gif)
+![](images/animation2.gif)
 
 ## Tutorial ([Setup](../docs/setup.md))
 
@@ -156,7 +156,7 @@ The last point is to call the update at the end of the function.
 m_rtBuilder.updateTlasMatrices(m_tlas);
 ~~~~
 
-![](Images/animation1.gif)
+![](images/animation1.gif)
 
 ### nvvk::RaytracingBuilder::updateTlasMatrices (Implementation)
 
@@ -592,4 +592,4 @@ Finally, we can add a line at the end of `HelloVulkan::animationObject()` to upd
 m_rtBuilder.updateBlas(2);
 ~~~~
 
-![](Images/animation2.gif)
+![](images/animation2.gif)
