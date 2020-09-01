@@ -12,22 +12,17 @@ Besides the current repository, you will also need to clone or download the foll
 The directory structure should be looking like this:
 
 ~~~~
-   \ 
-   |
-   +-- :file_folder: shared_external
-   |
-   +-- :file_folder: shared_sources
-   |   
-   +-- :open_file_folder: vk_raytracing_tutorial_KHR
-   |   |
-   |   +-- :file_folder: ray_tracing__simple
-   |   |   
-   |   +-- :file_folder: ray_tracing_...
-   |   |   
-   |   ⋮   
-   |
-   ⋮
+   C:\Vulkan\nvpro-samples
+   | 
+   +---shared_external
+   +---shared_sources
+   +---vk_raytracing_tutorial_KHR
+   |   +---ray_tracing__simple
+   |   +---ray_tracing_...
+   |   \---...   
 ~~~~
+
+See also [build_all](https://github.com/nvpro-samples/build_all) from nvpro-samples.
 
 ## Latest Vulkan SDK
 
