@@ -82,7 +82,7 @@ Next, we update the buffer that describes the scene, which is used by the raster
 }
 ~~~~
 
-**Note**:
+:warning: **Note:**
     We could have used `cmdBuf.updateBuffer<ObjInstance>(m_sceneDesc.buffer, 0, m_objInstance)` to 
     update the buffer, but this function only works for buffers with less than 65,536 bytes. If we had 2000 Wuson models, this 
     call wouldn't work.
@@ -490,7 +490,7 @@ In the rendering loop, after the call to `animationInstances`, call the object a
   helloVk.animationObject(diff.count());
 ~~~~
 
-**Note**:  At this point, the object should be animated when using the rasterizer, but should still be immobile when using the ray tracer.
+:warning: **Note:**  At this point, the object should be animated when using the rasterizer, but should still be immobile when using the ray tracer.
 
 
 

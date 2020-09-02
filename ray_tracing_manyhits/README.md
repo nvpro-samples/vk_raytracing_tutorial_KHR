@@ -103,7 +103,7 @@ struct sceneDesc
 };
 ~~~~
 
-**Warning:**
+:warning: **Note:**
     The solution will not automatically recompile the shaders after this change to `wavefront.glsl`; instead, you will need to recompile all of the SPIR-V shaders.
 
 ### `hello_vulkan.cpp`
@@ -131,7 +131,7 @@ When creating the [Shader Binding Table](https://www.khronos.org/registry/vulkan
 
 This information can be used to pass extra information to a shader, for each entry in the SBT.
 
-**Note:**
+:warning: **Note:**
     Since each entry in an SBT group must have the same size, each entry of the group has to have enough space to accommodate the largest element in the entire group.
 
 The following diagram represents our current SBT, with the addition of some data to `HitGroup1`. As mentioned in the **note**, even if
@@ -184,7 +184,7 @@ void main()
 }
 ~~~~
 
-**Note**
+:warning: **Note:**
     Adding a new shader requires to rerun CMake to added to the project compilation system.
 
 
@@ -335,7 +335,7 @@ Finally, we need to add the new entry as well at the end of the buffer, reusing 
     pBuffer += hitSize;
 ~~~~
 
-** Warning**: 
+:warning: **Note:**
     Adding entries like this can be error-prone and inconvenient for decent 
     scene sizes. Instead, it is recommended to wrap the storage of handles, data,
     and size per group in a SBT utility to handle this automatically.

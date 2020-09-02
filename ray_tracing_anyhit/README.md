@@ -17,7 +17,7 @@ The any hit shader can be useful for discarding intersections, such as for alpha
 used for simple transparency. In this example we will show what is needed to do to add this shader type and to create a
 transparency effect.
 
-**Note**
+:warning: **Note:**
     This example is based on many elements from the [Antialiasing Tutorial](vkrt_tuto_jitter_cam.md.htm).
 
 
@@ -49,7 +49,7 @@ layout(binding = 1, set = 1, scalar) buffer MatColorBufferObject { WaveFrontMate
 // clang-format on
 ~~~~ 
 
-**Note**
+:warning: **Note:**
     You can find the source of `random.glsl` in the Antialiasing Tutorial [here](../ray_tracing_jitter_cam/README.md#toc1.1).
 
 
@@ -259,7 +259,7 @@ And we need to add the following to the ray tracing pipeline, a copy of the prev
 
 Create two new files `raytrace_0.ahit` and `raytrace_1.ahit`, and rename `raytrace.ahit` to `raytrace_ahit.glsl`
 
-**! _WARNING_ !** 
+:warning: **Note:** 
     Cmake need to be re-run to add the new files to the project.
 
 In `raytrace_0.ahit` add the following code 
@@ -390,7 +390,7 @@ m_rtShaderGroups.push_back(hg);
 At the end of the function, delete the shader module `ahit1SM`.
 
 
-**NOTE** Re-Run
+:warning: **Note:** Re-Run
     Everything should work as before, but now it does it right.
 
 

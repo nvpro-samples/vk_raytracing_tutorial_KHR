@@ -55,7 +55,7 @@ Then replace the calls to `helloVk.loadModel` in `main()` by
   }
 ~~~~
 
-**Note:**
+:warning: **Note:**
     This will create 3 models (OBJ) and their instances, and then add 2000 instances 
     distributed between green cubes and cubes with one color per face.
 

@@ -194,7 +194,7 @@ In `main.cpp`, where we are loading the OBJ model, we can replace it with
   helloVk.createSpheres();
 ~~~~
 
-**Note**: it is possible to have more OBJ models, but the spheres will need to be added after all of them.
+:warning: **Note:** it is possible to have more OBJ models, but the spheres will need to be added after all of them.
 
 The scene will be large, better to move the camera out
 

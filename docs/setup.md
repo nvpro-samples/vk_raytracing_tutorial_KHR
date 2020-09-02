@@ -44,7 +44,7 @@ Vulkan driver.
 The CMakefile will use other makefiles from `shared_sources` and look for Vulkan environment variables for the installation of the SDK. Therefore, it is important to have all the above installed before running Cmake in the 
 `vk_raytracing_tutorial_KHR` directory.
 
-**_Note_**: If you are using your own Vulkan header files, it is possible to overide the default search path.
+:warning: **Note:** If you are using your own Vulkan header files, it is possible to overide the default search path.
   Modify `VULKAN > VULKAN_HEADERS_OVERRIDE_INCLUDE_DIR` to the path to beta vulkan headers.
 
 ## Starting From Extra Tutorial
