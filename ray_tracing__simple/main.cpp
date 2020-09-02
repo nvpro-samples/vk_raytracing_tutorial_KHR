@@ -96,8 +96,8 @@ int main(int argc, char** argv)
     return 1;
   }
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-  GLFWwindow* window = glfwCreateWindow(SAMPLE_WIDTH, SAMPLE_HEIGHT,
-                                        "NVIDIA Vulkan Raytracing Tutorial", nullptr, nullptr);
+  GLFWwindow* window =
+      glfwCreateWindow(SAMPLE_WIDTH, SAMPLE_HEIGHT, PROJECT_NAME, nullptr, nullptr);
 
   // Setup camera
   CameraManip.setWindowSize(SAMPLE_WIDTH, SAMPLE_HEIGHT);
@@ -115,10 +115,10 @@ int main(int argc, char** argv)
 
   // Search path for shaders and other media
   defaultSearchPaths = {
-      PROJECT_ABSDIRECTORY,
-      PROJECT_ABSDIRECTORY "../",
-      NVPSystem::exePath() + std::string(PROJECT_RELDIRECTORY),
-      NVPSystem::exePath() + std::string(PROJECT_RELDIRECTORY) + std::string("../"),
+      PROJECT_ABSDIRECTORY,        // shaders
+      PROJECT_ABSDIRECTORY "../",  // media
+      PROJECT_NAME,                // installed: shaders + media
+      NVPSystem::exePath() + std::string(PROJECT_NAME),
   };
 
 
