@@ -1,11 +1,19 @@
 ﻿# NVIDIA Vulkan Ray Tracing Tutorial - glTF Scene
 
+![img](images/vk_ray_tracing_gltf_KHR.png)
+
+
 This example is the result of the modification of the [simple ray tracing](../ray_tracing__simple) tutorial.
 Instead of loading separated OBJ objects, the example was modified to load glTF scene files containing multiple objects.
 
 This example is not about shading, but using more complex data than OBJ.
 
-![img](../docs/Images/vk_ray_tracing_gltf_KHR.png)
+For a more complete version, see
+
+* https://github.com/nvpro-samples/vk_raytrace
+* https://github.com/nvpro-samples/vk_shaded_gltfscene
+
+
 
 ## Scene Data
 
@@ -290,7 +298,7 @@ Before doing this, we will modify the application to send the current rendering 
 samples.
 
 
-![img](../docs/Images/vk_ray_tracing_gltf_KHR_2.png)
+![img](images/vk_ray_tracing_gltf_KHR_2.png)
 
 Add the following two functions in `hello_vulkan.cpp`:
 
