@@ -334,7 +334,8 @@ void HelloVulkan::createTextureImages(const vk::CommandBuffer&        cmdBuf,
       o << "media/textures/" << texture;
       std::string txtFile = nvh::findFile(o.str(), defaultSearchPaths);
 
-      stbi_uc* stbi_pixels = stbi_load(txtFile.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+      stbi_uc* stbi_pixels =
+          stbi_load(txtFile.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
       std::array<stbi_uc, 4> color{255u, 0u, 255u, 255u};
 
