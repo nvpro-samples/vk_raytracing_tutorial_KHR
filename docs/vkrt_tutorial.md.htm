@@ -1465,6 +1465,9 @@ struct CameraMatrices
 };
 ````
 
+Since the camera matrices will be used by the RayGen, see next sub section, the descriptorSet need to also have
+the usage flag to include that stage. This was done in section Additions to the Scene Descriptor Set
+
 ## updateUniformBuffer
 
 The computation of the matrix inverses is done in `updateUniformBuffer`, after setting the `ubo.proj` matrix:
