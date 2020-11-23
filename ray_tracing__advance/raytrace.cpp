@@ -30,6 +30,7 @@
 #include "nvh/fileoperations.hpp"
 #include "nvvk/descriptorsets_vk.hpp"
 
+#include "nvh/alignment.hpp"
 #include "nvvk/shaders_vk.hpp"
 #include "obj_loader.h"
 
@@ -47,9 +48,10 @@ void Raytracer::setup(const vk::Device&         device,
   m_graphicsQueueIndex = queueFamily;
 
   // Requesting ray tracing properties
-  auto properties = m_physicalDevice.getProperties2<vk::PhysicalDeviceProperties2,
-                                                    vk::PhysicalDeviceRayTracingPropertiesKHR>();
-  m_rtProperties  = properties.get<vk::PhysicalDeviceRayTracingPropertiesKHR>();
+  auto properties =
+      m_physicalDevice.getProperties2<vk::PhysicalDeviceProperties2,
+                                      vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
+  m_rtProperties = properties.get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
   m_rtBuilder.setup(m_device, allocator, m_graphicsQueueIndex);
 
   m_debug.setup(device);
@@ -69,45 +71,36 @@ void Raytracer::destroy()
 //--------------------------------------------------------------------------------------------------
 // Converting a OBJ primitive to the ray tracing geometry used for the BLAS
 //
-nvvk::RaytracingBuilderKHR::Blas Raytracer::objectToVkGeometryKHR(const ObjModel& model)
+nvvk::RaytracingBuilderKHR::BlasInput Raytracer::objectToVkGeometryKHR(const ObjModel& model)
 {
-  // Setting up the creation info of acceleration structure
-  vk::AccelerationStructureCreateGeometryTypeInfoKHR asCreate;
-  asCreate.setGeometryType(vk::GeometryTypeKHR::eTriangles);
-  asCreate.setIndexType(vk::IndexType::eUint32);
-  asCreate.setVertexFormat(vk::Format::eR32G32B32Sfloat);
-  asCreate.setMaxPrimitiveCount(model.nbIndices / 3);  // Nb triangles
-  asCreate.setMaxVertexCount(model.nbVertices);
-  asCreate.setAllowsTransforms(VK_FALSE);  // No adding transformation matrices
-
   // Building part
   vk::DeviceAddress vertexAddress = m_device.getBufferAddress({model.vertexBuffer.buffer});
   vk::DeviceAddress indexAddress  = m_device.getBufferAddress({model.indexBuffer.buffer});
 
   vk::AccelerationStructureGeometryTrianglesDataKHR triangles;
-  triangles.setVertexFormat(asCreate.vertexFormat);
+  triangles.setVertexFormat(vk::Format::eR32G32B32Sfloat);
   triangles.setVertexData(vertexAddress);
   triangles.setVertexStride(sizeof(VertexObj));
-  triangles.setIndexType(asCreate.indexType);
+  triangles.setIndexType(vk::IndexType::eUint32);
   triangles.setIndexData(indexAddress);
   triangles.setTransformData({});
+  triangles.setMaxVertex(model.nbVertices);
 
   // Setting up the build info of the acceleration
   vk::AccelerationStructureGeometryKHR asGeom;
-  asGeom.setGeometryType(asCreate.geometryType);
+  asGeom.setGeometryType(vk::GeometryTypeKHR::eTriangles);
   asGeom.setFlags(vk::GeometryFlagBitsKHR::eNoDuplicateAnyHitInvocation);  // For AnyHit
   asGeom.geometry.setTriangles(triangles);
 
 
-  vk::AccelerationStructureBuildOffsetInfoKHR offset;
+  vk::AccelerationStructureBuildRangeInfoKHR offset;
   offset.setFirstVertex(0);
-  offset.setPrimitiveCount(asCreate.maxPrimitiveCount);
+  offset.setPrimitiveCount(model.nbIndices / 3);  // Nb triangles
   offset.setPrimitiveOffset(0);
   offset.setTransformOffset(0);
 
-  nvvk::RaytracingBuilderKHR::Blas blas;
+  nvvk::RaytracingBuilderKHR::BlasInput blas;
   blas.asGeometry.emplace_back(asGeom);
-  blas.asCreateGeometryInfo.emplace_back(asCreate);
   blas.asBuildOffsetInfo.emplace_back(offset);
   return blas;
 }
@@ -116,18 +109,9 @@ nvvk::RaytracingBuilderKHR::Blas Raytracer::objectToVkGeometryKHR(const ObjModel
 //--------------------------------------------------------------------------------------------------
 // Returning the ray tracing geometry used for the BLAS, containing all spheres
 //
-nvvk::RaytracingBuilderKHR::Blas Raytracer::implicitToVkGeometryKHR(const ImplInst& implicitObj)
+nvvk::RaytracingBuilderKHR::BlasInput Raytracer::implicitToVkGeometryKHR(
+    const ImplInst& implicitObj)
 {
-
-  // Setting up the creation info of acceleration structure
-  vk::AccelerationStructureCreateGeometryTypeInfoKHR asCreate;
-  asCreate.setGeometryType(vk::GeometryTypeKHR::eAabbs);
-  asCreate.setIndexType(vk::IndexType::eNoneKHR);
-  asCreate.setVertexFormat(vk::Format::eUndefined);
-  asCreate.setMaxPrimitiveCount(static_cast<uint32_t>(implicitObj.objImpl.size()));  // Nb triangles
-  asCreate.setMaxVertexCount(0);
-  asCreate.setAllowsTransforms(VK_FALSE);  // No adding transformation matrices
-
   vk::DeviceAddress dataAddress = m_device.getBufferAddress({implicitObj.implBuf.buffer});
 
   vk::AccelerationStructureGeometryAabbsDataKHR aabbs;
@@ -135,21 +119,20 @@ nvvk::RaytracingBuilderKHR::Blas Raytracer::implicitToVkGeometryKHR(const ImplIn
   aabbs.setStride(sizeof(ObjImplicit));
 
   // Setting up the build info of the acceleration
-  vk::AccelerationStructureGeometryKHR asGeom;
-  asGeom.setGeometryType(asCreate.geometryType);
-  asGeom.setFlags(vk::GeometryFlagBitsKHR::eNoDuplicateAnyHitInvocation);  // For AnyHit
-  asGeom.geometry.setAabbs(aabbs);
+  VkAccelerationStructureGeometryKHR asGeom{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
+  asGeom.geometryType   = VK_GEOMETRY_TYPE_AABBS_KHR;
+  asGeom.flags          = VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR;  // For AnyHit
+  asGeom.geometry.aabbs = aabbs;
 
 
-  vk::AccelerationStructureBuildOffsetInfoKHR offset;
+  vk::AccelerationStructureBuildRangeInfoKHR offset;
   offset.setFirstVertex(0);
-  offset.setPrimitiveCount(asCreate.maxPrimitiveCount);
+  offset.setPrimitiveCount(static_cast<uint32_t>(implicitObj.objImpl.size()));  // Nb aabb
   offset.setPrimitiveOffset(0);
   offset.setTransformOffset(0);
 
-  nvvk::RaytracingBuilderKHR::Blas blas;
+  nvvk::RaytracingBuilderKHR::BlasInput blas;
   blas.asGeometry.emplace_back(asGeom);
-  blas.asCreateGeometryInfo.emplace_back(asCreate);
   blas.asBuildOffsetInfo.emplace_back(offset);
   return blas;
 }
@@ -158,7 +141,7 @@ nvvk::RaytracingBuilderKHR::Blas Raytracer::implicitToVkGeometryKHR(const ImplIn
 void Raytracer::createBottomLevelAS(std::vector<ObjModel>& models, ImplInst& implicitObj)
 {
   // BLAS - Storing each primitive in a geometry
-  std::vector<nvvk::RaytracingBuilderKHR::Blas> allBlas;
+  std::vector<nvvk::RaytracingBuilderKHR::BlasInput> allBlas;
   allBlas.reserve(models.size());
   for(const auto& obj : models)
   {
@@ -266,16 +249,15 @@ void Raytracer::createRtPipeline(vk::DescriptorSetLayout& sceneDescLayout)
 
   vk::ShaderModule raygenSM =
       nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace.rgen.spv", true, paths));
+                               nvh::loadFile("shaders/raytrace.rgen.spv", true, paths, true));
   vk::ShaderModule missSM =
       nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace.rmiss.spv", true, paths));
+                               nvh::loadFile("shaders/raytrace.rmiss.spv", true, paths, true));
 
   // The second miss shader is invoked when a shadow ray misses the geometry. It
   // simply indicates that no occlusion has been found
-  vk::ShaderModule shadowmissSM =
-      nvvk::createShaderModule(m_device,
-                               nvh::loadFile("shaders/raytraceShadow.rmiss.spv", true, paths));
+  vk::ShaderModule shadowmissSM = nvvk::createShaderModule(
+      m_device, nvh::loadFile("shaders/raytraceShadow.rmiss.spv", true, paths, true));
 
 
   std::vector<vk::PipelineShaderStageCreateInfo> stages;
@@ -286,7 +268,7 @@ void Raytracer::createRtPipeline(vk::DescriptorSetLayout& sceneDescLayout)
                                             VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
   stages.push_back({{}, vk::ShaderStageFlagBits::eRaygenKHR, raygenSM, "main"});
   rg.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
-  m_rtShaderGroups.push_back(rg);
+  m_rtShaderGroups.push_back(rg);  // 0
 
   // Miss
   vk::RayTracingShaderGroupCreateInfoKHR mg{vk::RayTracingShaderGroupTypeKHR::eGeneral,
@@ -294,19 +276,19 @@ void Raytracer::createRtPipeline(vk::DescriptorSetLayout& sceneDescLayout)
                                             VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
   stages.push_back({{}, vk::ShaderStageFlagBits::eMissKHR, missSM, "main"});
   mg.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
-  m_rtShaderGroups.push_back(mg);
+  m_rtShaderGroups.push_back(mg);  // 1
   // Shadow Miss
   stages.push_back({{}, vk::ShaderStageFlagBits::eMissKHR, shadowmissSM, "main"});
   mg.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
-  m_rtShaderGroups.push_back(mg);
+  m_rtShaderGroups.push_back(mg);  // 2
 
   // Hit Group0 - Closest Hit + AnyHit
   vk::ShaderModule chitSM =
       nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace.rchit.spv", true, paths));
+                               nvh::loadFile("shaders/raytrace.rchit.spv", true, paths, true));
   vk::ShaderModule ahitSM =
       nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace.rahit.spv", true, paths));
+                               nvh::loadFile("shaders/raytrace.rahit.spv", true, paths, true));
 
   vk::RayTracingShaderGroupCreateInfoKHR hg{vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup,
                                             VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
@@ -315,19 +297,19 @@ void Raytracer::createRtPipeline(vk::DescriptorSetLayout& sceneDescLayout)
   hg.setClosestHitShader(static_cast<uint32_t>(stages.size() - 1));
   stages.push_back({{}, vk::ShaderStageFlagBits::eAnyHitKHR, ahitSM, "main"});
   hg.setAnyHitShader(static_cast<uint32_t>(stages.size() - 1));
-  m_rtShaderGroups.push_back(hg);
+  m_rtShaderGroups.push_back(hg);  // 3
 
 
   // Hit Group1 - Closest Hit + Intersection (procedural)
   vk::ShaderModule chit2SM =
       nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace2.rchit.spv", true, paths));
+                               nvh::loadFile("shaders/raytrace2.rchit.spv", true, paths, true));
   vk::ShaderModule ahit2SM =
       nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace2.rahit.spv", true, paths));
+                               nvh::loadFile("shaders/raytrace2.rahit.spv", true, paths, true));
   vk::ShaderModule rintSM =
       nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace.rint.spv", true, paths));
+                               nvh::loadFile("shaders/raytrace.rint.spv", true, paths, true));
   {
     vk::RayTracingShaderGroupCreateInfoKHR hg{vk::RayTracingShaderGroupTypeKHR::eProceduralHitGroup,
                                               VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
@@ -338,7 +320,7 @@ void Raytracer::createRtPipeline(vk::DescriptorSetLayout& sceneDescLayout)
     hg.setAnyHitShader(static_cast<uint32_t>(stages.size() - 1));
     stages.push_back({{}, vk::ShaderStageFlagBits::eIntersectionKHR, rintSM, "main"});
     hg.setIntersectionShader(static_cast<uint32_t>(stages.size() - 1));
-    m_rtShaderGroups.push_back(hg);
+    m_rtShaderGroups.push_back(hg);  // 4
   }
 
   // Callable shaders
@@ -348,22 +330,23 @@ void Raytracer::createRtPipeline(vk::DescriptorSetLayout& sceneDescLayout)
 
   vk::ShaderModule call0 =
       nvvk::createShaderModule(m_device,
-                               nvh::loadFile("shaders/light_point.rcall.spv", true, paths));
+                               nvh::loadFile("shaders/light_point.rcall.spv", true, paths, true));
   vk::ShaderModule call1 =
       nvvk::createShaderModule(m_device,
-                               nvh::loadFile("shaders/light_spot.rcall.spv", true, paths));
+                               nvh::loadFile("shaders/light_spot.rcall.spv", true, paths, true));
   vk::ShaderModule call2 =
-      nvvk::createShaderModule(m_device, nvh::loadFile("shaders/light_inf.rcall.spv", true, paths));
+      nvvk::createShaderModule(m_device,
+                               nvh::loadFile("shaders/light_inf.rcall.spv", true, paths, true));
 
   stages.push_back({{}, vk::ShaderStageFlagBits::eCallableKHR, call0, "main"});
   callGroup.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
-  m_rtShaderGroups.push_back(callGroup);
+  m_rtShaderGroups.push_back(callGroup);  // 5
   stages.push_back({{}, vk::ShaderStageFlagBits::eCallableKHR, call1, "main"});
   callGroup.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
-  m_rtShaderGroups.push_back(callGroup);
+  m_rtShaderGroups.push_back(callGroup);  // 6
   stages.push_back({{}, vk::ShaderStageFlagBits::eCallableKHR, call2, "main"});
   callGroup.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
-  m_rtShaderGroups.push_back(callGroup);
+  m_rtShaderGroups.push_back(callGroup);  //7
 
 
   vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo;
@@ -393,10 +376,10 @@ void Raytracer::createRtPipeline(vk::DescriptorSetLayout& sceneDescLayout)
       m_rtShaderGroups.size()));  // 1-raygen, n-miss, n-(hit[+anyhit+intersect])
   rayPipelineInfo.setPGroups(m_rtShaderGroups.data());
 
-  rayPipelineInfo.setMaxRecursionDepth(2);  // Ray depth
+  rayPipelineInfo.setMaxPipelineRayRecursionDepth(2);  // Ray depth
   rayPipelineInfo.setLayout(m_rtPipelineLayout);
-  m_rtPipeline =
-      static_cast<const vk::Pipeline&>(m_device.createRayTracingPipelineKHR({}, rayPipelineInfo));
+  m_rtPipeline = static_cast<const vk::Pipeline&>(
+      m_device.createRayTracingPipelineKHR({}, {}, rayPipelineInfo));
 
   m_device.destroy(raygenSM);
   m_device.destroy(missSM);
@@ -422,18 +405,24 @@ void Raytracer::createRtShaderBindingTable()
   auto groupCount =
       static_cast<uint32_t>(m_rtShaderGroups.size());               // 3 shaders: raygen, miss, chit
   uint32_t groupHandleSize = m_rtProperties.shaderGroupHandleSize;  // Size of a program identifier
-  uint32_t baseAlignment   = m_rtProperties.shaderGroupBaseAlignment;  // Size of shader alignment
+  uint32_t groupSizeAligned =
+      nvh::align_up(groupHandleSize, m_rtProperties.shaderGroupBaseAlignment);
+
 
   // Fetch all the shader handles used in the pipeline, so that they can be written in the SBT
-  uint32_t sbtSize = groupCount * baseAlignment;
+  uint32_t sbtSize = groupCount * groupSizeAligned;
 
   std::vector<uint8_t> shaderHandleStorage(sbtSize);
-  m_device.getRayTracingShaderGroupHandlesKHR(m_rtPipeline, 0, groupCount, sbtSize,
-                                              shaderHandleStorage.data());
+  auto result = m_device.getRayTracingShaderGroupHandlesKHR(m_rtPipeline, 0, groupCount, sbtSize,
+                                                            shaderHandleStorage.data());
+  assert(result == vk::Result::eSuccess);
+
   // Write the handles in the SBT
-  m_rtSBTBuffer = m_alloc->createBuffer(sbtSize, vk::BufferUsageFlagBits::eTransferSrc,
-                                        vk::MemoryPropertyFlagBits::eHostVisible
-                                            | vk::MemoryPropertyFlagBits::eHostCoherent);
+  m_rtSBTBuffer = m_alloc->createBuffer(
+      sbtSize,
+      vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eShaderDeviceAddress
+          | vk::BufferUsageFlagBits::eShaderBindingTableKHR,
+      vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
   m_debug.setObjectName(m_rtSBTBuffer.buffer, std::string("SBT").c_str());
 
   // Write the handles in the SBT
@@ -442,7 +431,7 @@ void Raytracer::createRtShaderBindingTable()
   for(uint32_t g = 0; g < groupCount; g++)
   {
     memcpy(pData, shaderHandleStorage.data() + g * groupHandleSize, groupHandleSize);  // raygen
-    pData += baseAlignment;
+    pData += groupSizeAligned;
   }
   m_alloc->unmap(m_rtSBTBuffer);
 
@@ -479,27 +468,22 @@ void Raytracer::raytrace(const vk::CommandBuffer& cmdBuf,
                                             | vk::ShaderStageFlagBits::eCallableKHR,
                                         0, m_rtPushConstants);
 
-  vk::DeviceSize progSize =
-      m_rtProperties.shaderGroupBaseAlignment;         // Size of a program identifier
-  vk::DeviceSize rayGenOffset        = 0u * progSize;  // Start at the beginning of m_sbtBuffer
-  vk::DeviceSize missOffset          = 1u * progSize;  // Jump over raygen
-  vk::DeviceSize hitGroupOffset      = 3u * progSize;  // Jump over the previous shaders
-  vk::DeviceSize callableGroupOffset = 5u * progSize;  // Jump over the previous shaders
-  vk::DeviceSize sbtSize             = (vk::DeviceSize)m_rtShaderGroups.size() * progSize;
+  // Size of a program identifier
+  uint32_t groupSize =
+      nvh::align_up(m_rtProperties.shaderGroupHandleSize, m_rtProperties.shaderGroupBaseAlignment);
+  uint32_t          groupStride = groupSize;
+  vk::DeviceAddress sbtAddress  = m_device.getBufferAddress({m_rtSBTBuffer.buffer});
 
-  const vk::StridedBufferRegionKHR raygenShaderBindingTable = {m_rtSBTBuffer.buffer, rayGenOffset,
-                                                               progSize, sbtSize};
-  const vk::StridedBufferRegionKHR missShaderBindingTable   = {m_rtSBTBuffer.buffer, missOffset,
-                                                             progSize, sbtSize};
-  const vk::StridedBufferRegionKHR hitShaderBindingTable    = {m_rtSBTBuffer.buffer, hitGroupOffset,
-                                                            progSize, sbtSize};
-  const vk::StridedBufferRegionKHR callableShaderBindingTable = {
-      m_rtSBTBuffer.buffer, callableGroupOffset, progSize, sbtSize};
+  using Stride = vk::StridedDeviceAddressRegionKHR;
+  std::array<Stride, 4> strideAddresses{
+      Stride{sbtAddress + 0u * groupSize, groupStride, groupSize * 1},   // raygen
+      Stride{sbtAddress + 1u * groupSize, groupStride, groupSize * 2},   // miss
+      Stride{sbtAddress + 3u * groupSize, groupStride, groupSize * 2},   // hit
+      Stride{sbtAddress + 5u * groupSize, groupStride, groupSize * 3}};  // callable
 
-  cmdBuf.traceRaysKHR(&raygenShaderBindingTable, &missShaderBindingTable, &hitShaderBindingTable,
-                      &callableShaderBindingTable,  //
+  cmdBuf.traceRaysKHR(&strideAddresses[0], &strideAddresses[1], &strideAddresses[2],
+                      &strideAddresses[3],          //
                       size.width, size.height, 1);  //
-
 
   m_debug.endLabel(cmdBuf);
 }

@@ -132,18 +132,18 @@ public:
   vk::Format                  m_offscreenDepthFormat{vk::Format::eD32Sfloat};
 
   // #VKRay
-  void                             initRayTracing();
-  nvvk::RaytracingBuilderKHR::Blas objectToVkGeometryKHR(const ObjModel& model);
-  void                             createBottomLevelAS();
-  void                             createTopLevelAS();
-  void                             createRtDescriptorSet();
-  void                             updateRtDescriptorSet();
-  void                             createRtPipeline();
-  void                             createRtShaderBindingTable();
+  void                                  initRayTracing();
+  nvvk::RaytracingBuilderKHR::BlasInput objectToVkGeometryKHR(const ObjModel& model);
+  void                                  createBottomLevelAS();
+  void                                  createTopLevelAS();
+  void                                  createRtDescriptorSet();
+  void                                  updateRtDescriptorSet();
+  void                                  createRtPipeline();
+  void                                  createRtShaderBindingTable();
   void raytrace(const vk::CommandBuffer& cmdBuf, const nvmath::vec4f& clearColor);
 
 
-  vk::PhysicalDeviceRayTracingPropertiesKHR           m_rtProperties;
+  vk::PhysicalDeviceRayTracingPipelinePropertiesKHR   m_rtProperties;
   nvvk::RaytracingBuilderKHR                          m_rtBuilder;
   nvvk::DescriptorSetBindings                         m_rtDescSetLayoutBind;
   vk::DescriptorPool                                  m_rtDescPool;
@@ -154,8 +154,8 @@ public:
   vk::Pipeline                                        m_rtPipeline;
   nvvk::Buffer                                        m_rtSBTBuffer;
 
-  std::vector<nvvk::RaytracingBuilderKHR::Instance> m_tlas;
-  std::vector<nvvk::RaytracingBuilderKHR::Blas>     m_blas;
+  std::vector<nvvk::RaytracingBuilderKHR::Instance>  m_tlas;
+  std::vector<nvvk::RaytracingBuilderKHR::BlasInput> m_blas;
 
   struct RtPushConstant
   {
@@ -180,4 +180,6 @@ public:
   vk::DescriptorSet           m_compDescSet;
   vk::Pipeline                m_compPipeline;
   vk::PipelineLayout          m_compPipelineLayout;
+
+  vk::BuildAccelerationStructureFlagsKHR m_rtFlags;
 };

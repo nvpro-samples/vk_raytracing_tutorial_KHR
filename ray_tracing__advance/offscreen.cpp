@@ -74,7 +74,7 @@ void Offscreen::createFramebuffer(VkExtent2D& size)
                                                            | vk::ImageUsageFlagBits::eSampled
                                                            | vk::ImageUsageFlagBits::eStorage);
 
-    nvvk::Image               image  = m_alloc->createImage(colorCreateInfo);
+    nvvk::Image             image  = m_alloc->createImage(colorCreateInfo);
     vk::ImageViewCreateInfo ivInfo = nvvk::makeImageViewCreateInfo(image.image, colorCreateInfo);
     m_colorTexture                 = m_alloc->createTexture(image, ivInfo, vk::SamplerCreateInfo());
     m_colorTexture.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -153,9 +153,9 @@ void Offscreen::createPipeline(vk::RenderPass& renderPass)
   std::vector<std::string> paths = defaultSearchPaths;
 
   nvvk::GraphicsPipelineGeneratorCombined pipelineGenerator(m_device, m_pipelineLayout, renderPass);
-  pipelineGenerator.addShader(nvh::loadFile("shaders/passthrough.vert.spv", true, paths),
+  pipelineGenerator.addShader(nvh::loadFile("shaders/passthrough.vert.spv", true, paths, true),
                               vk::ShaderStageFlagBits::eVertex);
-  pipelineGenerator.addShader(nvh::loadFile("shaders/post.frag.spv", true, paths),
+  pipelineGenerator.addShader(nvh::loadFile("shaders/post.frag.spv", true, paths, true),
                               vk::ShaderStageFlagBits::eFragment);
   pipelineGenerator.rasterizationState.setCullMode(vk::CullModeFlagBits::eNone);
   m_pipeline = pipelineGenerator.createPipeline();

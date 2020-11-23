@@ -12,14 +12,14 @@ First, we will create a scene with two reflective planes and a multicolored cube
 
 ~~~~ C++
   // Creation of the example
-  helloVk.loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths),
+  helloVk.loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true),
                     nvmath::translation_mat4(nvmath::vec3f(-2, 0, 0))
                         * nvmath::scale_mat4(nvmath::vec3f(.1f, 5.f, 5.f)));
-  helloVk.loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths),
+  helloVk.loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true),
                     nvmath::translation_mat4(nvmath::vec3f(2, 0, 0))
                         * nvmath::scale_mat4(nvmath::vec3f(.1f, 5.f, 5.f)));
-  helloVk.loadModel(nvh::findFile("media/scenes/cube_multi.obj", defaultSearchPaths));
-  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths),
+  helloVk.loadModel(nvh::findFile("media/scenes/cube_multi.obj", defaultSearchPaths, true));
+  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true),
                     nvmath::translation_mat4(nvmath::vec3f(0, -1, 0)));
 ~~~~
 
@@ -44,7 +44,7 @@ Vulkan ray tracing allows recursive calls to traceRayEXT, up to a limit defined 
 In `createRtPipeline()` in `hello_vulkan.cpp`, bring the maximum recursion depth up to 10, making sure not to exceed the physical device's maximum recursion limit:
 
 ~~~~ C++
-  rayPipelineInfo.setMaxRecursionDepth(
+  rayPipelineInfo.setMaxPipelineRayRecursionDepth(
       std::max(10u, m_rtProperties.maxRecursionDepth));  // Ray depth
 ~~~~
 
@@ -203,7 +203,7 @@ Since the ray generation shader now handles attenuation, we no longer need to at
 Finally, we no longer need to have a deep recursion setting in `createRtPipeline` -- just a depth of 2, one for the initial ray generation segment and another for shadow rays.
 
 ~~~~ C++
-  rayPipelineInfo.setMaxRecursionDepth(2);  // Ray depth
+  rayPipelineInfo.setMaxPipelineRayRecursionDepth(2);  // Ray depth
 ~~~~
 
 In `raytrace.rgen`, we can now make the maximum ray depth significantly larger -- such as 100, for instance -- without causing a device lost error.
@@ -246,9 +246,9 @@ Then test for the value for when to stop
       break;
 ~~~~
 
-Finally, in `main.cpp` in the `renderUI` function, we will add a slider to control the value.
+Finally, in `main.cpp` after the `renderUI()` function call, we will add a slider to control the depth value.
 
 ~~~~ C++
-  ImGui::SliderInt("Max Depth", &helloVk.m_rtPushConstants.maxDepth, 1, 100);
+  ImGui::SliderInt("Max Depth", &helloVk.m_rtPushConstants.maxDepth, 1, 50);
 ~~~~
 

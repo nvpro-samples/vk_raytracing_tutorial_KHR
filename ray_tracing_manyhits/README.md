@@ -19,14 +19,14 @@ Then you can change the `helloVk.loadModel` calls to the following:
 
 ~~~~ C++
   // Creation of the example
-  helloVk.loadModel(nvh::findFile("media/scenes/wuson.obj", defaultSearchPaths),
+  helloVk.loadModel(nvh::findFile("media/scenes/wuson.obj", defaultSearchPaths, true),
                     nvmath::translation_mat4(nvmath::vec3f(-1, 0, 0)));
   HelloVulkan::ObjInstance inst;
   inst.objIndex    = 0;
   inst.transform   = nvmath::translation_mat4(nvmath::vec3f(1, 0, 0));
   inst.transformIT = nvmath::transpose(nvmath::invert(inst.transform));
   helloVk.m_objInstance.push_back(inst);
-  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths));
+  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
 ~~~~
 
 ## Adding a new Closest Hit Shader
@@ -60,7 +60,7 @@ This new shader needs to be added to the raytracing pipeline. So, in `createRtPi
 ~~~~ C++
   vk::ShaderModule chit2SM =
       nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace2.rchit.spv", true, paths));
+                               nvh::loadFile("shaders/raytrace2.rchit.spv", true, paths, true));
 ~~~~
 
 Then add a new hit group group immediately after adding the first hit group:
@@ -103,7 +103,7 @@ struct sceneDesc
 };
 ~~~~
 
-:warning: **Note:**
+ **Note:**
     The solution will not automatically recompile the shaders after this change to `wavefront.glsl`; instead, you will need to recompile all of the SPIR-V shaders.
 
 ### `hello_vulkan.cpp`
@@ -131,7 +131,7 @@ When creating the [Shader Binding Table](https://www.khronos.org/registry/vulkan
 
 This information can be used to pass extra information to a shader, for each entry in the SBT.
 
-:warning: **Note:**
+ **Note:**
     Since each entry in an SBT group must have the same size, each entry of the group has to have enough space to accommodate the largest element in the entire group.
 
 The following diagram represents our current SBT, with the addition of some data to `HitGroup1`. As mentioned in the **note**, even if
@@ -184,7 +184,7 @@ void main()
 }
 ~~~~
 
-:warning: **Note:**
+ **Note:**
     Adding a new shader requires to rerun CMake to added to the project compilation system.
 
 
@@ -335,7 +335,7 @@ Finally, we need to add the new entry as well at the end of the buffer, reusing 
     pBuffer += hitSize;
 ~~~~
 
-:warning: **Note:**
+**Note:**
     Adding entries like this can be error-prone and inconvenient for decent 
     scene sizes. Instead, it is recommended to wrap the storage of handles, data,
     and size per group in a SBT utility to handle this automatically.

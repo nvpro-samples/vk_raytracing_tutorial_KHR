@@ -44,6 +44,7 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #include "nvvk/commands_vk.hpp"
 #include "nvvk/context_vk.hpp"
 
+#include "imgui_camera_widget.h"
 #include <random>
 
 //////////////////////////////////////////////////////////////////////////
@@ -64,47 +65,46 @@ void renderUI(HelloVulkan& helloVk)
 {
   static int item    = 1;
   bool       changed = false;
-  if(ImGui::Combo("Up Vector", &item, "X\0Y\0Z\0\0"))
-  {
-    nvmath::vec3f pos, eye, up;
-    CameraManip.getLookat(pos, eye, up);
-    up = nvmath::vec3f(item == 0, item == 1, item == 2);
-    CameraManip.setLookat(pos, eye, up);
-    changed = true;
-  }
-  changed |= ImGui::RadioButton("Point", &helloVk.m_pushConstants.lightType, 0);
-  ImGui::SameLine();
-  changed |= ImGui::RadioButton("Spot", &helloVk.m_pushConstants.lightType, 1);
-  ImGui::SameLine();
-  changed |= ImGui::RadioButton("Infinite", &helloVk.m_pushConstants.lightType, 2);
-  if(helloVk.m_pushConstants.lightType < 2)
-  {
-    changed |= ImGui::SliderFloat3("Light Position", &helloVk.m_pushConstants.lightPosition.x,
-                                   -20.f, 20.f);
-  }
-  if(helloVk.m_pushConstants.lightType > 0)
-  {
-    changed |= ImGui::SliderFloat3("Light Direction", &helloVk.m_pushConstants.lightDirection.x,
-                                   -1.f, 1.f);
-  }
-  if(helloVk.m_pushConstants.lightType < 2)
-  {
-    changed |=
-        ImGui::SliderFloat("Light Intensity", &helloVk.m_pushConstants.lightIntensity, 0.f, 500.f);
-  }
-  if(helloVk.m_pushConstants.lightType == 1)
-  {
-    float dCutoff    = rad2deg(acos(helloVk.m_pushConstants.lightSpotCutoff));
-    float dOutCutoff = rad2deg(acos(helloVk.m_pushConstants.lightSpotOuterCutoff));
-    changed |= ImGui::SliderFloat("Cutoff", &dCutoff, 0.f, 45.f);
-    changed |= ImGui::SliderFloat("OutCutoff", &dOutCutoff, 0.f, 45.f);
-    dCutoff = dCutoff > dOutCutoff ? dOutCutoff : dCutoff;
 
-    helloVk.m_pushConstants.lightSpotCutoff      = cos(deg2rad(dCutoff));
-    helloVk.m_pushConstants.lightSpotOuterCutoff = cos(deg2rad(dOutCutoff));
+  changed |= ImGuiH::CameraWidget();
+  if(ImGui::CollapsingHeader("Light"))
+  {
+    changed |= ImGui::RadioButton("Point", &helloVk.m_pushConstants.lightType, 0);
+    ImGui::SameLine();
+    changed |= ImGui::RadioButton("Spot", &helloVk.m_pushConstants.lightType, 1);
+    ImGui::SameLine();
+    changed |= ImGui::RadioButton("Infinite", &helloVk.m_pushConstants.lightType, 2);
+
+
+    if(helloVk.m_pushConstants.lightType < 2)
+    {
+      changed |= ImGui::SliderFloat3("Light Position", &helloVk.m_pushConstants.lightPosition.x,
+                                     -20.f, 20.f);
+    }
+    if(helloVk.m_pushConstants.lightType > 0)
+    {
+      changed |= ImGui::SliderFloat3("Light Direction", &helloVk.m_pushConstants.lightDirection.x,
+                                     -1.f, 1.f);
+    }
+    if(helloVk.m_pushConstants.lightType < 2)
+    {
+      changed |= ImGui::SliderFloat("Light Intensity", &helloVk.m_pushConstants.lightIntensity, 0.f,
+                                    500.f);
+    }
+    if(helloVk.m_pushConstants.lightType == 1)
+    {
+      float dCutoff    = rad2deg(acos(helloVk.m_pushConstants.lightSpotCutoff));
+      float dOutCutoff = rad2deg(acos(helloVk.m_pushConstants.lightSpotOuterCutoff));
+      changed |= ImGui::SliderFloat("Cutoff", &dCutoff, 0.f, 45.f);
+      changed |= ImGui::SliderFloat("OutCutoff", &dOutCutoff, 0.f, 45.f);
+      dCutoff = dCutoff > dOutCutoff ? dOutCutoff : dCutoff;
+
+      helloVk.m_pushConstants.lightSpotCutoff      = cos(deg2rad(dCutoff));
+      helloVk.m_pushConstants.lightSpotOuterCutoff = cos(deg2rad(dOutCutoff));
+    }
   }
-  changed |= ImGui::InputInt("Max Frames", &helloVk.m_maxFrames);
-  helloVk.m_maxFrames = std::max(helloVk.m_maxFrames, 1);
+
+  changed |= ImGui::SliderInt("Max Frames", &helloVk.m_maxFrames, 1, 1000);
   if(changed)
     helloVk.resetFrame();
 }
@@ -134,7 +134,7 @@ int main(int argc, char** argv)
 
   // Setup camera
   CameraManip.setWindowSize(SAMPLE_WIDTH, SAMPLE_HEIGHT);
-  CameraManip.setLookat(nvmath::vec3f(5, 4, -4), nvmath::vec3f(0, 1, 0), nvmath::vec3f(0, 1, 0));
+  CameraManip.setLookat({8.440, 9.041, -8.973}, {-2.462, 3.661, -0.286}, {0.000, 1.000, 0.000});
 
   // Setup Vulkan
   if(!glfwVulkanSupported())
@@ -148,19 +148,16 @@ int main(int argc, char** argv)
 
   // Search path for shaders and other media
   defaultSearchPaths = {
-      PROJECT_ABSDIRECTORY,        // shaders
-      PROJECT_ABSDIRECTORY "../",  // media
-      PROJECT_NAME,                // installed: shaders + media
+      NVPSystem::exePath(),
+      NVPSystem::exePath() + "..",
       NVPSystem::exePath() + std::string(PROJECT_NAME),
   };
-
-  // Enabling the extension feature
-  vk::PhysicalDeviceRayTracingFeaturesKHR raytracingFeature;
 
   // Requesting Vulkan extensions and layers
   nvvk::ContextCreateInfo contextInfo(true);
   contextInfo.setVersion(1, 2);
   contextInfo.addInstanceLayer("VK_LAYER_LUNARG_monitor", true);
+  contextInfo.addInstanceExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, true);
   contextInfo.addInstanceExtension(VK_KHR_SURFACE_EXTENSION_NAME);
 #ifdef WIN32
   contextInfo.addInstanceExtension(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
@@ -175,11 +172,17 @@ int main(int argc, char** argv)
   contextInfo.addDeviceExtension(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
   contextInfo.addDeviceExtension(VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME);
   // #VKRay: Activate the ray tracing extension
-  contextInfo.addDeviceExtension(VK_KHR_RAY_TRACING_EXTENSION_NAME, false, &raytracingFeature);
   contextInfo.addDeviceExtension(VK_KHR_MAINTENANCE3_EXTENSION_NAME);
   contextInfo.addDeviceExtension(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
   contextInfo.addDeviceExtension(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
   contextInfo.addDeviceExtension(VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
+  // #VKRay: Activate the ray tracing extension
+  vk::PhysicalDeviceAccelerationStructureFeaturesKHR accelFeature;
+  contextInfo.addDeviceExtension(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, false,
+                                 &accelFeature);
+  vk::PhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature;
+  contextInfo.addDeviceExtension(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, false,
+                                 &rtPipelineFeature);
 
   // Creating Vulkan base application
   nvvk::Context vkctx{};
@@ -199,7 +202,7 @@ int main(int argc, char** argv)
 
   helloVk.setup(vkctx.m_instance, vkctx.m_device, vkctx.m_physicalDevice,
                 vkctx.m_queueGCT.familyIndex);
-  helloVk.createSurface(surface, SAMPLE_WIDTH, SAMPLE_HEIGHT);
+  helloVk.createSwapchain(surface, SAMPLE_WIDTH, SAMPLE_HEIGHT);
   helloVk.createDepthBuffer();
   helloVk.createRenderPass();
   helloVk.createFrameBuffers();
@@ -208,9 +211,9 @@ int main(int argc, char** argv)
   helloVk.initGUI(0);  // Using sub-pass 0
 
   // Creating scene
-  helloVk.loadModel(nvh::findFile("media/scenes/Medieval_building.obj", defaultSearchPaths));
-  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths));
-  helloVk.loadModel(nvh::findFile("media/scenes/wuson.obj", defaultSearchPaths),
+  helloVk.loadModel(nvh::findFile("media/scenes/Medieval_building.obj", defaultSearchPaths, true));
+  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
+  helloVk.loadModel(nvh::findFile("media/scenes/wuson.obj", defaultSearchPaths, true),
                     nvmath::scale_mat4(nvmath::vec3f(0.5f))
                         * nvmath::translation_mat4(nvmath::vec3f(0.0f, 0.0f, 6.0f)));
 
@@ -222,7 +225,6 @@ int main(int argc, char** argv)
 
   for(int n = 0; n < 50; ++n)
   {
-
     ObjInstance inst;
     inst.objIndex       = wusonIndex;
     inst.txtOffset      = 0;
@@ -284,14 +286,15 @@ int main(int argc, char** argv)
 
     // Start the Dear ImGui frame
     ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
 
     // Updating camera buffer
     helloVk.updateUniformBuffer();
 
     // Show UI window.
-    if(1 == 1)
+    if(helloVk.showGui())
     {
+      ImGui::NewFrame();
+      ImGuiH::Panel::Begin();
       bool changed = false;
       // Edit 3 floats representing a color
       changed |= ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
@@ -304,7 +307,9 @@ int main(int argc, char** argv)
       renderUI(helloVk);
       ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
                   1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-      ImGui::Render();
+
+      ImGuiH::Control::Info("", "", "(F10) Toggle Pane", ImGuiH::Control::Flags::Disabled);
+      ImGuiH::Panel::End();
     }
 
     // Start rendering the scene
@@ -357,6 +362,7 @@ int main(int argc, char** argv)
       // Rendering tonemapper
       offscreen.draw(cmdBuff, helloVk.getSize());
       // Rendering UI
+      ImGui::Render();
       ImGui::RenderDrawDataVK(cmdBuff, ImGui::GetDrawData());
       cmdBuff.endRenderPass();
     }

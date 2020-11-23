@@ -6,7 +6,7 @@
 
 This is an extension of the Vulkan ray tracing [tutorial](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR).
 
-We will implement two animation methods: animating only the transformation matrices, and animating the geometry itself.
+We will implement two animation methods: only the transformation matrices, and animating the geometry itself.
 
 
 ## Animating the Matrices
@@ -76,13 +76,10 @@ Next, we update the buffer that describes the scene, which is used by the raster
   m_debug.endLabel(cmdBuf);
   genCmdBuf.submitAndWait(cmdBuf);
   m_alloc.destroy(stagingBuffer);
-
-  m_rtBuilder.updateTlasMatrices(m_tlas);
-  m_rtBuilder.updateBlas(2);
 }
 ~~~~
 
-:warning: **Note:**
+ **Note:**
     We could have used `cmdBuf.updateBuffer<ObjInstance>(m_sceneDesc.buffer, 0, m_objInstance)` to 
     update the buffer, but this function only works for buffers with less than 65,536 bytes. If we had 2000 Wuson models, this 
     call wouldn't work.
@@ -153,144 +150,22 @@ In the `for` loop, add at the end
 The last point is to call the update at the end of the function.
 
 ~~~~ C++
-m_rtBuilder.updateTlasMatrices(m_tlas);
+  m_rtBuilder.buildTlas(m_tlas, m_rtFlags, true);
 ~~~~
 
 ![](images/animation1.gif)
 
-### nvvk::RaytracingBuilder::updateTlasMatrices (Implementation)
+### nvvk::RaytracingBuilder::buildTlas (Implementation)
 
-We currently use `nvvk::RaytracingBuilder` to update the matrices for convenience, but
-this could be done more efficiently if one kept some of the buffer and memory references. Using a 
-memory allocator, such as the one described in the [Many Objects Tutorial](vkrt_tuto_instances.md.htm),
-could also be an alternative for avoiding multiple reallocations. Here's the implementation of `nvvk::RaytracingBuilder::updateTlasMatrices`.
+We are using `nvvk::RaytracingBuilder` to update the matrices for convenience. There
+is only a small variation with constructing the matrices and updating them. The main
+differences are:
 
-#### Staging Buffer
+* The `VkAccelerationStructureBuildGeometryInfoKHR` mode will be set to `VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR`
+* We will **not** create the acceleration structure, but reuse it.
+* The source and destination of `VkAccelerationStructureCreateInfoKHR` will both use the previously created acceleration structure. 
 
-As in the rasterizer, the data needs to be staged before it can be copied to the buffer used for
-building the TLAS.
-
-~~~~ C++
-  void updateTlasMatrices(const std::vector<Instance>& instances)
-  {
-    VkDeviceSize bufferSize = instances.size() * sizeof(VkAccelerationStructureInstanceKHR);
-    // Create a staging buffer on the host to upload the new instance data
-    nvvkBuffer stagingBuffer = m_alloc.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-#if defined(ALLOC_VMA)
-                                                    VmaMemoryUsage::VMA_MEMORY_USAGE_CPU_TO_GPU
-#else
-                                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-#endif
-    );
-
-    // Copy the instance data into the staging buffer
-    auto* gInst = reinterpret_cast<VkAccelerationStructureInstanceKHR*>(m_alloc.map(stagingBuffer));
-    for(int i = 0; i < instances.size(); i++)
-    {
-      gInst[i] = instanceToVkGeometryInstanceKHR(instances[i]);
-    }
-    m_alloc.unmap(stagingBuffer);
-~~~~
-
-#### Scratch Memory 
-
-Building the TLAS always needs scratch memory, and so we need to request it. If 
-we hadn't set the `eAllowUpdate` flag, the returned size would be zero and the rest of the code
-would fail.
-
-~~~~ C++
-    // Compute the amount of scratch memory required by the AS builder to update
-    VkAccelerationStructureMemoryRequirementsInfoKHR memoryRequirementsInfo{
-        VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_INFO_KHR};
-    memoryRequirementsInfo.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_UPDATE_SCRATCH_KHR;
-    memoryRequirementsInfo.accelerationStructure = m_tlas.as.accel;
-    memoryRequirementsInfo.buildType             = VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR;
-
-    VkMemoryRequirements2 reqMem{VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2};
-    vkGetAccelerationStructureMemoryRequirementsKHR(m_device, &memoryRequirementsInfo, &reqMem);
-    VkDeviceSize scratchSize = reqMem.memoryRequirements.size;
-
-    // Allocate the scratch buffer
-    nvvkBuffer scratchBuffer =
-        m_alloc.createBuffer(scratchSize, VK_BUFFER_USAGE_RAY_TRACING_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
-    VkBufferDeviceAddressInfo bufferInfo{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO};
-    bufferInfo.buffer              = scratchBuffer.buffer;
-    VkDeviceAddress scratchAddress = vkGetBufferDeviceAddress(m_device, &bufferInfo);
-~~~~
-
-#### Update the Buffer
-In a new command buffer, we copy the staging buffer to the device buffer and 
-add a barrier to make sure the memory finishes copying before updating the TLAS.
-
-~~~~ C++
-    // Update the instance buffer on the device side and build the TLAS
-    nvvk::CommandPool genCmdBuf(m_device, m_queueIndex);
-    VkCommandBuffer   cmdBuf = genCmdBuf.createCommandBuffer();
-
-    VkBufferCopy region{0, 0, bufferSize};
-    vkCmdCopyBuffer(cmdBuf, stagingBuffer.buffer, m_instBuffer.buffer, 1, &region);
-
-    //VkBufferDeviceAddressInfo bufferInfo{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO};
-    bufferInfo.buffer               = m_instBuffer.buffer;
-    VkDeviceAddress instanceAddress = vkGetBufferDeviceAddress(m_device, &bufferInfo);
-
-
-    // Make sure the copy of the instance buffer are copied before triggering the
-    // acceleration structure build
-    VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
-    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    barrier.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
-    vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
-                         0, 1, &barrier, 0, nullptr, 0, nullptr);
-~~~~
-
-#### Update Acceleration Structure
-
-We update the TLAS using the same acceleration structure for source and 
-destination to update it in place, and using the VK_TRUE parameter to trigger the update.
-
-~~~~ C++
-    VkAccelerationStructureGeometryDataKHR geometry{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR};
-    geometry.instances.arrayOfPointers    = VK_FALSE;
-    geometry.instances.data.deviceAddress = instanceAddress;
-    VkAccelerationStructureGeometryKHR topASGeometry{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
-    topASGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
-    topASGeometry.geometry     = geometry;
-
-    const VkAccelerationStructureGeometryKHR* pGeometry = &topASGeometry;
-
-    VkAccelerationStructureBuildGeometryInfoKHR topASInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR};
-    topASInfo.flags                     = m_tlas.flags;
-    topASInfo.update                    = VK_TRUE;
-    topASInfo.srcAccelerationStructure  = m_tlas.as.accel;
-    topASInfo.dstAccelerationStructure  = m_tlas.as.accel;
-    topASInfo.geometryArrayOfPointers   = VK_FALSE;
-    topASInfo.geometryCount             = 1;
-    topASInfo.ppGeometries              = &pGeometry;
-    topASInfo.scratchData.deviceAddress = scratchAddress;
-
-    uint32_t                                         nbInstances      = (uint32_t)instances.size();
-    VkAccelerationStructureBuildOffsetInfoKHR        buildOffsetInfo  = {nbInstances, 0, 0, 0};
-    const VkAccelerationStructureBuildOffsetInfoKHR* pBuildOffsetInfo = &buildOffsetInfo;
-
-    // Build the TLAS
-
-    // Update the acceleration structure. Note the VK_TRUE parameter to trigger the update,
-    // and the existing TLAS being passed and updated in place
-    vkCmdBuildAccelerationStructureKHR(cmdBuf, 1, &topASInfo, &pBuildOffsetInfo);
-
-    genCmdBuf.submitAndWait(cmdBuf);
-~~~~
-
-#### Cleanup
-
-Finally, we release all temporary buffers.
-
-~~~~ C++
-    m_alloc.destroy(scratchBuffer);
-    m_alloc.destroy(stagingBuffer);
-  }
-~~~~
+What is happening is the buffer containing all matrices will be updated and the `vkCmdBuildAccelerationStructuresKHR` will update the acceleration in place. 
 
 ## BLAS Animation
 
@@ -484,14 +359,15 @@ In `main.cpp`, after the other resource creation functions, add the creation fun
   helloVk.createCompPipelines();
 ~~~~
 
-In the rendering loop, after the call to `animationInstances`, call the object animation function.
+In the rendering loop, **before** the call to `animationInstances`, call the object animation function.
 
 ~~~~ C++
   helloVk.animationObject(diff.count());
 ~~~~
 
-:warning: **Note:**  At this point, the object should be animated when using the rasterizer, but should still be immobile when using the ray tracer.
+**Note:** Always update the TLAS when BLAS are modified. This will make sure that the TLAS knows about the new bounding box sizes.
 
+**Note:**  At this point, the object should be animated when using the rasterizer, but should still be immobile when using the ray tracer.
 
 
 ## Update BLAS

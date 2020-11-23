@@ -36,78 +36,90 @@ verbosity and its potential for errors.
 
 # Environment Setup
 
+**The preferred way** to download the project (including NVVK) is to use the
+nvpro-samples `build_all` script.
+
+In a command line, clone the `nvpro-samples/build_all` repository from
+https://github.com/nvpro-samples/build_all:
+
+~~~~~
+git clone https://github.com/nvpro-samples/build_all.git
+~~~~~
+
+Then open the `build_all` folder and run either `clone_all.bat` (Windows) or
+`clone_all.sh` (Linux).
+
+**If you want to clone as few repositories as possible**, open a command line,
+and run the following commands to clone the repositories you need:
+~~~~~
+git clone https://github.com/nvpro-samples/shared_sources.git
+git clone https://github.com/nvpro-samples/shared_external.git
+git clone https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR.git
+~~~~~
+
+## Generating the Solution
+
+One typical way to store the build system is to create a `build` directory below the 
+main project. You can use CMake-GUI or do the following steps.
+
+~~~~~
+cd vk_raytracing_tutorial_KHR
+mkdir build
+cd build
+cmake ..
+~~~~~
 
 ## Beta Installation
 
-The SDK 1.2.135 and up which can be found under https://vulkan.lunarg.com/sdk/home will work with this project.
+The SDK 1.2.161 and up which can be found under https://vulkan.lunarg.com/sdk/home will work with this project.
 
 Nevertheless, if you are in the Beta period, it is suggested to install and compile all of the following and replace
 with the current environment.
 
 * Latest driver: https://developer.nvidia.com/vulkan-driver
-* Latest Vulkan headers: https://github.com/KhronosGroup/Vulkan-Headers
-* Latest glslangValidator: https://github.com/KhronosGroup/glslang 
-
-## Structure
-
-This tutorial is a modification of [`ray_tracing__before`](https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/tree/master/ray_tracing__before), which loads are render OBJ scenes with Vulkan rasterizer. 
-All following instructions are based on the modification of this project.
-The directory `ray_tracing__simple` is the end result of this tutorial.
-
-Besides the current repository, you will also need to clone or download the following repositories:
-
-* [shared_sources](https://github.com/nvpro-samples/shared_sources): The primary framework that all samples depend on.
-* [shared_external](https://github.com/nvpro-samples/shared_external): Third party libraries that are provided pre-compiled, mostly for Windows x64 / MSVC.
-
-The directory structure should be looking like:
-
-**********************************************************
-*   \ 
-*   |
-*   +-- 📂 shared_external
-*   |
-*   +-- 📂 shared_sources
-*   |   
-*   +-- 📂 vk_raytracing_tutorial_KHR
-*   |   |
-*   |   +-- 📂 ray_tracing__before
-*   |   |   
-*   |   ⋮   
-*   |
-*   ⋮
-**********************************************************
-
-
-!!! Warning
-    **Run CMake** in vk_raytracing_tutorial_KHR.
-
-!!! Warning Beta
-    Modify `VULKAN > VULKAN_HEADERS_OVERRIDE_INCLUDE_DIR` to the path to beta vulkan headers.
+* Vulkan headers: https://github.com/KhronosGroup/Vulkan-Headers
+* Validator: https://github.com/KhronosGroup/Vulkan-ValidationLayers
+* Vulkan-Hpp: https://github.com/KhronosGroup/Vulkan-Hpp
 
 !!! Tip Visual Assist
     To get auto-completion, edit vulkan.hpp and change two places from:<br>
     `namespace VULKAN_HPP_NAMESPACE` to `namespace vk` 
 
-The starting project is a simple framework allowing us to load OBJ files and rasterize them
+# Compiling & Running 
+
+Open the solution located in the build directory, then compile and run `vk_ray_tracing__before_KHR`. 
+
+This will be the starting point of the tutorial. This project is a simple framework allowing us to load OBJ files and rasterize them
 using Vulkan.
 
 ![First Run](Images/resultRasterCube.png width="350px")
 
+
+The following steps in the tutorial will be modifying this project 
+`vk_ray_tracing__before_KHR` and will add support for ray tracing. The 
+end result of the tutorial is the project `vk_ray_tracing__simple_KHR`.
+It is possible to look in that project if something went wrong. 
+
+The project `vk_ray_tracing__simple_KHR` will be the starting point for the 
+extra tutorials.
 
 
 # Ray Tracing Setup
 
 Go to the `main` function of the `main.cpp` file, and find where we request Vulkan extensions with
 `nvvk::ContextCreateInfo`.
-To request ray tracing capabilities, we need to explicitly
-add the
-[VK_KHR_ray_tracing](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VK_KHR_ray_tracing.html)
-extension as well as its various dependencies.
+To be able to use ray tracing, we will need VK_KHR_ACCELERATION_STRUCTURE and VK_KHR_RAY_TRACING_PIPELINE.
+Those extensions have also dependencies on other extension, therefore all the following
+extensions will need to be added.
 
 ```` C
 // #VKRay: Activate the ray tracing extension
-vk::PhysicalDeviceRayTracingFeaturesKHR raytracingFeature;
-contextInfo.addDeviceExtension(VK_KHR_RAY_TRACING_EXTENSION_NAME, false, &raytracingFeature);
+vk::PhysicalDeviceAccelerationStructureFeaturesKHR accelFeature;
+contextInfo.addDeviceExtension(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, false,
+                               &accelFeature);
+vk::PhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature;
+contextInfo.addDeviceExtension(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, false,
+                               &rtPipelineFeature);
 contextInfo.addDeviceExtension(VK_KHR_MAINTENANCE3_EXTENSION_NAME);
 contextInfo.addDeviceExtension(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
 contextInfo.addDeviceExtension(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
@@ -115,20 +127,20 @@ contextInfo.addDeviceExtension(VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
 
 ````
 
-Before creating the device, a linked structure of features must past. Not all extensions requires a set of features, but 
-ray tracing features must be enabled before the creation of the device. By providing
-`raytracingFeature`, the context creation will query the capable features for ray tracing and will use the 
-filled structure to create the device. 
-
+Before creating the device, a linked structure of features must past. Not all extensions
+requires a set of features, but ray tracing features must be enabled before the creation of the device.
+By providing `accelFeature`,  and `rtPipelineFeature`, the context creation will query the capable features
+ for ray tracing and will use the filled structure to create the device. 
 
 In the `HelloVulkan` class in `hello_vulkan.h`, add an initialization function and a member storing the capabilities of
 the GPU for ray tracing:
 
 ```` C
 // #VKRay
-void                                       initRayTracing();
-vk::PhysicalDeviceRayTracingPropertiesKHR  m_rtProperties;
+void                                               initRayTracing();
+vk::PhysicalDeviceRayTracingPipelinePropertiesKHR  m_rtProperties;
 ````
+
 At the end of `hello_vulkan.cpp`, add the body of `initRayTracing()`, which will query the ray tracing capabilities
 of the GPU using this extension. In particular, it will obtain the maximum recursion depth,
 ie. the number of nested ray tracing calls that can be performed from a single ray. This can be seen as the number
@@ -144,15 +156,17 @@ creating the shader binding table in a later section.
 void HelloVulkan::initRayTracing()
 {
   // Requesting ray tracing properties
-  auto properties = m_physicalDevice.getProperties2<vk::PhysicalDeviceProperties2,
-                                                    vk::PhysicalDeviceRayTracingPropertiesKHR>();
-  m_rtProperties  = properties.get<vk::PhysicalDeviceRayTracingPropertiesKHR>();
+  auto properties =
+      m_physicalDevice.getProperties2<vk::PhysicalDeviceProperties2,
+                                      vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
+  m_rtProperties = properties.get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
 }
 ````
 
 ## main
 
-In `main.cpp`, in the `main()` function, we call the initialization method right after `helloVk.updateDescriptorSet();`
+In `main.cpp`, in the `main()` function, we call the initialization method right after 
+`helloVk.updateDescriptorSet();`
 
 ```` C
 // #VKRay
@@ -188,12 +202,11 @@ This sample loads an OBJ file and stores its indices, vertices and material data
 model is referenced by an `ObjInstance` structure which also contains the transformation matrix of that particular
 instance. For ray tracing the `ObjModel` and `ObjInstance` will then naturally fit the BLAS and TLAS, respectively.
 
-To simplify the ray tracing setup we use a helper class containing utility functions for acceleration structure builds.
-In the header file, include the`raytrace_vkpp` helper
+To simplify the ray tracing setup we use a helper class containing utility functions for 
+acceleration structure builds. In the header file, include the`raytrace_vkpp` helper
 
 ```` C
 // #VKRay
-#define ALLOC_DEDICATED
 #include "nvvk/raytrace_vk.hpp"
 ````
 
@@ -224,11 +237,12 @@ nvvk::RaytracingBuilderKHR::Blas objectToVkGeometryKHR(const ObjModel& model);
 
 Its implementation will fill three structures
 
-* vk::AccelerationStructureCreateGeometryTypeInfoKHR: that defines how the AS will be constructed.
-* vk::AccelerationStructureGeometryKHR: the geometry for build the AS, in this case, from triangles.
-* vk::AccelerationStructureBuildOffsetInfoKHR: the offset, which correspond to the actual wanted geometry when building.
+* vk::AccelerationStructureGeometryTrianglesDataKHR: defines the data from which the AS will be constructed.
+* vk::AccelerationStructureGeometryKHR: the geometry type for building the AS, in this case, from triangles.
+* vk::AccelerationStructureBuildRangeInfoKHR: the offset, which correspond to the actual wanted geometry when building.
 
-Multiple of the above structure can be combined to create a single blas. In this example, the array will always be a length of one.
+Multiple of the above structure can be combined to create a single blas. In this example, 
+the array will always be a length of one.
 
 Note that we consider all objects opaque for now, and indicate this to the builder for
 potential optimization. 
@@ -239,44 +253,37 @@ potential optimization.
 //
 nvvk::RaytracingBuilderKHR::Blas HelloVulkan::objectToVkGeometryKHR(const ObjModel& model)
 {
-  // Setting up the creation info of acceleration structure
-  vk::AccelerationStructureCreateGeometryTypeInfoKHR asCreate;
-  asCreate.setGeometryType(vk::GeometryTypeKHR::eTriangles);
-  asCreate.setIndexType(vk::IndexType::eUint32);
-  asCreate.setVertexFormat(vk::Format::eR32G32B32Sfloat);
-  asCreate.setMaxPrimitiveCount(model.nbIndices / 3);  // Nb triangles
-  asCreate.setMaxVertexCount(model.nbVertices);
-  asCreate.setAllowsTransforms(VK_FALSE);  // No adding transformation matrices
-
   // Building part
   vk::DeviceAddress vertexAddress = m_device.getBufferAddress({model.vertexBuffer.buffer});
   vk::DeviceAddress indexAddress  = m_device.getBufferAddress({model.indexBuffer.buffer});
 
+  uint32_t maxPrimitiveCount = model.nbIndices / 3;
+
   vk::AccelerationStructureGeometryTrianglesDataKHR triangles;
-  triangles.setVertexFormat(asCreate.vertexFormat);
+  triangles.setVertexFormat(vk::Format::eR32G32B32Sfloat);
   triangles.setVertexData(vertexAddress);
   triangles.setVertexStride(sizeof(VertexObj));
-  triangles.setIndexType(asCreate.indexType);
+  triangles.setIndexType(vk::IndexType::eUint32);
   triangles.setIndexData(indexAddress);
   triangles.setTransformData({});
+  triangles.setMaxVertex(model.nbVertices);
 
   // Setting up the build info of the acceleration
   vk::AccelerationStructureGeometryKHR asGeom;
-  asGeom.setGeometryType(asCreate.geometryType);
+  asGeom.setGeometryType(vk::GeometryTypeKHR::eTriangles);
   asGeom.setFlags(vk::GeometryFlagBitsKHR::eOpaque);
   asGeom.geometry.setTriangles(triangles);
 
   // The primitive itself
-  vk::AccelerationStructureBuildOffsetInfoKHR offset;
+  vk::AccelerationStructureBuildRangeInfoKHR offset;
   offset.setFirstVertex(0);
-  offset.setPrimitiveCount(asCreate.maxPrimitiveCount);
+  offset.setPrimitiveCount(maxPrimitiveCount);
   offset.setPrimitiveOffset(0);
   offset.setTransformOffset(0);
 
   // Our blas is only one geometry, but could be made of many geometries
   nvvk::RaytracingBuilderKHR::Blas blas;
   blas.asGeometry.emplace_back(asGeom);
-  blas.asCreateGeometryInfo.emplace_back(asCreate);
   blas.asBuildOffsetInfo.emplace_back(offset);
 
   return blas;
@@ -817,7 +824,7 @@ void HelloVulkan::createRtDescriptorSet()
   m_rtDescSetLayout = m_rtDescSetLayoutBind.createLayout(m_device);
   m_rtDescSet       = m_device.allocateDescriptorSets({m_rtDescPool, 1, &m_rtDescSetLayout})[0];
 
-  vk::AccelerationStructureKHR                    tlas = m_rtBuilder.getAccelerationStructure();
+  vk::AccelerationStructureKHR                   tlas = m_rtBuilder.getAccelerationStructure();
   vk::WriteDescriptorSetAccelerationStructureKHR descASInfo;
   descASInfo.setAccelerationStructureCount(1);
   descASInfo.setPAccelerationStructures(&tlas);
@@ -825,8 +832,8 @@ void HelloVulkan::createRtDescriptorSet()
       {}, m_offscreenColor.descriptor.imageView, vk::ImageLayout::eGeneral};
 
   std::vector<vk::WriteDescriptorSet> writes;
-  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, 0, descASInfo));
-  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, 1, imageInfo));
+  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, 0, &descASInfo));
+  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, 1, &imageInfo));
   m_device.updateDescriptorSets(static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
 ````
@@ -840,27 +847,27 @@ index buffers. Even though the vertex and index buffers will only be used by the
 descriptor set as they semantically fit the Scene descriptor set.
 
 ```` C
-  // Camera matrices (binding = 0)
-  m_descSetLayoutBind.addBinding(
-      vkDS(0, vkDT::eUniformBuffer, 1, vkSS::eVertex | vkSS::eRaygenKHR));
-  // Materials (binding = 1)
-  m_descSetLayoutBind.addBinding(
-      vkDS(1, vkDT::eStorageBuffer, nbObj, vkSS::eVertex | vkSS::eFragment | vkSS::eClosestHitKHR));
-  // Scene description (binding = 2)
-  m_descSetLayoutBind.addBinding(  //
-      vkDS(2, vkDT::eStorageBuffer, 1, vkSS::eVertex | vkSS::eFragment | vkSS::eClosestHitKHR));
-  // Textures (binding = 3)
-  m_descSetLayoutBind.addBinding(
-      vkDS(3, vkDT::eCombinedImageSampler, nbTxt, vkSS::eFragment | vkSS::eClosestHitKHR));
-  // Materials (binding = 4)
-  m_descSetLayoutBind.addBinding(
-      vkDS(4, vkDT::eStorageBuffer, nbObj, vkSS::eFragment | vkSS::eClosestHitKHR));
-  // Storing vertices (binding = 5)
-  m_descSetLayoutBind.addBinding(  //
-      vkDS(5, vkDT::eStorageBuffer, nbObj, vkSS::eClosestHitKHR));
-  // Storing indices (binding = 6)
-  m_descSetLayoutBind.addBinding(  //
-      vkDS(6, vkDT::eStorageBuffer, nbObj, vkSS::eClosestHitKHR));
+// Camera matrices (binding = 0)
+m_descSetLayoutBind.addBinding(
+    vkDS(0, vkDT::eUniformBuffer, 1, vkSS::eVertex | vkSS::eRaygenKHR));
+// Materials (binding = 1)
+m_descSetLayoutBind.addBinding(
+    vkDS(1, vkDT::eStorageBuffer, nbObj, vkSS::eVertex | vkSS::eFragment | vkSS::eClosestHitKHR));
+// Scene description (binding = 2)
+m_descSetLayoutBind.addBinding(  //
+    vkDS(2, vkDT::eStorageBuffer, 1, vkSS::eVertex | vkSS::eFragment | vkSS::eClosestHitKHR));
+// Textures (binding = 3)
+m_descSetLayoutBind.addBinding(
+    vkDS(3, vkDT::eCombinedImageSampler, nbTxt, vkSS::eFragment | vkSS::eClosestHitKHR));
+// Materials (binding = 4)
+m_descSetLayoutBind.addBinding(
+    vkDS(4, vkDT::eStorageBuffer, nbObj, vkSS::eFragment | vkSS::eClosestHitKHR));
+// Storing vertices (binding = 5)
+m_descSetLayoutBind.addBinding(  //
+    vkDS(5, vkDT::eStorageBuffer, nbObj, vkSS::eClosestHitKHR));
+// Storing indices (binding = 6)
+m_descSetLayoutBind.addBinding(  //
+    vkDS(6, vkDT::eStorageBuffer, nbObj, vkSS::eClosestHitKHR));
 ````
 
 We set the actual contents of the descriptor set by adding those buffers in `updateDescriptorSet()`:
@@ -884,14 +891,23 @@ We set the actual contents of the descriptor set by adding those buffers in `upd
   writes.emplace_back(m_descSetLayoutBind.makeWriteArray(m_descSet, 6, dbiIdx.data()));
 ````
 
-Originally the buffers containing the vertices and indices were only used by the rasterization pipeline. The ray tracing
-will need to use those buffers as storage buffers. We update the usage of the buffers in `loadModel`:
+Originally the buffers containing the vertices and indices were only used by the rasterization pipeline. 
+The ray tracing will need to use those buffers as storage buffers (`VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT`),
+the address to those buffers are needed to fill the `VkAccelerationStructureGeometryTrianglesDataKHR` structure,
+and because they are use for constructing the acceleration structure, they also need 
+the `VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR` flag.
+
+We update the usage of the buffers in `loadModel`:
 
 ```` C
-  model.vertexBuffer =
-      m_alloc.createBuffer(cmdBuf, loader.m_vertices, vkBU::eVertexBuffer | vkBU::eStorageBuffer);
-  model.indexBuffer =
-      m_alloc.createBuffer(cmdBuf, loader.m_indices, vkBU::eIndexBuffer | vkBU::eStorageBuffer);
+model.vertexBuffer =
+m_alloc.createBuffer(cmdBuf, loader.m_vertices,
+                     vkBU::eVertexBuffer | vkBU::eStorageBuffer | vkBU::eShaderDeviceAddress
+                         | vkBU::eAccelerationStructureBuildInputReadOnlyKHR);
+model.indexBuffer =
+m_alloc.createBuffer(cmdBuf, loader.m_indices,
+                     vkBU::eIndexBuffer | vkBU::eStorageBuffer | vkBU::eShaderDeviceAddress
+                         | vkBU::eAccelerationStructureBuildInputReadOnlyKHR);
 ````
 
 !!! Note: Array of Buffers 
@@ -1076,10 +1092,10 @@ void HelloVulkan::createRtPipeline()
 
   vk::ShaderModule raygenSM =
     nvvk::createShaderModule(m_device,  //
-                             nvh::loadFile("shaders/raytrace.rgen.spv", true, paths));
+                             nvh::loadFile("shaders/raytrace.rgen.spv", true, paths, true));
   vk::ShaderModule missSM =
     nvvk::createShaderModule(m_device,  //
-                             nvh::loadFile("shaders/raytrace.rmiss.spv", true, paths));
+                             nvh::loadFile("shaders/raytrace.rmiss.spv", true, paths, true));
 
   std::vector<vk::PipelineShaderStageCreateInfo> stages;
 
@@ -1114,7 +1130,7 @@ shaders.
   // Hit Group - Closest Hit + AnyHit
   vk::ShaderModule chitSM =
       nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace.rchit.spv", true, paths));
+                               nvh::loadFile("shaders/raytrace.rchit.spv", true, paths, true));
 
   vk::RayTracingShaderGroupCreateInfoKHR hg{vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup,
                                            VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
@@ -1192,9 +1208,10 @@ call as a miss. Note that it is preferable to keep the recursion level as low as
 formulation instead.
 
 ```` C
-  rayPipelineInfo.setMaxRecursionDepth(1);  // Ray depth
+  rayPipelineInfo.setMaxPipelineRayRecursionDepth(1);  // Ray depth
   rayPipelineInfo.setLayout(m_rtPipelineLayout);
-  m_rtPipeline = m_device.createRayTracingPipelineKHR({}, rayPipelineInfo);
+  m_rtPipeline = static_cast<const vk::Pipeline&>(
+    m_device.createRayTracingPipelineKHR({}, {}, rayPipelineInfo));
 ````
 
 Once the pipeline has been created we discard the shader modules:
@@ -1279,23 +1296,29 @@ void HelloVulkan::createRtShaderBindingTable()
   auto groupCount =
       static_cast<uint32_t>(m_rtShaderGroups.size());               // 3 shaders: raygen, miss, chit
   uint32_t groupHandleSize = m_rtProperties.shaderGroupHandleSize;  // Size of a program identifier
-  uint32_t baseAlignment   = m_rtProperties.shaderGroupBaseAlignment;  // Size of shader alignment
+  uint32_t groupSizeAligned =
+      nvh::align_up(groupHandleSize, m_rtProperties.shaderGroupBaseAlignment);
 
   // Fetch all the shader handles used in the pipeline, so that they can be written in the SBT
-  uint32_t sbtSize = groupCount * baseAlignment;
+  uint32_t sbtSize = groupCount * groupSizeAligned;
 ````
 
-We then fetch the handles to the shader groups of the pipeline, and let the allocator allocate the device memory and
-copy the handles into the SBT:
+We then fetch the handles to the shader groups of the pipeline, and let the allocator 
+allocate the device memory and copy the handles into the SBT. Note that SBT buffer need the
+`VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR` flag and since we will need the address
+of SBT buffer, therefore the buffer need also the `VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT` flag.
 
 ```` C
   std::vector<uint8_t> shaderHandleStorage(sbtSize);
   m_device.getRayTracingShaderGroupHandlesKHR(m_rtPipeline, 0, groupCount, sbtSize,
                                               shaderHandleStorage.data());
-   // Write the handles in the SBT
-  m_rtSBTBuffer = m_alloc.createBuffer(sbtSize, vk::BufferUsageFlagBits::eTransferSrc,
-                                       vk::MemoryPropertyFlagBits::eHostVisible
-                                           | vk::MemoryPropertyFlagBits::eHostCoherent);
+
+  // Write the handles in the SBT
+  m_rtSBTBuffer = m_alloc.createBuffer(
+      sbtSize,
+      vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eShaderDeviceAddress
+          | vk::BufferUsageFlagBits::eShaderBindingTableKHR,
+      vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
   m_debug.setObjectName(m_rtSBTBuffer.buffer, std::string("SBT").c_str());
 
   // Write the handles in the SBT
@@ -1304,7 +1327,7 @@ copy the handles into the SBT:
   for(uint32_t g = 0; g < groupCount; g++)
   {
     memcpy(pData, shaderHandleStorage.data() + g * groupHandleSize, groupHandleSize);  // raygen
-    pData += baseAlignment;
+    pData += groupSizeAligned;
   }
   m_alloc.unmap(m_rtSBTBuffer);
 
@@ -1366,12 +1389,21 @@ each shader. In our case the stride is simply the size of a shader group handle,
 shader-group-specific data within the SBT, resulting in a larger stride.
 
 ```` C  
-  vk::DeviceSize progSize = m_rtProperties.shaderGroupBaseAlignment;  // Size of a program identifier
-  vk::DeviceSize rayGenOffset   = 0u * progSize;  // Start at the beginning of m_sbtBuffer
-  vk::DeviceSize missOffset     = 1u * progSize;  // Jump over raygen
-  vk::DeviceSize missStride     = progSize;
-  vk::DeviceSize hitGroupOffset = 2u * progSize;  // Jump over the previous shaders
-  vk::DeviceSize hitGroupStride = progSize;
+// Size of a program identifier
+  uint32_t groupSize =
+      nvh::align_up(m_rtProperties.shaderGroupHandleSize, m_rtProperties.shaderGroupBaseAlignment);
+  uint32_t       groupStride = groupSize;
+  vk::DeviceSize hitGroupSize =
+      nvh::align_up(m_rtProperties.shaderGroupHandleSize + sizeof(HitRecordBuffer),
+                    m_rtProperties.shaderGroupBaseAlignment);
+  vk::DeviceAddress sbtAddress = m_device.getBufferAddress({m_rtSBTBuffer.buffer});
+
+  using Stride = vk::StridedDeviceAddressRegionKHR;
+  std::array<Stride, 4> strideAddresses{
+      Stride{sbtAddress + 0u * groupSize, groupStride, groupSize * 1},      // raygen
+      Stride{sbtAddress + 1u * groupSize, groupStride, groupSize * 2},      // miss
+      Stride{sbtAddress + 3u * groupSize, hitGroupSize, hitGroupSize * 3},  // hit
+      Stride{0u, 0u, 0u}};                                                  // callable
   
 ````
 
@@ -1382,19 +1414,9 @@ three parameters are equivalent to the grid size of a compute launch, and repres
 we want to trace one ray per pixel, the grid size has the width and height of the output image, and a depth of 1.
 
 ```` C  
-vk::DeviceSize sbtSize = progSize * (vk::DeviceSize)m_rtShaderGroups.size();
-
-const vk::StridedBufferRegionKHR raygenShaderBindingTable = {m_rtSBTBuffer.buffer, rayGenOffset,
-                                                             progSize, sbtSize};
-const vk::StridedBufferRegionKHR missShaderBindingTable   = {m_rtSBTBuffer.buffer, missOffset,
-                                                           progSize, sbtSize};
-const vk::StridedBufferRegionKHR hitShaderBindingTable    = {m_rtSBTBuffer.buffer, hitGroupOffset,
-                                                          progSize, sbtSize};
-const vk::StridedBufferRegionKHR callableShaderBindingTable;
-
-cmdBuf.traceRaysKHR(&raygenShaderBindingTable, &missShaderBindingTable, &hitShaderBindingTable,
-                    &callableShaderBindingTable,      //
-                    m_size.width, m_size.height, 1);  //
+  cmdBuf.traceRaysKHR(&strideAddresses[0], &strideAddresses[1], &strideAddresses[2],
+                      &strideAddresses[3],              //
+                      m_size.width, m_size.height, 1);  //
 
   m_debug.endLabel(cmdBuf);
 }
@@ -1823,8 +1845,8 @@ The OBJ model is loaded in `main.cpp` by calling `helloVk.loadModel`. Let's load
 
 ```` C
   // Creation of the example
-  helloVk.loadModel(nvh::findFile("media/scenes/Medieval_building.obj", defaultSearchPaths));
-  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths));
+  helloVk.loadModel(nvh::findFile("media/scenes/Medieval_building.obj", defaultSearchPaths, true));
+  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
 ````
 
 Since that model is larger, we can change the `CameraManip.setLookat` call to
@@ -1860,7 +1882,7 @@ In the body of `createRtPipeline`, we need to define the new miss shader right a
   // simply indicates that no occlusion has been found
   vk::ShaderModule shadowmissSM =
       nvvk::createShaderModule(m_device,
-                               nvh::loadFile("shaders/raytraceShadow.rmiss.spv", true, paths));
+                               nvh::loadFile("shaders/raytraceShadow.rmiss.spv", true, paths, true));
 
 ````
 
@@ -1880,7 +1902,7 @@ The pipeline now has to allow shooting rays from the closest hit program, which 
   // hit points of the camera rays, hence a recursion level of 2. This number should be kept as low
   // as possible for performance reasons. Even recursive ray tracing should be flattened into a loop
   // in the ray generation to avoid deep recursion.
-  rayPipelineInfo.setMaxRecursionDepth(2);  // Ray depth
+  rayPipelineInfo.setMaxPipelineRayRecursionDepth(2);  // Ray depth
 ````
 
 At the end of the method, we destroy the shader module for the shadow miss shader:

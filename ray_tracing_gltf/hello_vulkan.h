@@ -127,7 +127,7 @@ public:
   vk::Format                  m_offscreenDepthFormat{vk::Format::eD32Sfloat};
 
   // #VKRay
-  nvvk::RaytracingBuilderKHR::Blas primitiveToGeometry(const nvh::GltfPrimMesh& prim);
+  nvvk::RaytracingBuilderKHR::BlasInput primitiveToGeometry(const nvh::GltfPrimMesh& prim);
 
   void initRayTracing();
   void createBottomLevelAS();
@@ -140,7 +140,7 @@ public:
   void updateFrame();
   void resetFrame();
 
-  vk::PhysicalDeviceRayTracingPropertiesKHR           m_rtProperties;
+  vk::PhysicalDeviceRayTracingPipelinePropertiesKHR   m_rtProperties;
   nvvk::RaytracingBuilderKHR                          m_rtBuilder;
   nvvk::DescriptorSetBindings                         m_rtDescSetLayoutBind;
   vk::DescriptorPool                                  m_rtDescPool;

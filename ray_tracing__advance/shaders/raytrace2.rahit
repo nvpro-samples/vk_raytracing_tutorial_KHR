@@ -26,7 +26,7 @@ void main()
 
   uint seed = prd.seed;  // We don't want to modify the PRD
   if(mat.dissolve == 0.0)
-    ignoreIntersectionEXT();
+    ignoreIntersectionEXT;
   else if(rnd(seed) > mat.dissolve)
-    ignoreIntersectionEXT();
+    ignoreIntersectionEXT;
 }

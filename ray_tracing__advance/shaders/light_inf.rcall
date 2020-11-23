@@ -3,7 +3,7 @@
 #extension GL_GOOGLE_include_directive : enable
 #include "raycommon.glsl"
 
-layout(location = 0) callableDataInEXT rayLight cLight;
+layout(location = 3) callableDataInEXT rayLight cLight;
 
 layout(push_constant) uniform Constants
 {

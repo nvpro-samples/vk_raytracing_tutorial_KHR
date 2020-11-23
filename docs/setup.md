@@ -9,6 +9,14 @@ Besides the current repository, you will also need to clone or download the foll
 * [shared_sources](https://github.com/nvpro-samples/shared_sources): The primary framework that all samples depend on.
 * [shared_external](https://github.com/nvpro-samples/shared_external): Third party libraries that are provided pre-compiled, mostly for Windows x64 / MSVC.
 
+Cloning all repositories 
+
+~~~~~
+git clone https://github.com/nvpro-samples/shared_sources.git
+git clone https://github.com/nvpro-samples/shared_external.git
+git clone https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR.git
+~~~~~
+
 The directory structure should be looking like this:
 
 ~~~~
@@ -44,7 +52,7 @@ Vulkan driver.
 The CMakefile will use other makefiles from `shared_sources` and look for Vulkan environment variables for the installation of the SDK. Therefore, it is important to have all the above installed before running Cmake in the 
 `vk_raytracing_tutorial_KHR` directory.
 
-:warning: **Note:** If you are using your own Vulkan header files, it is possible to overide the default search path.
+**Note:** If you are using your own Vulkan header files, it is possible to overide the default search path.
   Modify `VULKAN > VULKAN_HEADERS_OVERRIDE_INCLUDE_DIR` to the path to beta vulkan headers.
 
 ## Starting From Extra Tutorial

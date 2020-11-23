@@ -174,8 +174,8 @@ void HelloVulkan::createGraphicsPipeline()
   std::vector<std::string>                paths = defaultSearchPaths;
   nvvk::GraphicsPipelineGeneratorCombined gpb(m_device, m_pipelineLayout, m_offscreenRenderPass);
   gpb.depthStencilState.depthTestEnable = true;
-  gpb.addShader(nvh::loadFile("shaders/vert_shader.vert.spv", true, paths), vkSS::eVertex);
-  gpb.addShader(nvh::loadFile("shaders/frag_shader.frag.spv", true, paths), vkSS::eFragment);
+  gpb.addShader(nvh::loadFile("shaders/vert_shader.vert.spv", true, paths, true), vkSS::eVertex);
+  gpb.addShader(nvh::loadFile("shaders/frag_shader.frag.spv", true, paths, true), vkSS::eFragment);
   gpb.addBindingDescription({0, sizeof(VertexObj)});
   gpb.addAttributeDescriptions(std::vector<vk::VertexInputAttributeDescription>{
       {0, 0, vk::Format::eR32G32B32Sfloat, offsetof(VertexObj, pos)},
@@ -194,6 +194,7 @@ void HelloVulkan::loadModel(const std::string& filename, nvmath::mat4f transform
 {
   using vkBU = vk::BufferUsageFlagBits;
 
+  LOGI("Loading File:  %s \n", filename.c_str());
   ObjLoader loader;
   loader.loadModel(filename);
 
@@ -293,7 +294,7 @@ void HelloVulkan::createTextureImages(const vk::CommandBuffer&        cmdBuf,
     auto                   imgSize         = vk::Extent2D(1, 1);
     auto                   imageCreateInfo = nvvk::makeImage2DCreateInfo(imgSize, format);
 
-    // Creating the dummy texure
+    // Creating the dummy texture
     nvvk::Image image = m_alloc.createImage(cmdBuf, bufferSize, color.data(), imageCreateInfo);
     vk::ImageViewCreateInfo ivInfo = nvvk::makeImageViewCreateInfo(image.image, imageCreateInfo);
     texture                        = m_alloc.createTexture(image, ivInfo, samplerCreateInfo);
@@ -311,9 +312,10 @@ void HelloVulkan::createTextureImages(const vk::CommandBuffer&        cmdBuf,
       std::stringstream o;
       int               texWidth, texHeight, texChannels;
       o << "media/textures/" << texture;
-      std::string txtFile = nvh::findFile(o.str(), defaultSearchPaths);
+      std::string txtFile = nvh::findFile(o.str(), defaultSearchPaths, true);
 
-      stbi_uc* stbi_pixels = stbi_load(txtFile.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+      stbi_uc* stbi_pixels =
+          stbi_load(txtFile.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
       std::array<stbi_uc, 4> color{255u, 0u, 255u, 255u};
 
@@ -527,9 +529,9 @@ void HelloVulkan::createPostPipeline()
 
   nvvk::GraphicsPipelineGeneratorCombined pipelineGenerator(m_device, m_postPipelineLayout,
                                                             m_renderPass);
-  pipelineGenerator.addShader(nvh::loadFile("shaders/passthrough.vert.spv", true, paths),
+  pipelineGenerator.addShader(nvh::loadFile("shaders/passthrough.vert.spv", true, paths, true),
                               vk::ShaderStageFlagBits::eVertex);
-  pipelineGenerator.addShader(nvh::loadFile("shaders/post.frag.spv", true, paths),
+  pipelineGenerator.addShader(nvh::loadFile("shaders/post.frag.spv", true, paths, true),
                               vk::ShaderStageFlagBits::eFragment);
   pipelineGenerator.rasterizationState.setCullMode(vk::CullModeFlagBits::eNone);
   m_postPipeline = pipelineGenerator.createPipeline();

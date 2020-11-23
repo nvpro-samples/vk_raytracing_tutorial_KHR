@@ -17,7 +17,7 @@ The any hit shader can be useful for discarding intersections, such as for alpha
 used for simple transparency. In this example we will show what is needed to do to add this shader type and to create a
 transparency effect.
 
-:warning: **Note:**
+ **Note:**
     This example is based on many elements from the [Antialiasing Tutorial](vkrt_tuto_jitter_cam.md.htm).
 
 
@@ -49,7 +49,7 @@ layout(binding = 1, set = 1, scalar) buffer MatColorBufferObject { WaveFrontMate
 // clang-format on
 ~~~~ 
 
-:warning: **Note:**
+ **Note:**
     You can find the source of `random.glsl` in the Antialiasing Tutorial [here](../ray_tracing_jitter_cam/README.md#toc1.1).
 
 
@@ -205,11 +205,11 @@ uint  flags = gl_RayFlagsSkipClosestHitShaderEXT;
 For a more interesting scene, you can replace the `helloVk.loadModel` calls in `main()` with the following scene:
 
 ~~~~ C++
-  helloVk.loadModel(nvh::findFile("media/scenes/wuson.obj", defaultSearchPaths));
-  helloVk.loadModel(nvh::findFile("media/scenes/sphere.obj", defaultSearchPaths),
+  helloVk.loadModel(nvh::findFile("media/scenes/wuson.obj", defaultSearchPaths, true));
+  helloVk.loadModel(nvh::findFile("media/scenes/sphere.obj", defaultSearchPaths, true),
                     nvmath::scale_mat4(nvmath::vec3f(1.5f))
                         * nvmath::translation_mat4(nvmath::vec3f(0.0f, 1.0f, 0.0f)));
-  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths));
+  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
 ~~~~
 
 ## OBJ Materials
@@ -259,7 +259,7 @@ And we need to add the following to the ray tracing pipeline, a copy of the prev
 
 Create two new files `raytrace_0.ahit` and `raytrace_1.ahit`, and rename `raytrace.ahit` to `raytrace_ahit.glsl`
 
-:warning: **Note:** 
+ **Note:** 
     Cmake need to be re-run to add the new files to the project.
 
 In `raytrace_0.ahit` add the following code 
@@ -390,7 +390,7 @@ m_rtShaderGroups.push_back(hg);
 At the end of the function, delete the shader module `ahit1SM`.
 
 
-:warning: **Note:** Re-Run
+ **Note:** Re-Run
     Everything should work as before, but now it does it right.
 
 

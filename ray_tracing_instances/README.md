@@ -30,9 +30,9 @@ Then replace the calls to `helloVk.loadModel` in `main()` by
 
 ~~~~ C++
   // Creation of the example
-  helloVk.loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths));
-  helloVk.loadModel(nvh::findFile("media/scenes/cube_multi.obj", defaultSearchPaths));
-  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths));
+  helloVk.loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true));
+  helloVk.loadModel(nvh::findFile("media/scenes/cube_multi.obj", defaultSearchPaths, true));
+  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
 
   std::random_device              rd;  // Will be used to obtain a seed for the random number engine
   std::mt19937                    gen(rd());  // Standard mersenne_twister_engine seeded with rd()
@@ -55,7 +55,7 @@ Then replace the calls to `helloVk.loadModel` in `main()` by
   }
 ~~~~
 
-:warning: **Note:**
+ **Note:**
     This will create 3 models (OBJ) and their instances, and then add 2000 instances 
     distributed between green cubes and cubes with one color per face.
 
@@ -73,7 +73,7 @@ Remove the previous code and replace it with the following
   std::normal_distribution<float> disn(0.05f, 0.05f);
   for(int n = 0; n < 2000; ++n)
   {
-    helloVk.loadModel(nvh::findFile("media/scenes/cube_multi.obj", defaultSearchPaths));
+    helloVk.loadModel(nvh::findFile("media/scenes/cube_multi.obj", defaultSearchPaths, true));
     HelloVulkan::ObjInstance& inst = helloVk.m_objInstance.back();
 
     float         scale = fabsf(disn(gen));
@@ -85,7 +85,7 @@ Remove the previous code and replace it with the following
     inst.transformIT = nvmath::transpose(nvmath::invert((inst.transform)));
   }
 
-  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths));
+  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
 ~~~~
 
 The example might still work, but the console will print the following error after loading 1363 objects. All other objects allocated after the 1363rd will fail to be displayed.

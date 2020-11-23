@@ -163,7 +163,7 @@ void HelloVulkan::updateDescriptorSet()
   std::vector<vk::DescriptorImageInfo> diit;
   for(auto& texture : m_textures)
   {
-    diit.push_back(texture.descriptor);
+    diit.emplace_back(texture.descriptor);
   }
   writes.emplace_back(m_descSetLayoutBind.makeWriteArray(m_descSet, 3, diit.data()));
 
@@ -201,8 +201,8 @@ void HelloVulkan::createGraphicsPipeline()
   std::vector<std::string>                paths = defaultSearchPaths;
   nvvk::GraphicsPipelineGeneratorCombined gpb(m_device, m_pipelineLayout, m_offscreenRenderPass);
   gpb.depthStencilState.depthTestEnable = true;
-  gpb.addShader(nvh::loadFile("shaders/vert_shader.vert.spv", true, paths), vkSS::eVertex);
-  gpb.addShader(nvh::loadFile("shaders/frag_shader.frag.spv", true, paths), vkSS::eFragment);
+  gpb.addShader(nvh::loadFile("shaders/vert_shader.vert.spv", true, paths, true), vkSS::eVertex);
+  gpb.addShader(nvh::loadFile("shaders/frag_shader.frag.spv", true, paths, true), vkSS::eFragment);
   gpb.addBindingDescription({0, sizeof(VertexObj)});
   gpb.addAttributeDescriptions({{0, 0, vk::Format::eR32G32B32Sfloat, offsetof(VertexObj, pos)},
                                 {1, 0, vk::Format::eR32G32B32Sfloat, offsetof(VertexObj, nrm)},
@@ -220,6 +220,7 @@ void HelloVulkan::loadModel(const std::string& filename, nvmath::mat4f transform
 {
   using vkBU = vk::BufferUsageFlagBits;
 
+  LOGI("Loading File:  %s \n", filename.c_str());
   ObjLoader loader;
   loader.loadModel(filename);
 
@@ -246,10 +247,12 @@ void HelloVulkan::loadModel(const std::string& filename, nvmath::mat4f transform
   vk::CommandBuffer cmdBuf = cmdBufGet.createCommandBuffer();
   model.vertexBuffer =
       m_alloc.createBuffer(cmdBuf, loader.m_vertices,
-                           vkBU::eVertexBuffer | vkBU::eStorageBuffer | vkBU::eShaderDeviceAddress);
+                           vkBU::eVertexBuffer | vkBU::eStorageBuffer | vkBU::eShaderDeviceAddress
+                               | vkBU::eAccelerationStructureBuildInputReadOnlyKHR);
   model.indexBuffer =
       m_alloc.createBuffer(cmdBuf, loader.m_indices,
-                           vkBU::eIndexBuffer | vkBU::eStorageBuffer | vkBU::eShaderDeviceAddress);
+                           vkBU::eIndexBuffer | vkBU::eStorageBuffer | vkBU::eShaderDeviceAddress
+                               | vkBU::eAccelerationStructureBuildInputReadOnlyKHR);
   model.matColorBuffer = m_alloc.createBuffer(cmdBuf, loader.m_materials, vkBU::eStorageBuffer);
   model.matIndexBuffer = m_alloc.createBuffer(cmdBuf, loader.m_matIndx, vkBU::eStorageBuffer);
   // Creates all textures found
@@ -340,9 +343,10 @@ void HelloVulkan::createTextureImages(const vk::CommandBuffer&        cmdBuf,
       std::stringstream o;
       int               texWidth, texHeight, texChannels;
       o << "media/textures/" << texture;
-      std::string txtFile = nvh::findFile(o.str(), defaultSearchPaths);
+      std::string txtFile = nvh::findFile(o.str(), defaultSearchPaths, true);
 
-      stbi_uc* stbi_pixels = stbi_load(txtFile.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+      stbi_uc* stbi_pixels =
+          stbi_load(txtFile.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
       std::array<stbi_uc, 4> color{255u, 0u, 255u, 255u};
 
@@ -475,7 +479,7 @@ void HelloVulkan::createOffscreenRender()
                                                            | vk::ImageUsageFlagBits::eStorage);
 
 
-    nvvk::Image    image  = m_alloc.createImage(colorCreateInfo);
+    nvvk::Image             image  = m_alloc.createImage(colorCreateInfo);
     vk::ImageViewCreateInfo ivInfo = nvvk::makeImageViewCreateInfo(image.image, colorCreateInfo);
     m_offscreenColor               = m_alloc.createTexture(image, ivInfo, vk::SamplerCreateInfo());
     m_offscreenColor.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -554,9 +558,9 @@ void HelloVulkan::createPostPipeline()
 
   nvvk::GraphicsPipelineGeneratorCombined pipelineGenerator(m_device, m_postPipelineLayout,
                                                             m_renderPass);
-  pipelineGenerator.addShader(nvh::loadFile("shaders/passthrough.vert.spv", true, paths),
+  pipelineGenerator.addShader(nvh::loadFile("shaders/passthrough.vert.spv", true, paths, true),
                               vk::ShaderStageFlagBits::eVertex);
-  pipelineGenerator.addShader(nvh::loadFile("shaders/post.frag.spv", true, paths),
+  pipelineGenerator.addShader(nvh::loadFile("shaders/post.frag.spv", true, paths, true),
                               vk::ShaderStageFlagBits::eFragment);
   pipelineGenerator.rasterizationState.setCullMode(vk::CullModeFlagBits::eNone);
   m_postPipeline = pipelineGenerator.createPipeline();
@@ -620,55 +624,47 @@ void HelloVulkan::drawPost(vk::CommandBuffer cmdBuf)
 void HelloVulkan::initRayTracing()
 {
   // Requesting ray tracing properties
-  auto properties = m_physicalDevice.getProperties2<vk::PhysicalDeviceProperties2,
-                                                    vk::PhysicalDeviceRayTracingPropertiesKHR>();
-  m_rtProperties  = properties.get<vk::PhysicalDeviceRayTracingPropertiesKHR>();
+  auto properties =
+      m_physicalDevice.getProperties2<vk::PhysicalDeviceProperties2,
+                                      vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
+  m_rtProperties = properties.get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
   m_rtBuilder.setup(m_device, &m_alloc, m_graphicsQueueIndex);
 }
 
 //--------------------------------------------------------------------------------------------------
 // Converting a OBJ primitive to the ray tracing geometry used for the BLAS
 //
-nvvk::RaytracingBuilderKHR::Blas HelloVulkan::objectToVkGeometryKHR(const ObjModel& model)
+nvvk::RaytracingBuilderKHR::BlasInput HelloVulkan::objectToVkGeometryKHR(const ObjModel& model)
 {
-  // Setting up the creation info of acceleration structure
-  vk::AccelerationStructureCreateGeometryTypeInfoKHR asCreate;
-  asCreate.setGeometryType(vk::GeometryTypeKHR::eTriangles);
-  asCreate.setIndexType(vk::IndexType::eUint32);
-  asCreate.setVertexFormat(vk::Format::eR32G32B32Sfloat);
-  asCreate.setMaxPrimitiveCount(model.nbIndices / 3);  // Nb triangles
-  asCreate.setMaxVertexCount(model.nbVertices);
-  asCreate.setAllowsTransforms(VK_FALSE);  // No adding transformation matrices
-
   // Building part
   vk::DeviceAddress vertexAddress = m_device.getBufferAddress({model.vertexBuffer.buffer});
   vk::DeviceAddress indexAddress  = m_device.getBufferAddress({model.indexBuffer.buffer});
 
   vk::AccelerationStructureGeometryTrianglesDataKHR triangles;
-  triangles.setVertexFormat(asCreate.vertexFormat);
+  triangles.setVertexFormat(vk::Format::eR32G32B32Sfloat);
   triangles.setVertexData(vertexAddress);
   triangles.setVertexStride(sizeof(VertexObj));
-  triangles.setIndexType(asCreate.indexType);
+  triangles.setIndexType(vk::IndexType::eUint32);
   triangles.setIndexData(indexAddress);
   triangles.setTransformData({});
+  triangles.setMaxVertex(model.nbVertices);
 
   // Setting up the build info of the acceleration
   vk::AccelerationStructureGeometryKHR asGeom;
-  asGeom.setGeometryType(asCreate.geometryType);
+  asGeom.setGeometryType(vk::GeometryTypeKHR::eTriangles);
   asGeom.setFlags(vk::GeometryFlagBitsKHR::eOpaque);
   asGeom.geometry.setTriangles(triangles);
 
   // The primitive itself
-  vk::AccelerationStructureBuildOffsetInfoKHR offset;
+  vk::AccelerationStructureBuildRangeInfoKHR offset;
   offset.setFirstVertex(0);
-  offset.setPrimitiveCount(asCreate.maxPrimitiveCount);
+  offset.setPrimitiveCount(model.nbIndices / 3);  // Nb triangles
   offset.setPrimitiveOffset(0);
   offset.setTransformOffset(0);
 
   // Our blas is only one geometry, but could be made of many geometries
-  nvvk::RaytracingBuilderKHR::Blas blas;
+  nvvk::RaytracingBuilderKHR::BlasInput blas;
   blas.asGeometry.emplace_back(asGeom);
-  blas.asCreateGeometryInfo.emplace_back(asCreate);
   blas.asBuildOffsetInfo.emplace_back(offset);
 
   return blas;
@@ -680,7 +676,7 @@ nvvk::RaytracingBuilderKHR::Blas HelloVulkan::objectToVkGeometryKHR(const ObjMod
 void HelloVulkan::createBottomLevelAS()
 {
   // BLAS - Storing each primitive in a geometry
-  std::vector<nvvk::RaytracingBuilderKHR::Blas> allBlas;
+  std::vector<nvvk::RaytracingBuilderKHR::BlasInput> allBlas;
   allBlas.reserve(m_objModel.size());
   for(const auto& obj : m_objModel)
   {

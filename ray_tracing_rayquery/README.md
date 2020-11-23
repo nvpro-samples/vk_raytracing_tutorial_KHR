@@ -47,7 +47,7 @@ You can safely remove all raytrace.* shaders
 
 ## Support for Fragment shader
 
-In `HelloVulkan::createDescriptorSetLayout`, add the acceleration structure to the description layout.
+In `HelloVulkan::createDescriptorSetLayout`, add the acceleration structure to the description layout to have access to the acceleration structure directly in the fragment shader.
 
 ~~~~ C++
 // The top level acceleration structure

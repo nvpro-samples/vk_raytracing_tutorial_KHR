@@ -46,6 +46,7 @@ extern std::vector<std::string> defaultSearchPaths;
 #include "nvvk/renderpasses_vk.hpp"
 #include "nvvk/shaders_vk.hpp"
 
+#include "nvh/alignment.hpp"
 #include "shaders/binding.glsl"
 
 // Holding the camera matrices
@@ -182,8 +183,8 @@ void HelloVulkan::createGraphicsPipeline()
   std::vector<std::string>                paths = defaultSearchPaths;
   nvvk::GraphicsPipelineGeneratorCombined gpb(m_device, m_pipelineLayout, m_offscreenRenderPass);
   gpb.depthStencilState.depthTestEnable = true;
-  gpb.addShader(nvh::loadFile("shaders/vert_shader.vert.spv", true, paths), vkSS::eVertex);
-  gpb.addShader(nvh::loadFile("shaders/frag_shader.frag.spv", true, paths), vkSS::eFragment);
+  gpb.addShader(nvh::loadFile("shaders/vert_shader.vert.spv", true, paths, true), vkSS::eVertex);
+  gpb.addShader(nvh::loadFile("shaders/frag_shader.frag.spv", true, paths, true), vkSS::eFragment);
   gpb.addBindingDescriptions(
       {{0, sizeof(nvmath::vec3)}, {1, sizeof(nvmath::vec3)}, {2, sizeof(nvmath::vec2)}});
   gpb.addAttributeDescriptions({
@@ -205,6 +206,7 @@ void HelloVulkan::loadScene(const std::string& filename)
   tinygltf::TinyGLTF tcontext;
   std::string        warn, error;
 
+  LOGI("Loading file: %s", filename.c_str());
   if(!tcontext.LoadASCIIFromFile(&tmodel, &error, &warn, filename))
   {
     assert(!"Error while loading scene");
@@ -223,10 +225,12 @@ void HelloVulkan::loadScene(const std::string& filename)
 
   m_vertexBuffer =
       m_alloc.createBuffer(cmdBuf, m_gltfScene.m_positions,
-                           vkBU::eVertexBuffer | vkBU::eStorageBuffer | vkBU::eShaderDeviceAddress);
+                           vkBU::eVertexBuffer | vkBU::eStorageBuffer | vkBU::eShaderDeviceAddress
+                               | vkBU::eAccelerationStructureBuildInputReadOnlyKHR);
   m_indexBuffer =
       m_alloc.createBuffer(cmdBuf, m_gltfScene.m_indices,
-                           vkBU::eIndexBuffer | vkBU::eStorageBuffer | vkBU::eShaderDeviceAddress);
+                           vkBU::eIndexBuffer | vkBU::eStorageBuffer | vkBU::eShaderDeviceAddress
+                               | vkBU::eAccelerationStructureBuildInputReadOnlyKHR);
   m_normalBuffer   = m_alloc.createBuffer(cmdBuf, m_gltfScene.m_normals,
                                         vkBU::eVertexBuffer | vkBU::eStorageBuffer);
   m_uvBuffer       = m_alloc.createBuffer(cmdBuf, m_gltfScene.m_texcoords0,
@@ -525,9 +529,9 @@ void HelloVulkan::createPostPipeline()
 
   nvvk::GraphicsPipelineGeneratorCombined pipelineGenerator(m_device, m_postPipelineLayout,
                                                             m_renderPass);
-  pipelineGenerator.addShader(nvh::loadFile("shaders/passthrough.vert.spv", true, paths),
+  pipelineGenerator.addShader(nvh::loadFile("shaders/passthrough.vert.spv", true, paths, true),
                               vk::ShaderStageFlagBits::eVertex);
-  pipelineGenerator.addShader(nvh::loadFile("shaders/post.frag.spv", true, paths),
+  pipelineGenerator.addShader(nvh::loadFile("shaders/post.frag.spv", true, paths, true),
                               vk::ShaderStageFlagBits::eFragment);
   pipelineGenerator.rasterizationState.setCullMode(vk::CullModeFlagBits::eNone);
   m_postPipeline = pipelineGenerator.createPipeline();
@@ -591,54 +595,46 @@ void HelloVulkan::drawPost(vk::CommandBuffer cmdBuf)
 void HelloVulkan::initRayTracing()
 {
   // Requesting ray tracing properties
-  auto properties = m_physicalDevice.getProperties2<vk::PhysicalDeviceProperties2,
-                                                    vk::PhysicalDeviceRayTracingPropertiesKHR>();
-  m_rtProperties  = properties.get<vk::PhysicalDeviceRayTracingPropertiesKHR>();
+  auto properties =
+      m_physicalDevice.getProperties2<vk::PhysicalDeviceProperties2,
+                                      vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
+  m_rtProperties = properties.get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
   m_rtBuilder.setup(m_device, &m_alloc, m_graphicsQueueIndex);
 }
 
 //--------------------------------------------------------------------------------------------------
 // Converting a GLTF primitive in the Raytracing Geometry used for the BLAS
 //
-nvvk::RaytracingBuilderKHR::Blas HelloVulkan::primitiveToGeometry(const nvh::GltfPrimMesh& prim)
+nvvk::RaytracingBuilderKHR::BlasInput HelloVulkan::primitiveToGeometry(
+    const nvh::GltfPrimMesh& prim)
 {
-  // Setting up the creation info of acceleration structure
-  vk::AccelerationStructureCreateGeometryTypeInfoKHR asCreate;
-  asCreate.setGeometryType(vk::GeometryTypeKHR::eTriangles);
-  asCreate.setIndexType(vk::IndexType::eUint32);
-  asCreate.setVertexFormat(vk::Format::eR32G32B32Sfloat);
-  asCreate.setMaxPrimitiveCount(prim.indexCount / 3);  // Nb triangles
-  asCreate.setMaxVertexCount(prim.vertexCount);
-  asCreate.setAllowsTransforms(VK_FALSE);  // No adding transformation matrices
-
   // Building part
   vk::DeviceAddress vertexAddress = m_device.getBufferAddress({m_vertexBuffer.buffer});
   vk::DeviceAddress indexAddress  = m_device.getBufferAddress({m_indexBuffer.buffer});
 
   vk::AccelerationStructureGeometryTrianglesDataKHR triangles;
-  triangles.setVertexFormat(asCreate.vertexFormat);
+  triangles.setVertexFormat(vk::Format::eR32G32B32Sfloat);
   triangles.setVertexData(vertexAddress);
   triangles.setVertexStride(sizeof(nvmath::vec3f));
-  triangles.setIndexType(asCreate.indexType);
+  triangles.setIndexType(vk::IndexType::eUint32);
   triangles.setIndexData(indexAddress);
   triangles.setTransformData({});
+  triangles.setMaxVertex(prim.vertexCount);
 
   // Setting up the build info of the acceleration
   vk::AccelerationStructureGeometryKHR asGeom;
-  asGeom.setGeometryType(asCreate.geometryType);
+  asGeom.setGeometryType(vk::GeometryTypeKHR::eTriangles);
   asGeom.setFlags(vk::GeometryFlagBitsKHR::eNoDuplicateAnyHitInvocation);  // For AnyHit
   asGeom.geometry.setTriangles(triangles);
 
-
-  vk::AccelerationStructureBuildOffsetInfoKHR offset;
+  vk::AccelerationStructureBuildRangeInfoKHR offset;
   offset.setFirstVertex(prim.vertexOffset);
   offset.setPrimitiveCount(prim.indexCount / 3);
   offset.setPrimitiveOffset(prim.firstIndex * sizeof(uint32_t));
   offset.setTransformOffset(0);
 
-  nvvk::RaytracingBuilderKHR::Blas blas;
+  nvvk::RaytracingBuilderKHR::BlasInput blas;
   blas.asGeometry.emplace_back(asGeom);
-  blas.asCreateGeometryInfo.emplace_back(asCreate);
   blas.asBuildOffsetInfo.emplace_back(offset);
   return blas;
 }
@@ -649,7 +645,7 @@ nvvk::RaytracingBuilderKHR::Blas HelloVulkan::primitiveToGeometry(const nvh::Glt
 void HelloVulkan::createBottomLevelAS()
 {
   // BLAS - Storing each primitive in a geometry
-  std::vector<nvvk::RaytracingBuilderKHR::Blas> allBlas;
+  std::vector<nvvk::RaytracingBuilderKHR::BlasInput> allBlas;
   allBlas.reserve(m_gltfScene.m_primMeshes.size());
   for(auto& primMesh : m_gltfScene.m_primMeshes)
   {
@@ -738,16 +734,15 @@ void HelloVulkan::createRtPipeline()
 
   vk::ShaderModule raygenSM =
       nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/pathtrace.rgen.spv", true, paths));
+                               nvh::loadFile("shaders/pathtrace.rgen.spv", true, paths, true));
   vk::ShaderModule missSM =
       nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/pathtrace.rmiss.spv", true, paths));
+                               nvh::loadFile("shaders/pathtrace.rmiss.spv", true, paths, true));
 
   // The second miss shader is invoked when a shadow ray misses the geometry. It
   // simply indicates that no occlusion has been found
-  vk::ShaderModule shadowmissSM =
-      nvvk::createShaderModule(m_device,
-                               nvh::loadFile("shaders/raytraceShadow.rmiss.spv", true, paths));
+  vk::ShaderModule shadowmissSM = nvvk::createShaderModule(
+      m_device, nvh::loadFile("shaders/raytraceShadow.rmiss.spv", true, paths, true));
 
 
   std::vector<vk::PipelineShaderStageCreateInfo> stages;
@@ -774,7 +769,7 @@ void HelloVulkan::createRtPipeline()
   // Hit Group - Closest Hit + AnyHit
   vk::ShaderModule chitSM =
       nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/pathtrace.rchit.spv", true, paths));
+                               nvh::loadFile("shaders/pathtrace.rchit.spv", true, paths, true));
 
   vk::RayTracingShaderGroupCreateInfoKHR hg{vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup,
                                             VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
@@ -810,10 +805,10 @@ void HelloVulkan::createRtPipeline()
       m_rtShaderGroups.size()));  // 1-raygen, n-miss, n-(hit[+anyhit+intersect])
   rayPipelineInfo.setPGroups(m_rtShaderGroups.data());
 
-  rayPipelineInfo.setMaxRecursionDepth(2);  // Ray depth
+  rayPipelineInfo.setMaxPipelineRayRecursionDepth(2);  // Ray depth
   rayPipelineInfo.setLayout(m_rtPipelineLayout);
-  m_rtPipeline =
-      static_cast<const vk::Pipeline&>(m_device.createRayTracingPipelineKHR({}, rayPipelineInfo));
+  m_rtPipeline = static_cast<const vk::Pipeline&>(
+      m_device.createRayTracingPipelineKHR({}, {}, rayPipelineInfo));
 
   m_device.destroy(raygenSM);
   m_device.destroy(missSM);
@@ -832,18 +827,24 @@ void HelloVulkan::createRtShaderBindingTable()
   auto groupCount =
       static_cast<uint32_t>(m_rtShaderGroups.size());               // 3 shaders: raygen, miss, chit
   uint32_t groupHandleSize = m_rtProperties.shaderGroupHandleSize;  // Size of a program identifier
-  uint32_t baseAlignment   = m_rtProperties.shaderGroupBaseAlignment;  // Size of shader alignment
+  uint32_t groupSizeAligned =
+      nvh::align_up(groupHandleSize, m_rtProperties.shaderGroupBaseAlignment);
 
   // Fetch all the shader handles used in the pipeline, so that they can be written in the SBT
-  uint32_t sbtSize = groupCount * baseAlignment;
+  uint32_t sbtSize = groupCount * groupSizeAligned;
 
   std::vector<uint8_t> shaderHandleStorage(sbtSize);
-  m_device.getRayTracingShaderGroupHandlesKHR(m_rtPipeline, 0, groupCount, sbtSize,
-                                              shaderHandleStorage.data());
+  auto result = m_device.getRayTracingShaderGroupHandlesKHR(m_rtPipeline, 0, groupCount, sbtSize,
+                                                            shaderHandleStorage.data());
+  if(result != vk::Result::eSuccess)
+    LOGE("Fail getRayTracingShaderGroupHandlesKHR: %s", vk::to_string(result));
+
   // Write the handles in the SBT
-  m_rtSBTBuffer = m_alloc.createBuffer(sbtSize, vk::BufferUsageFlagBits::eTransferSrc,
-                                       vk::MemoryPropertyFlagBits::eHostVisible
-                                           | vk::MemoryPropertyFlagBits::eHostCoherent);
+  m_rtSBTBuffer = m_alloc.createBuffer(
+      sbtSize,
+      vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eShaderDeviceAddressKHR
+          | vk::BufferUsageFlagBits::eShaderBindingTableKHR,
+      vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
   m_debug.setObjectName(m_rtSBTBuffer.buffer, std::string("SBT").c_str());
 
   // Write the handles in the SBT
@@ -852,7 +853,7 @@ void HelloVulkan::createRtShaderBindingTable()
   for(uint32_t g = 0; g < groupCount; g++)
   {
     memcpy(pData, shaderHandleStorage.data() + g * groupHandleSize, groupHandleSize);  // raygen
-    pData += baseAlignment;
+    pData += groupSizeAligned;
   }
   m_alloc.unmap(m_rtSBTBuffer);
 
@@ -883,25 +884,23 @@ void HelloVulkan::raytrace(const vk::CommandBuffer& cmdBuf, const nvmath::vec4f&
                                            | vk::ShaderStageFlagBits::eMissKHR,
                                        0, m_rtPushConstants);
 
-  vk::DeviceSize progSize =
-      m_rtProperties.shaderGroupBaseAlignment;    // Size of a program identifier
-  vk::DeviceSize rayGenOffset   = 0u * progSize;  // Start at the beginning of m_sbtBuffer
-  vk::DeviceSize missOffset     = 1u * progSize;  // Jump over raygen
-  vk::DeviceSize hitGroupOffset = 3u * progSize;  // Jump over the previous shaders
+  // Size of a program identifier
+  uint32_t groupSize =
+      nvh::align_up(m_rtProperties.shaderGroupHandleSize, m_rtProperties.shaderGroupBaseAlignment);
+  uint32_t          groupStride = groupSize;
+  vk::DeviceAddress sbtAddress  = m_device.getBufferAddress({m_rtSBTBuffer.buffer});
 
-  vk::DeviceSize sbtSize = progSize * (vk::DeviceSize)m_rtShaderGroups.size();
+  using Stride = vk::StridedDeviceAddressRegionKHR;
+  std::array<Stride, 4> strideAddresses{
+      Stride{sbtAddress + 0u * groupSize, groupStride, groupSize * 1},  // raygen
+      Stride{sbtAddress + 1u * groupSize, groupStride, groupSize * 2},  // miss
+      Stride{sbtAddress + 3u * groupSize, groupStride, groupSize * 1},  // hit
+      Stride{0u, 0u, 0u}};                                              // callable
 
-  const vk::StridedBufferRegionKHR raygenShaderBindingTable = {m_rtSBTBuffer.buffer, rayGenOffset,
-                                                               progSize, sbtSize};
-  const vk::StridedBufferRegionKHR missShaderBindingTable   = {m_rtSBTBuffer.buffer, missOffset,
-                                                             progSize, sbtSize};
-  const vk::StridedBufferRegionKHR hitShaderBindingTable    = {m_rtSBTBuffer.buffer, hitGroupOffset,
-                                                            progSize, sbtSize};
-  const vk::StridedBufferRegionKHR callableShaderBindingTable;
-
-  cmdBuf.traceRaysKHR(&raygenShaderBindingTable, &missShaderBindingTable, &hitShaderBindingTable,
-                      &callableShaderBindingTable,      //
-                      m_size.width, m_size.height, 1);  //
+  cmdBuf.traceRaysKHR(&strideAddresses[0], &strideAddresses[1], &strideAddresses[2],
+                      &strideAddresses[3],  //
+                      m_size.width, m_size.height,
+                      1);  //
 
 
   m_debug.endLabel(cmdBuf);
@@ -914,12 +913,16 @@ void HelloVulkan::raytrace(const vk::CommandBuffer& cmdBuf, const nvmath::vec4f&
 void HelloVulkan::updateFrame()
 {
   static nvmath::mat4f refCamMatrix;
+  static float         refFov{CameraManip.getFov()};
 
-  auto& m = CameraManip.getMatrix();
-  if(memcmp(&refCamMatrix.a00, &m.a00, sizeof(nvmath::mat4f)) != 0)
+  const auto& m   = CameraManip.getMatrix();
+  const auto  fov = CameraManip.getFov();
+
+  if(memcmp(&refCamMatrix.a00, &m.a00, sizeof(nvmath::mat4f)) != 0 || refFov != fov)
   {
     resetFrame();
     refCamMatrix = m;
+    refFov       = fov;
   }
   m_rtPushConstants.frame++;
 }

@@ -101,9 +101,9 @@ m_device.destroy(call2);
 
 Here are the source of all shaders
 
-* [light_point.rcall](https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/blob/master/ray_tracing_callable/shaders/light_point.rcall)
-* [light_spot.rcall](https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/blob/master/ray_tracing_callable/shaders/light_spot.rcall)
-* [light_inf.rcall](https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/blob/master/ray_tracing_callable/shaders/light_inf.rcall)
+* [light_point.rcall](shaders/light_point.rcall)
+* [light_spot.rcall](shaders/light_spot.rcall)
+* [light_inf.rcall](shaders/light_inf.rcall)
 
 
 ### Passing Callable to traceRaysKHR
@@ -116,19 +116,19 @@ In `HelloVulkan::raytrace()`, we have to tell where the callable shader starts. 
 Therefore, the callable starts at `4 * progSize`
 
 ~~~~ C++
-vk::DeviceSize callableGroupOffset = 4u * progSize;  // Jump over the previous shaders
-vk::DeviceSize callableGroupStride = progSize;
+  std::array<stride, 4> strideAddresses{
+      stride{sbtAddress + 0u * progSize, progSize, progSize * 1},   // raygen
+      stride{sbtAddress + 1u * progSize, progSize, progSize * 2},   // miss
+      stride{sbtAddress + 3u * progSize, progSize, progSize * 1},   // hit
+      stride{sbtAddress + 4u * progSize, progSize, progSize * 1}};  // callable
 ~~~~ 
 
 Then we can call `traceRaysKHR`
 
 ~~~~ C++
-const vk::StridedBufferRegionKHR callableShaderBindingTable = {
-  m_rtSBTBuffer.buffer, callableGroupOffset, progSize, sbtSize};
-
-cmdBuf.traceRaysKHR(&raygenShaderBindingTable, &missShaderBindingTable, &hitShaderBindingTable,
-                  &callableShaderBindingTable,      //
-                  m_size.width, m_size.height, 1);  //
+  cmdBuf.traceRaysKHR(&strideAddresses[0], &strideAddresses[1], &strideAddresses[2],
+                      &strideAddresses[3],              //
+                      m_size.width, m_size.height, 1);  //
 ~~~~
 
 ## Calling the Callable Shaders

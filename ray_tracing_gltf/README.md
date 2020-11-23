@@ -95,7 +95,7 @@ Then we will flatten the scene graph and grab the information we will need using
                                   nvh::GltfAttributes::Normal | nvh::GltfAttributes::Texcoord_0);
 ~~~~
 
-The next par is to allocate the buffers to hold the information, such as the positions, normals, texture coordinates, etc.
+The next part is to allocate the buffers to hold the information, such as the positions, normals, texture coordinates, etc.
 
 ~~~~C
   m_vertexBuffer =
@@ -145,35 +145,26 @@ The function is similar, only the input is different.
 //
 nvvk::RaytracingBuilderKHR::Blas HelloVulkan::primitiveToGeometry(const nvh::GltfPrimMesh& prim)
 {
-  // Setting up the creation info of acceleration structure
-  vk::AccelerationStructureCreateGeometryTypeInfoKHR asCreate;
-  asCreate.setGeometryType(vk::GeometryTypeKHR::eTriangles);
-  asCreate.setIndexType(vk::IndexType::eUint32);
-  asCreate.setVertexFormat(vk::Format::eR32G32B32Sfloat);
-  asCreate.setMaxPrimitiveCount(prim.indexCount / 3);  // Nb triangles
-  asCreate.setMaxVertexCount(prim.vertexCount);
-  asCreate.setAllowsTransforms(VK_FALSE);  // No adding transformation matrices
-
-  // Building part
+   // Building part
   vk::DeviceAddress vertexAddress = m_device.getBufferAddress({m_vertexBuffer.buffer});
   vk::DeviceAddress indexAddress  = m_device.getBufferAddress({m_indexBuffer.buffer});
 
   vk::AccelerationStructureGeometryTrianglesDataKHR triangles;
-  triangles.setVertexFormat(asCreate.vertexFormat);
+  triangles.setVertexFormat(vk::Format::eR32G32B32Sfloat);
   triangles.setVertexData(vertexAddress);
   triangles.setVertexStride(sizeof(nvmath::vec3f));
-  triangles.setIndexType(asCreate.indexType);
+  triangles.setIndexType(vk::IndexType::eUint32);
   triangles.setIndexData(indexAddress);
   triangles.setTransformData({});
+  triangles.setMaxVertex(prim.vertexCount);
 
   // Setting up the build info of the acceleration
   vk::AccelerationStructureGeometryKHR asGeom;
-  asGeom.setGeometryType(asCreate.geometryType);
+  asGeom.setGeometryType(vk::GeometryTypeKHR::eTriangles);
   asGeom.setFlags(vk::GeometryFlagBitsKHR::eNoDuplicateAnyHitInvocation);  // For AnyHit
   asGeom.geometry.setTriangles(triangles);
 
-
-  vk::AccelerationStructureBuildOffsetInfoKHR offset;
+  vk::AccelerationStructureBuildRangeInfoKHR offset;
   offset.setFirstVertex(prim.vertexOffset);
   offset.setPrimitiveCount(prim.indexCount / 3);
   offset.setPrimitiveOffset(prim.firstIndex * sizeof(uint32_t));
@@ -181,7 +172,6 @@ nvvk::RaytracingBuilderKHR::Blas HelloVulkan::primitiveToGeometry(const nvh::Glt
 
   nvvk::RaytracingBuilderKHR::Blas blas;
   blas.asGeometry.emplace_back(asGeom);
-  blas.asCreateGeometryInfo.emplace_back(asCreate);
   blas.asBuildOffsetInfo.emplace_back(offset);
   return blas;
 }
@@ -283,7 +273,7 @@ Camera position
 
 Scene
 ~~~~C
-  helloVk.loadScene(nvh::findFile("media/scenes/cornellBox.gltf", defaultSearchPaths));
+  helloVk.loadScene(nvh::findFile("media/scenes/cornellBox.gltf", defaultSearchPaths, true));
 ~~~~
 
 Light Position
@@ -310,12 +300,16 @@ Add the following two functions in `hello_vulkan.cpp`:
 void HelloVulkan::updateFrame()
 {
   static nvmath::mat4f refCamMatrix;
+  static float         refFov{CameraManip.getFov()};
 
-  auto& m = CameraManip.getMatrix();
-  if(memcmp(&refCamMatrix.a00, &m.a00, sizeof(nvmath::mat4f)) != 0)
+  const auto& m   = CameraManip.getMatrix();
+  const auto  fov = CameraManip.getFov();
+
+  if(memcmp(&refCamMatrix.a00, &m.a00, sizeof(nvmath::mat4f)) != 0 || refFov != fov)
   {
     resetFrame();
     refCamMatrix = m;
+    refFov       = fov;
   }
   m_rtPushConstants.frame++;
 }
@@ -505,7 +499,7 @@ First initialize the `payload` and variable to compute the accumulation.
 
 Now the loop over the trace function, will be like the following.
 
-:warning: **Note:** the depth is hardcode, but could be a parameter to the `push constant`.
+ **Note:** the depth is hardcode, but could be a parameter to the `push constant`.
 
 ~~~~C
   for(; prd.depth < 10; prd.depth++)
@@ -528,6 +522,6 @@ Now the loop over the trace function, will be like the following.
   }
 ~~~~
 
-:warning: **Note:** do not forget to use `hitValue` in the `imageStore`.
+**Note:** do not forget to use `hitValue` in the `imageStore`.
 
 

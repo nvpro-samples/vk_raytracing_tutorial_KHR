@@ -150,18 +150,22 @@ The implementation of `updateFrame` resets the frame counter if the camera has c
 
 ~~~~ C++
 //--------------------------------------------------------------------------------------------------
-// If the camera matrix has changed, resets the frame.
+// If the camera matrix or the the fov has changed, resets the frame.
 // otherwise, increments frame.
 //
 void HelloVulkan::updateFrame()
 {
   static nvmath::mat4f refCamMatrix;
+  static float         refFov{CameraManip.getFov()};
 
-  auto& m = CameraManip.getMatrix();
-  if(memcmp(&refCamMatrix.a00, &m.a00, sizeof(nvmath::mat4f)) != 0)
+  const auto& m   = CameraManip.getMatrix();
+  const auto  fov = CameraManip.getFov();
+
+  if(memcmp(&refCamMatrix.a00, &m.a00, sizeof(nvmath::mat4f)) != 0 || refFov != fov)
   {
     resetFrame();
     refCamMatrix = m;
+    refFov       = fov;
   }
   m_rtPushConstants.frame++;
 }
@@ -195,23 +199,20 @@ The frame number should also be reset when any parts of the scene change, such a
 ~~~~ C++
 void renderUI(HelloVulkan& helloVk)
 {
-  static int item    = 1;
-  bool       changed = false;
-  if(ImGui::Combo("Up Vector", &item, "X\0Y\0Z\0\0"))
+  bool changed = false;
+
+  changed |= ImGuiH::CameraWidget();
+  if(ImGui::CollapsingHeader("Light"))
   {
-    nvmath::vec3f pos, eye, up;
-    CameraManip.getLookat(pos, eye, up);
-    up = nvmath::vec3f(item == 0, item == 1, item == 2);
-    CameraManip.setLookat(pos, eye, up);
-    changed = true;
+    auto& pc = helloVk.m_pushConstant;
+    changed |= ImGui::RadioButton("Point", &pc.lightType, 0);
+    ImGui::SameLine();
+    changed |= ImGui::RadioButton("Infinite", &pc.lightType, 1);
+
+    changed |= ImGui::SliderFloat3("Position", &pc.lightPosition.x, -20.f, 20.f);
+    changed |= ImGui::SliderFloat("Intensity", &pc.lightIntensity, 0.f, 150.f);
   }
-  changed |=
-      ImGui::SliderFloat3("Light Position", &helloVk.m_pushConstant.lightPosition.x, -20.f, 20.f);
-  changed |=
-      ImGui::SliderFloat("Light Intensity", &helloVk.m_pushConstant.lightIntensity, 0.f, 100.f);
-  changed |= ImGui::RadioButton("Point", &helloVk.m_pushConstant.lightType, 0);
-  ImGui::SameLine();
-  changed |= ImGui::RadioButton("Infinite", &helloVk.m_pushConstant.lightType, 1);
+
   if(changed)
     helloVk.resetFrame();
 }
@@ -242,8 +243,7 @@ int m_maxFrames{100};
 and also add a way to control it in `renderUI()`, making sure that `m_maxFrames` cannot be set below 1:
 
 ~~~~ C++
-changed |= ImGui::InputInt("Max Frames", &helloVk.m_maxFrames);
-helloVk.m_maxFrames = std::max(helloVk.m_maxFrames, 1);
+changed |= ImGui::SliderInt("Max Frames", &helloVk.m_maxFrames, 1, 100);
 ~~~~
 
 Then in  `raytrace()`, immediately after the call to `updateFrame()`, return if the current frame has exceeded the max frame.

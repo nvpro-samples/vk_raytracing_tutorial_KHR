@@ -190,11 +190,11 @@ In `main.cpp`, where we are loading the OBJ model, we can replace it with
 
 ~~~~ C++
   // Creation of the example
-  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths));
+  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
   helloVk.createSpheres();
 ~~~~
 
-:warning: **Note:** it is possible to have more OBJ models, but the spheres will need to be added after all of them.
+ **Note:** it is possible to have more OBJ models, but the spheres will need to be added after all of them.
 
 The scene will be large, better to move the camera out
 
@@ -248,7 +248,7 @@ Just before building the TLAS, we need to add the following
     rayInst.instanceId = static_cast<uint32_t>(tlas.size());  // gl_InstanceID
     rayInst.blasId     = static_cast<uint32_t>(m_objModel.size());
     rayInst.hitGroupId = 1;  // We will use the same hit group for all objects
-    rayInst.flags      = vk::GeometryInstanceFlagBitsKHR::eTriangleCullDisable;
+    rayInst.flags      = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
     tlas.emplace_back(rayInst);
   }
 ~~~~

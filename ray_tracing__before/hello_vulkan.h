@@ -62,8 +62,8 @@ public:
   // The OBJ model
   struct ObjModel
   {
-    uint32_t   nbIndices{0};
-    uint32_t   nbVertices{0};
+    uint32_t     nbIndices{0};
+    uint32_t     nbVertices{0};
     nvvk::Buffer vertexBuffer;    // Device buffer of all 'Vertex'
     nvvk::Buffer indexBuffer;     // Device buffer of the indices forming triangles
     nvvk::Buffer matColorBuffer;  // Device buffer of array of 'Wavefront material'
@@ -125,8 +125,8 @@ public:
   vk::PipelineLayout          m_postPipelineLayout;
   vk::RenderPass              m_offscreenRenderPass;
   vk::Framebuffer             m_offscreenFramebuffer;
-  nvvk::Texture                 m_offscreenColor;
+  nvvk::Texture               m_offscreenColor;
   vk::Format                  m_offscreenColorFormat{vk::Format::eR32G32B32A32Sfloat};
-  nvvk::Texture                 m_offscreenDepth;
+  nvvk::Texture               m_offscreenDepth;
   vk::Format                  m_offscreenDepthFormat{vk::Format::eD32Sfloat};
 };

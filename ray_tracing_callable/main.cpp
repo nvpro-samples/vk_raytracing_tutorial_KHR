@@ -37,6 +37,7 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #include "imgui_impl_glfw.h"
 
 #include "hello_vulkan.h"
+#include "imgui_camera_widget.h"
 #include "nvh/cameramanipulator.hpp"
 #include "nvh/fileoperations.hpp"
 #include "nvpsystem.hpp"
@@ -61,35 +62,32 @@ static void onErrorCallback(int error, const char* description)
 // Extra UI
 void renderUI(HelloVulkan& helloVk)
 {
-  static int item = 1;
-  if(ImGui::Combo("Up Vector", &item, "X\0Y\0Z\0\0"))
+  ImGuiH::CameraWidget();
+  if(ImGui::CollapsingHeader("Light", ImGuiTreeNodeFlags_DefaultOpen))
   {
-    nvmath::vec3f pos, eye, up;
-    CameraManip.getLookat(pos, eye, up);
-    up = nvmath::vec3f(item == 0, item == 1, item == 2);
-    CameraManip.setLookat(pos, eye, up);
-  }
-  ImGui::RadioButton("Point", &helloVk.m_pushConstant.lightType, 0);
-  ImGui::SameLine();
-  ImGui::RadioButton("Spot", &helloVk.m_pushConstant.lightType, 1);
-  ImGui::SameLine();
-  ImGui::RadioButton("Infinite", &helloVk.m_pushConstant.lightType, 2);
-  if(helloVk.m_pushConstant.lightType < 2)
-    ImGui::SliderFloat3("Light Position", &helloVk.m_pushConstant.lightPosition.x, -20.f, 20.f);
-  if(helloVk.m_pushConstant.lightType > 0)
-    ImGui::SliderFloat3("Light Direction", &helloVk.m_pushConstant.lightDirection.x, -1.f, 1.f);
-  if(helloVk.m_pushConstant.lightType < 2)
-    ImGui::SliderFloat("Light Intensity", &helloVk.m_pushConstant.lightIntensity, 0.f, 500.f);
-  if(helloVk.m_pushConstant.lightType == 1)
-  {
-    float dCutoff    = rad2deg(acos(helloVk.m_pushConstant.lightSpotCutoff));
-    float dOutCutoff = rad2deg(acos(helloVk.m_pushConstant.lightSpotOuterCutoff));
-    ImGui::SliderFloat("Cutoff", &dCutoff, 0.f, 45.f);
-    ImGui::SliderFloat("OutCutoff", &dOutCutoff, 0.f, 45.f);
-    dCutoff = dCutoff > dOutCutoff ? dOutCutoff : dCutoff;
+    ImGui::RadioButton("Point", &helloVk.m_pushConstant.lightType, 0);
+    ImGui::SameLine();
+    ImGui::RadioButton("Spot", &helloVk.m_pushConstant.lightType, 1);
+    ImGui::SameLine();
+    ImGui::RadioButton("Infinite", &helloVk.m_pushConstant.lightType, 2);
 
-    helloVk.m_pushConstant.lightSpotCutoff      = cos(deg2rad(dCutoff));
-    helloVk.m_pushConstant.lightSpotOuterCutoff = cos(deg2rad(dOutCutoff));
+    if(helloVk.m_pushConstant.lightType < 2)
+      ImGui::SliderFloat3("Light Position", &helloVk.m_pushConstant.lightPosition.x, -20.f, 20.f);
+    if(helloVk.m_pushConstant.lightType > 0)
+      ImGui::SliderFloat3("Light Direction", &helloVk.m_pushConstant.lightDirection.x, -1.f, 1.f);
+    if(helloVk.m_pushConstant.lightType < 2)
+      ImGui::SliderFloat("Light Intensity", &helloVk.m_pushConstant.lightIntensity, 0.f, 500.f);
+    if(helloVk.m_pushConstant.lightType == 1)
+    {
+      float dCutoff    = rad2deg(acos(helloVk.m_pushConstant.lightSpotCutoff));
+      float dOutCutoff = rad2deg(acos(helloVk.m_pushConstant.lightSpotOuterCutoff));
+      ImGui::SliderFloat("Cutoff", &dCutoff, 0.f, 45.f);
+      ImGui::SliderFloat("OutCutoff", &dOutCutoff, 0.f, 45.f);
+      dCutoff = dCutoff > dOutCutoff ? dOutCutoff : dCutoff;
+
+      helloVk.m_pushConstant.lightSpotCutoff      = cos(deg2rad(dCutoff));
+      helloVk.m_pushConstant.lightSpotOuterCutoff = cos(deg2rad(dOutCutoff));
+    }
   }
 }
 
@@ -132,19 +130,16 @@ int main(int argc, char** argv)
 
   // Search path for shaders and other media
   defaultSearchPaths = {
-      PROJECT_ABSDIRECTORY,        // shaders
-      PROJECT_ABSDIRECTORY "../",  // media
-      PROJECT_NAME,                // installed: shaders + media
+      NVPSystem::exePath(),
+      NVPSystem::exePath() + "..",
       NVPSystem::exePath() + std::string(PROJECT_NAME),
   };
-
-  // Enabling the extension feature
-  vk::PhysicalDeviceRayTracingFeaturesKHR raytracingFeature;
 
   // Requesting Vulkan extensions and layers
   nvvk::ContextCreateInfo contextInfo(true);
   contextInfo.setVersion(1, 2);
   contextInfo.addInstanceLayer("VK_LAYER_LUNARG_monitor", true);
+  contextInfo.addInstanceExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, true);
   contextInfo.addInstanceExtension(VK_KHR_SURFACE_EXTENSION_NAME);
 #ifdef _WIN32
   contextInfo.addInstanceExtension(VK_KHR_WIN32_SURFACE_EXTENSION_NAME, false);
@@ -159,11 +154,17 @@ int main(int argc, char** argv)
   contextInfo.addDeviceExtension(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
   contextInfo.addDeviceExtension(VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME);
   // #VKRay: Activate the ray tracing extension
-  contextInfo.addDeviceExtension(VK_KHR_RAY_TRACING_EXTENSION_NAME, false, &raytracingFeature);
   contextInfo.addDeviceExtension(VK_KHR_MAINTENANCE3_EXTENSION_NAME);
   contextInfo.addDeviceExtension(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
   contextInfo.addDeviceExtension(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
   contextInfo.addDeviceExtension(VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
+  vk::PhysicalDeviceAccelerationStructureFeaturesKHR accelFeature;
+  contextInfo.addDeviceExtension(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, false,
+                                 &accelFeature);
+  vk::PhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature;
+  contextInfo.addDeviceExtension(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, false,
+                                 &rtPipelineFeature);
+
 
   // Creating Vulkan base application
   nvvk::Context vkctx{};
@@ -183,7 +184,7 @@ int main(int argc, char** argv)
 
   helloVk.setup(vkctx.m_instance, vkctx.m_device, vkctx.m_physicalDevice,
                 vkctx.m_queueGCT.familyIndex);
-  helloVk.createSurface(surface, SAMPLE_WIDTH, SAMPLE_HEIGHT);
+  helloVk.createSwapchain(surface, SAMPLE_WIDTH, SAMPLE_HEIGHT);
   helloVk.createDepthBuffer();
   helloVk.createRenderPass();
   helloVk.createFrameBuffers();
@@ -192,8 +193,8 @@ int main(int argc, char** argv)
   helloVk.initGUI(0);  // Using sub-pass 0
 
   // Creation of the example
-  helloVk.loadModel(nvh::findFile("media/scenes/Medieval_building.obj", defaultSearchPaths));
-  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths));
+  helloVk.loadModel(nvh::findFile("media/scenes/Medieval_building.obj", defaultSearchPaths, true));
+  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
 
 
   helloVk.createOffscreenRender();
@@ -238,15 +239,17 @@ int main(int argc, char** argv)
     helloVk.updateUniformBuffer();
 
     // Show UI window.
-    if(1 == 1)
+    if(helloVk.showGui())
     {
+      ImGuiH::Panel::Begin();
       ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
       ImGui::Checkbox("Ray Tracer mode", &useRaytracer);  // Switch between raster and ray tracing
 
       renderUI(helloVk);
       ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
                   1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-      ImGui::Render();
+      ImGuiH::Control::Info("", "", "(F10) Toggle Pane", ImGuiH::Control::Flags::Disabled);
+      ImGuiH::Panel::End();
     }
 
     // Start rendering the scene
@@ -299,6 +302,7 @@ int main(int argc, char** argv)
       // Rendering tonemapper
       helloVk.drawPost(cmdBuff);
       // Rendering UI
+      ImGui::Render();
       ImGui::RenderDrawDataVK(cmdBuff, ImGui::GetDrawData());
       cmdBuff.endRenderPass();
     }

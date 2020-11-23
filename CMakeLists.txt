@@ -1,37 +1,42 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.9.6 FATAL_ERROR)
 project(vk_raytracing_tutorial)
 
-#####################################################################################
+#--------------------------------------------------------------------------------------------------
 # look for shared_sources 1) as a sub-folder 2) at some other locations
 # this cannot be put anywhere else since we still didn't find CMakeLists_include.txt yet
-#
-if(NOT BASE_DIRECTORY) # if not defined, it means this cmake file was called as the first entry point and not included
-  # check if the external repository is outside or inside the project (as a sub-module)
-  # testing the file CMakeLists_include.txt because when sub-modules are not cloned, the folders are still there...
-  # we also assume here that if shared_sources is there, shared_external is, too...
-  SET(BASE_DIRECTORY "" CACHE FILEPATH "folder containing shared_sources")
+if(NOT BASE_DIRECTORY)
+   SET(BASE_DIRECTORY "" CACHE FILEPATH "folder containing shared_sources")
   SET(ADD_SUBDIR_BELOW 1)
-  if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/shared_sources/CMakeLists_include.txt)
-    SET(BASE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-  elseif(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../shared_sources/CMakeLists_include.txt)
-    SET(BASE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/..)
-  elseif(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../../shared_sources/CMakeLists_include.txt)
-    SET(BASE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..)
-  else()
-  endif()
-endif(NOT BASE_DIRECTORY)
-
-if(EXISTS ${BASE_DIRECTORY}/shared_sources/CMakeLists_include.txt)
-  INCLUDE(${BASE_DIRECTORY}/shared_sources/CMakeLists_include.txt)
-else()
-  Message(FATAL_ERROR "could not find base directory, please set BASE_DIRECTORY to folder containing shared_sources")
+  find_path(BASE_DIRECTORY2
+    NAMES shared_sources
+    PATHS  ${CMAKE_CURRENT_SOURCE_DIR}/../.. ${CMAKE_CURRENT_SOURCE_DIR}/.. ${CMAKE_CURRENT_SOURCE_DIR}
+    REQUIRED
+    DOC "Couldn't find shared_source directory'"
+    )
+  SET(BASE_DIRECTORY ${BASE_DIRECTORY2} )
 endif()
+
+## Various functions and macros REQUIRED
+include(${BASE_DIRECTORY}/shared_sources/CMakeLists_include.txt)
+set(TUTO_KHR_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+
+# presets and utility functions used in all CMakeLists
+include(utilities.cmake)
+
+#--------------------------------------------------------------------------------------------------
+# Package shared by all projects
 _add_package_VulkanSDK()
 _add_package_OpenGL()
 _add_package_ImGUI()
 _add_package_ZLIB()
 _add_shared_sources_lib()
 
+message(STATUS "COPY ${CMAKE_CURRENT_SOURCE_DIR}/media  to  ${EXECUTABLE_OUTPUT_PATH}")
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/media DESTINATION ${EXECUTABLE_OUTPUT_PATH})
+
+
+#--------------------------------------------------------------------------------------------------
+# Sub examples
 add_subdirectory(ray_tracing__advance) 
 add_subdirectory(ray_tracing__before) 
 add_subdirectory(ray_tracing__simple)

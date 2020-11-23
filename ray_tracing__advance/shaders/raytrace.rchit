@@ -36,7 +36,7 @@ layout(push_constant) uniform Constants
 }
 pushC;
 
-layout(location = 0) callableDataEXT rayLight cLight;
+layout(location = 3) callableDataEXT rayLight cLight;
 
 
 void main()
@@ -97,7 +97,7 @@ void main()
     cLight.outLightDistance = 10000000;
   }
 #else
-  executeCallableEXT(pushC.lightType, 0);
+  executeCallableEXT(pushC.lightType, 3);
 #endif
 
   // Material of the object

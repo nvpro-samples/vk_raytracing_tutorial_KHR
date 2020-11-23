@@ -39,7 +39,7 @@ void main()
     return;
 
   if(mat.dissolve == 0.0)
-    ignoreIntersectionEXT();
+    ignoreIntersectionEXT;
   else if(rnd(prd.seed) > mat.dissolve)
-    ignoreIntersectionEXT();
+    ignoreIntersectionEXT;
 }
