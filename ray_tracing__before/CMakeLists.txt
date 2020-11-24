@@ -17,7 +17,7 @@ message(STATUS "Processing Project ${PROJNAME}:")
 # C++ target and defines
 set(CMAKE_CXX_STANDARD 17)
 add_executable(${PROJNAME})
-target_compile_definitions(${PROJNAME} PUBLIC PROJECT_NAME="${PROJNAME}")
+_add_project_definitions(${PROJNAME})
 
 
 #--------------------------------------------------------------------------------------------------
