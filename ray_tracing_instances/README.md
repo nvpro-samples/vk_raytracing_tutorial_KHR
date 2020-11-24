@@ -152,15 +152,6 @@ DMA needs to be initialized, which will be done in the `setup()` function:
 #endif
 ~~~~
 
-When using DMA, memory buffer mapping is done through the DMA interface (instead of the VKDevice). 
-Therefore, change the lines at the end of `updateUniformBuffer()` to use the common allocator interface.
-
-~~~~ C++
-void* data = m_alloc.map(m_cameraMat);
-memcpy(data, &ubo, sizeof(ubo));
-m_alloc.unmap(m_cameraMat);
-~~~~
-
 The RaytracerBuilder was made to allow various allocators, therefore nothing to change in the call to `m_rtBuilder.setup()`
 
 

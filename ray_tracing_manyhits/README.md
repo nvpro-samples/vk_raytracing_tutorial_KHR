@@ -257,21 +257,26 @@ Then change the call to `m_alloc.createBuffer` to create the SBT buffer from `sb
   m_rtSBTBuffer = m_alloc.createBuffer(cmdBuf, sbtBuffer, vk::BufferUsageFlagBits::eRayTracingKHR);
 ~~~~
 
-Note: we are using this `define` for rounding up to the correct alignment
-~~~~ C++ 
-#ifndef ROUND_UP
-#define ROUND_UP(v, powerOf2Alignment) (((v) + (powerOf2Alignment)-1) & ~((powerOf2Alignment)-1))
-#endif
-~~~~ 
-
 
 ### `raytrace`
 
 Finally, since the size of the hit group is now larger than just the handle, we need to set the new value of the hit group stride in `HelloVulkan::raytrace`.
 
 ~~~~ C++
-vk::DeviceSize hitGroupStride =
-ROUND_UP(m_rtProperties.shaderGroupHandleSize + sizeof(HitRecordBuffer), progOffset);
+  vk::DeviceSize hitGroupSize =
+      nvh::align_up(m_rtProperties.shaderGroupHandleSize + sizeof(HitRecordBuffer),
+                    m_rtProperties.shaderGroupBaseAlignment);
+~~~~
+
+The stride device address will be modified like this:
+
+~~~~ C++
+  using Stride = vk::StridedDeviceAddressRegionKHR;
+  std::array<Stride, 4> strideAddresses{
+      Stride{sbtAddress + 0u * groupSize, groupStride, groupSize * 1},      // raygen
+      Stride{sbtAddress + 1u * groupSize, groupStride, groupSize * 2},      // miss
+      Stride{sbtAddress + 3u * groupSize, hitGroupSize, hitGroupSize * 3},  // hit
+      Stride{0u, 0u, 0u}};                                                  // callable
 ~~~~
 
 !!! Note:
