@@ -26,6 +26,7 @@ struct MaterialObj
   int textureID = -1;
 };
 // OBJ representation of a vertex
+// NOTE: BLAS builder depends on pos being the first member
 struct VertexObj
 {
   nvmath::vec3f pos;
