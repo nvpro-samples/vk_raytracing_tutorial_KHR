@@ -91,7 +91,7 @@ void HelloVulkan::setup(const vk::Instance&       instance,
 //--------------------------------------------------------------------------------------------------
 // Called at each frame to update the camera matrix
 //
-void HelloVulkan::updateUniformBuffer()
+void HelloVulkan::updateUniformBuffer(const vk::CommandBuffer& cmdBuf)
 {
   const float aspectRatio = m_size.width / static_cast<float>(m_size.height);
 
@@ -103,20 +103,15 @@ void HelloVulkan::updateUniformBuffer()
   // #VKRay
   ubo.projInverse = nvmath::invert(ubo.proj);
 
-#if defined(NVVK_ALLOC_DEDICATED)
-  void* data = m_device.mapMemory(m_cameraMat.allocation, 0, sizeof(CameraMatrices));
-  memcpy(data, &ubo, sizeof(ubo));
-  m_device.unmapMemory(m_cameraMat.allocation);
-#elif defined(NVVK_ALLOC_DMA)
-  void* data = m_memAllocator.map(m_cameraMat.allocation);
-  memcpy(data, &ubo, sizeof(ubo));
-  m_memAllocator.unmap(m_cameraMat.allocation);
-#elif defined(NVVK_ALLOC_VMA)
-  void* data;
-  vmaMapMemory(m_memAllocator, m_cameraMat.allocation, &data);
-  memcpy(data, &ubo, sizeof(ubo));
-  vmaUnmapMemory(m_memAllocator, m_cameraMat.allocation);
-#endif
+
+  cmdBuf.updateBuffer<CameraMatrices>(m_cameraMat.buffer, 0, ubo);
+
+  // Making sure the matrix buffer will be available
+  vk::MemoryBarrier mb{vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eShaderRead};
+  cmdBuf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
+                         vk::PipelineStageFlagBits::eVertexShader
+                             | vk::PipelineStageFlagBits::eAccelerationStructureBuildKHR,
+                         vk::DependencyFlagBits::eDeviceGroup, {mb}, {}, {});
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -312,12 +307,8 @@ void HelloVulkan::createUniformBuffer()
   using vkBU = vk::BufferUsageFlagBits;
   using vkMP = vk::MemoryPropertyFlagBits;
 
-  m_cameraMat = m_alloc.createBuffer(sizeof(CameraMatrices), vkBU::eUniformBuffer,
-#ifndef NVVK_ALLOC_VMA
-                                     vkMP::eHostVisible | vkMP::eHostCoherent);
-#else
-                                     VMA_MEMORY_USAGE_CPU_TO_GPU);
-#endif  // _DEBUG
+  m_cameraMat = m_alloc.createBuffer(sizeof(CameraMatrices),
+                                     vkBU::eUniformBuffer | vkBU::eTransferDst, vkMP::eDeviceLocal);
   m_debug.setObjectName(m_cameraMat.buffer, "cameraMat");
 }
 
@@ -497,6 +488,7 @@ void HelloVulkan::onResize(int /*w*/, int /*h*/)
   m_offscreen.createFramebuffer(m_size);
   m_offscreen.updateDescriptorSet();
   m_raytrace.updateRtDescriptorSet(m_offscreen.colorTexture().descriptor.imageView);
+  resetFrame();
 }
 
 //--------------------------------------------------------------------------------------------------

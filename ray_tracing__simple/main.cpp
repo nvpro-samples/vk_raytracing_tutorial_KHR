@@ -113,6 +113,8 @@ int main(int argc, char** argv)
 
   // Search path for shaders and other media
   defaultSearchPaths = {
+      PROJECT_ABSDIRECTORY,
+      PROJECT_ABSDIRECTORY "..",
       NVPSystem::exePath(),
       NVPSystem::exePath() + "..",
       NVPSystem::exePath() + std::string(PROJECT_NAME),
@@ -217,8 +219,6 @@ int main(int argc, char** argv)
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
-    // Updating camera buffer
-    helloVk.updateUniformBuffer();
 
     // Show UI window.
     if(helloVk.showGui())
@@ -240,9 +240,12 @@ int main(int argc, char** argv)
 
     // Start command buffer of this frame
     auto                     curFrame = helloVk.getCurFrame();
-    const vk::CommandBuffer& cmdBuff  = helloVk.getCommandBuffers()[curFrame];
+    const vk::CommandBuffer& cmdBuf   = helloVk.getCommandBuffers()[curFrame];
 
-    cmdBuff.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+    cmdBuf.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+
+    // Updating camera buffer
+    helloVk.updateUniformBuffer(cmdBuf);
 
     // Clearing screen
     vk::ClearValue clearValues[2];
@@ -262,13 +265,13 @@ int main(int argc, char** argv)
       // Rendering Scene
       if(useRaytracer)
       {
-        helloVk.raytrace(cmdBuff, clearColor);
+        helloVk.raytrace(cmdBuf, clearColor);
       }
       else
       {
-        cmdBuff.beginRenderPass(offscreenRenderPassBeginInfo, vk::SubpassContents::eInline);
-        helloVk.rasterize(cmdBuff);
-        cmdBuff.endRenderPass();
+        cmdBuf.beginRenderPass(offscreenRenderPassBeginInfo, vk::SubpassContents::eInline);
+        helloVk.rasterize(cmdBuf);
+        cmdBuf.endRenderPass();
       }
     }
 
@@ -281,17 +284,17 @@ int main(int argc, char** argv)
       postRenderPassBeginInfo.setFramebuffer(helloVk.getFramebuffers()[curFrame]);
       postRenderPassBeginInfo.setRenderArea({{}, helloVk.getSize()});
 
-      cmdBuff.beginRenderPass(postRenderPassBeginInfo, vk::SubpassContents::eInline);
+      cmdBuf.beginRenderPass(postRenderPassBeginInfo, vk::SubpassContents::eInline);
       // Rendering tonemapper
-      helloVk.drawPost(cmdBuff);
+      helloVk.drawPost(cmdBuf);
       // Rendering UI
       ImGui::Render();
-      ImGui::RenderDrawDataVK(cmdBuff, ImGui::GetDrawData());
-      cmdBuff.endRenderPass();
+      ImGui::RenderDrawDataVK(cmdBuf, ImGui::GetDrawData());
+      cmdBuf.endRenderPass();
     }
 
     // Submit for display
-    cmdBuff.end();
+    cmdBuf.end();
     helloVk.submitFrame();
   }
 

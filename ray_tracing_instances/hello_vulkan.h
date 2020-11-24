@@ -61,7 +61,7 @@ public:
   void createSceneDescriptionBuffer();
   void createTextureImages(const vk::CommandBuffer&        cmdBuf,
                            const std::vector<std::string>& textures);
-  void updateUniformBuffer();
+  void updateUniformBuffer(const vk::CommandBuffer& cmdBuf);
   void onResize(int /*w*/, int /*h*/) override;
   void destroyResources();
   void rasterize(const vk::CommandBuffer& cmdBuff);

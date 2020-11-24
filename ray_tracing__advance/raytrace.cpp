@@ -99,10 +99,10 @@ nvvk::RaytracingBuilderKHR::BlasInput Raytracer::objectToVkGeometryKHR(const Obj
   offset.setPrimitiveOffset(0);
   offset.setTransformOffset(0);
 
-  nvvk::RaytracingBuilderKHR::BlasInput blas;
-  blas.asGeometry.emplace_back(asGeom);
-  blas.asBuildOffsetInfo.emplace_back(offset);
-  return blas;
+  nvvk::RaytracingBuilderKHR::BlasInput input;
+  input.asGeometry.emplace_back(asGeom);
+  input.asBuildOffsetInfo.emplace_back(offset);
+  return input;
 }
 
 
@@ -131,10 +131,10 @@ nvvk::RaytracingBuilderKHR::BlasInput Raytracer::implicitToVkGeometryKHR(
   offset.setPrimitiveOffset(0);
   offset.setTransformOffset(0);
 
-  nvvk::RaytracingBuilderKHR::BlasInput blas;
-  blas.asGeometry.emplace_back(asGeom);
-  blas.asBuildOffsetInfo.emplace_back(offset);
-  return blas;
+  nvvk::RaytracingBuilderKHR::BlasInput input;
+  input.asGeometry.emplace_back(asGeom);
+  input.asBuildOffsetInfo.emplace_back(offset);
+  return input;
 }
 
 

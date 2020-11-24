@@ -57,7 +57,7 @@ public:
   void updateDescriptorSet();
   void createUniformBuffer();
   void createTextureImages(const vk::CommandBuffer& cmdBuf, tinygltf::Model& gltfModel);
-  void updateUniformBuffer();
+  void updateUniformBuffer(const vk::CommandBuffer& cmdBuf);
   void onResize(int /*w*/, int /*h*/) override;
   void destroyResources();
   void rasterize(const vk::CommandBuffer& cmdBuff);
