@@ -6,12 +6,12 @@
 
 
 The focus of this repository and the provided code is to showcase a basic integration of
-ray tracing within an existing Vulkan sample, using the
-[`VK_KHR_ray_tracing`](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VK_KHR_ray_tracing) extension.
+[`ray tracing`](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#ray-tracing) and [`ray traversal`](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#ray-traversal) within an existing Vulkan sample, using the
+[`VK_KHR_acceleration_structure`](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VK_KHR_acceleration_structure), [`VK_KHR_ray_tracing_pipeline`](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VK_KHR_ray_tracing_pipeline) and [`VK_KHR_ray_query`](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VK_KHR_ray_query) extensions.
 
 ## Setup
 
-To be able to compile and run those examples, please follow the [setup](docs/setup.md) instructions. Find more over at [nvpro-samples](https://github.com/nvpro-samples/build_all).
+To be able to compile and run those examples, please follow the [setup](docs/setup.md) instructions. Find more over nvpro-samples setup at: https://github.com/nvpro-samples/build_all.
 
 ## Tutorials 
 
