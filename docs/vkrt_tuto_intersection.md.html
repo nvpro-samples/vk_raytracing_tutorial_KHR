@@ -239,7 +239,7 @@ void HelloVulkan::createBottomLevelAS()
 
 ### TLAS
 
-Similarly in `createTopLevelAS()`, the top level acceleration structure will need to add a reference to the BLAS of the spheres. We are setting the instanceID and blasID to the last element, which is why the sphere BLAS must be added after everything else.
+Similarly in `createTopLevelAS()`, the top level acceleration structure will need to add a reference to the BLAS of the spheres. We are setting the instanceCustomId and blasId to the last element, which is why the sphere BLAS must be added after everything else.
 
 The hitGroupId will be set to 1 instead of 0. We need to add a new hit group for the implicit primitives, since we will need to compute attributes like the  normal, since they are not provide like with triangle primitives.
 
@@ -249,11 +249,11 @@ Just before building the TLAS, we need to add the following
   // Add the blas containing all spheres
   {
     nvvk::RaytracingBuilder::Instance rayInst;
-    rayInst.transform  = m_objInstance[0].transform;          // Position of the instance
-    rayInst.instanceId = static_cast<uint32_t>(tlas.size());  // gl_InstanceID
-    rayInst.blasId     = static_cast<uint32_t>(m_objModel.size());
-    rayInst.hitGroupId = 1;  // We will use the same hit group for all objects
-    rayInst.flags      = vk::GeometryInstanceFlagBitsKHR::eTriangleCullDisable;
+    rayInst.transform        = m_objInstance[0].transform;          // Position of the instance
+    rayInst.instanceCustomId = static_cast<uint32_t>(tlas.size());  // gl_InstanceCustomIndexEXT
+    rayInst.blasId           = static_cast<uint32_t>(m_objModel.size());
+    rayInst.hitGroupId       = 1;  // We will use the same hit group for all objects
+    rayInst.flags            = vk::GeometryInstanceFlagBitsKHR::eTriangleCullDisable;
     tlas.emplace_back(rayInst);
   }
 ~~~~

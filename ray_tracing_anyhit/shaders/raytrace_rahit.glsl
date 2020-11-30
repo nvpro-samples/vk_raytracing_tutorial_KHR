@@ -25,7 +25,7 @@ layout(binding = 1, set = 1, scalar) buffer MatColorBufferObject { WaveFrontMate
 void main()
 {
   // Object of this instance
-  uint objId = scnDesc.i[gl_InstanceID].objId;
+  uint objId = scnDesc.i[gl_InstanceCustomIndexEXT].objId;
   // Indices of the triangle
   uint ind = indices[nonuniformEXT(objId)].i[3 * gl_PrimitiveID + 0];
   // Vertex of the triangle

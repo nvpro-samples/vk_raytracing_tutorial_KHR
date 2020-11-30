@@ -37,7 +37,7 @@ pushC;
 void main()
 {
   // Object of this instance
-  uint objId = scnDesc.i[gl_InstanceID].objId;
+  uint objId = scnDesc.i[gl_InstanceCustomIndexEXT].objId;
 
   // Indices of the triangle
   ivec3 ind = ivec3(indices[nonuniformEXT(objId)].i[3 * gl_PrimitiveID + 0],   //
@@ -53,13 +53,13 @@ void main()
   // Computing the normal at hit position
   vec3 normal = v0.nrm * barycentrics.x + v1.nrm * barycentrics.y + v2.nrm * barycentrics.z;
   // Transforming the normal to world space
-  normal = normalize(vec3(scnDesc.i[gl_InstanceID].transfoIT * vec4(normal, 0.0)));
+  normal = normalize(vec3(scnDesc.i[gl_InstanceCustomIndexEXT].transfoIT * vec4(normal, 0.0)));
 
 
   // Computing the coordinates of the hit position
   vec3 worldPos = v0.pos * barycentrics.x + v1.pos * barycentrics.y + v2.pos * barycentrics.z;
   // Transforming the position to world space
-  worldPos = vec3(scnDesc.i[gl_InstanceID].transfo * vec4(worldPos, 1.0));
+  worldPos = vec3(scnDesc.i[gl_InstanceCustomIndexEXT].transfo * vec4(worldPos, 1.0));
 
   // Vector toward the light
   vec3  L;
@@ -87,7 +87,7 @@ void main()
   vec3 diffuse = computeDiffuse(mat, L, normal);
   if(mat.textureId >= 0)
   {
-    uint txtId = mat.textureId + scnDesc.i[gl_InstanceID].txtOffset;
+    uint txtId = mat.textureId + scnDesc.i[gl_InstanceCustomIndexEXT].txtOffset;
     vec2 texCoord =
         v0.texCoord * barycentrics.x + v1.texCoord * barycentrics.y + v2.texCoord * barycentrics.z;
     diffuse *= texture(textureSamplers[nonuniformEXT(txtId)], texCoord).xyz;
@@ -99,11 +99,11 @@ void main()
   // Tracing shadow ray only if the light is visible from the surface
   if(dot(normal, L) > 0)
   {
-    float tMin   = 0.001;
-    float tMax   = lightDistance;
-    vec3  origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
-    vec3  rayDir = L;
-    uint  flags  = gl_RayFlagsSkipClosestHitShaderEXT;
+    float tMin      = 0.001;
+    float tMax      = lightDistance;
+    vec3  origin    = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+    vec3  rayDir    = L;
+    uint  flags     = gl_RayFlagsSkipClosestHitShaderEXT;
     prdShadow.isHit = true;
     prdShadow.seed  = prd.seed;
     traceRayEXT(topLevelAS,  // acceleration structure

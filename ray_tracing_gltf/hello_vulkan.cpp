@@ -670,11 +670,11 @@ void HelloVulkan::createTopLevelAS()
   for(auto& node : m_gltfScene.m_nodes)
   {
     nvvk::RaytracingBuilderKHR::Instance rayInst;
-    rayInst.transform  = node.worldMatrix;
-    rayInst.instanceId = node.primMesh;  // gl_InstanceCustomIndexEXT: to find which primitive
-    rayInst.blasId     = node.primMesh;
-    rayInst.flags      = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-    rayInst.hitGroupId = 0;  // We will use the same hit group for all objects
+    rayInst.transform        = node.worldMatrix;
+    rayInst.instanceCustomId = node.primMesh;  // gl_InstanceCustomIndexEXT: to find which primitive
+    rayInst.blasId           = node.primMesh;
+    rayInst.flags            = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    rayInst.hitGroupId       = 0;  // We will use the same hit group for all objects
     tlas.emplace_back(rayInst);
   }
   m_rtBuilder.buildTlas(tlas, vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace);

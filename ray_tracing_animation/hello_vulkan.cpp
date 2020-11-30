@@ -698,11 +698,11 @@ void HelloVulkan::createTopLevelAS()
   for(int i = 0; i < static_cast<int>(m_objInstance.size()); i++)
   {
     nvvk::RaytracingBuilderKHR::Instance rayInst;
-    rayInst.transform  = m_objInstance[i].transform;  // Position of the instance
-    rayInst.instanceId = i;                           // gl_InstanceID
-    rayInst.blasId     = m_objInstance[i].objIndex;
-    rayInst.hitGroupId = 0;
-    rayInst.flags      = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    rayInst.transform        = m_objInstance[i].transform;  // Position of the instance
+    rayInst.instanceCustomId = i;                           // gl_InstanceCustomIndexEXT
+    rayInst.blasId           = m_objInstance[i].objIndex;
+    rayInst.hitGroupId       = 0;
+    rayInst.flags            = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
     m_tlas.emplace_back(rayInst);
   }
 

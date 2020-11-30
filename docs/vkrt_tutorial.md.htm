@@ -650,6 +650,12 @@ and the index of its corresponding BLAS (`blasId`) in the vector passed to `buil
 be available during shading as `gl_InstanceCustomIndex`, as well as the index of the hit group that represents the shaders that will be
 invoked upon hitting the object (`VkAccelerationStructureInstanceKHR::instanceShaderBindingTableRecordOffset`, a.k.a. `hitGroupId` in the helper).
 
+!!! Note gl_InstanceId
+    We could have ignored to use the custom index, since the Id will be equivalent to 
+    gl_InstanceId. As gl_InstanceId specifies the index of the instance that intersects the
+    current ray, which is in this case the same value as **i**. In later examples the 
+    value will be different.
+
 This index and the notion of hit group are tied to the definition of the ray tracing pipeline and the Shader Binding
 Table, described later in this tutorial and used to select determine which shaders are invoked at runtime. For now
 it suffices to say that we will use only one hit group for the whole scene, and hence the hit group index is always 0.
@@ -668,16 +674,17 @@ void HelloVulkan::createTopLevelAS()
   for(int i = 0; i < static_cast<int>(m_objInstance.size()); i++)
   {
     nvvk::RaytracingBuilderKHR::Instance rayInst;
-    rayInst.transform  = m_objInstance[i].transform;  // Position of the instance
-    rayInst.instanceId = i;                           // gl_InstanceID
-    rayInst.blasId     = m_objInstance[i].objIndex;
-    rayInst.hitGroupId = 0;  // We will use the same hit group for all objects
-    rayInst.flags      = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    rayInst.transform        = m_objInstance[i].transform;  // Position of the instance
+    rayInst.instanceCustomId = i;                           // gl_InstanceCustomIndexEXT
+    rayInst.blasId           = m_objInstance[i].objIndex;
+    rayInst.hitGroupId       = 0;  // We will use the same hit group for all objects
+    rayInst.flags            = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
     tlas.emplace_back(rayInst);
   }
   m_rtBuilder.buildTlas(tlas, vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace);
 }
 ````
+
 
 As usual in Vulkan, we need to explicitly destroy the objects we created by adding a call at the end of 
 `HelloVulkan::destroyResources`:
@@ -753,7 +760,7 @@ For convenience, the implementation of `instanceToVkGeometryInstanceKHR` is copi
     // the matrix is row-major, we simply copy the first 12 values of the
     // original 4x4 matrix
     memcpy(&gInst.transform, &transp, sizeof(gInst.transform));
-    gInst.instanceCustomIndex                    = instance.instanceId;
+    gInst.instanceCustomIndex                    = instance.instanceCustomId;
     gInst.mask                                   = instance.mask;
     gInst.instanceShaderBindingTableRecordOffset = instance.hitGroupId;
     gInst.flags                                  = instance.flags;
@@ -1889,7 +1896,7 @@ In the `main` function, the `gl_PrimitiveID` allows us to find the vertices of t
 void main()
 {
   // Object of this instance
-  uint objId = scnDesc.i[gl_InstanceID].objId;
+  uint objId = scnDesc.i[gl_InstanceCustomIndexEXT].objId;
 
   // Indices of the triangle
   ivec3 ind = ivec3(indices[nonuniformEXT(objId)].i[3 * gl_PrimitiveID + 0],   //
@@ -1909,7 +1916,7 @@ Using the hit point's barycentric coordinates, we can interpolate the normal:
   // Computing the normal at hit position
   vec3 normal = v0.nrm * barycentrics.x + v1.nrm * barycentrics.y + v2.nrm * barycentrics.z;
   // Transforming the normal to world space
-  normal = normalize(vec3(scnDesc.i[gl_InstanceID].transfoIT * vec4(normal, 0.0)));
+  normal = normalize(vec3(scnDesc.i[gl_InstanceCustomIndexEXT].transfoIT * vec4(normal, 0.0)));
 ````
 
 The world-space position could be calculated in two ways, the first one being to use the information from the hit
@@ -1925,7 +1932,7 @@ Another solution, more precise, consists in computing the position by interpolat
   // Computing the coordinates of the hit position
   vec3 worldPos = v0.pos * barycentrics.x + v1.pos * barycentrics.y + v2.pos * barycentrics.z;
   // Transforming the position to world space
-  worldPos = vec3(scnDesc.i[gl_InstanceID].transfo * vec4(worldPos, 1.0));
+  worldPos = vec3(scnDesc.i[gl_InstanceCustomIndexEXT].transfo * vec4(worldPos, 1.0));
 ````
 
 The light source specified in the constants can then be used to compute the dot product of the normal with the lighting
@@ -2007,7 +2014,7 @@ supports textures to modulate the surface albedo.
   vec3 diffuse = computeDiffuse(mat, L, normal);
   if(mat.textureId >= 0)
   {
-    uint txtId = mat.textureId + scnDesc.i[gl_InstanceID].txtOffset;
+    uint txtId = mat.textureId + scnDesc.i[gl_InstanceCustomIndexEXT].txtOffset;
     vec2 texCoord =
         v0.texCoord * barycentrics.x + v1.texCoord * barycentrics.y + v2.texCoord * barycentrics.z;
     diffuse *= texture(textureSamplers[nonuniformEXT(txtId)], texCoord).xyz;

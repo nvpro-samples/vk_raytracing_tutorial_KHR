@@ -284,7 +284,9 @@ std::array<Stride, 4> strideAddresses{
 
 # Extending Hit
 
-The SBT can be larger than the number of shading models, which could then be used to have one shader per instance with its own data. For some applications, instead of retrieving the material information as in the main tutorial using a storage buffer and indexing into it using the `gl_InstanceID`, it is possible to set all of the material information in the SBT.
+The SBT can be larger than the number of shading models, which could then be used to have one shader per instance with its own data. 
+For some applications, instead of retrieving the material information as in the main tutorial using a storage buffer and indexing 
+into it using the `gl_InstanceCustomIndexEXT`, it is possible to set all of the material information in the SBT.
 
 The following modification will add another entry to the SBT with a different color per instance. The new SBT hit group (2) will use the same CHIT handle (4) as hit group 1.
 

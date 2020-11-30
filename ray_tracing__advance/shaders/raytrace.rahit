@@ -19,7 +19,7 @@ layout(binding = 1, set = 1, scalar) buffer MatColorBufferObject { WaveFrontMate
 void main()
 {
   // Object of this instance
-  uint objId = scnDesc.i[gl_InstanceID].objId;
+  uint objId = scnDesc.i[gl_InstanceCustomIndexEXT].objId;
 
   // Material of the object
   int               matIdx = matIndex[nonuniformEXT(objId)].i[gl_PrimitiveID];

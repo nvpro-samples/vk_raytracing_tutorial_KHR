@@ -182,7 +182,7 @@ nvvk::RaytracingBuilderKHR::Blas HelloVulkan::primitiveToGeometry(const nvh::Glt
 There are almost no changes for creating the TLAS but is actually even simpler. Each 
 drawable node has a matrix and an index to the geometry, which in our case, also 
 correspond directly to the BLAS ID. To know which geometry is used, and to find back 
-all the data (see structure `RtPrimitiveLookup`), we will set the `instanceId` member 
+all the data (see structure `RtPrimitiveLookup`), we will set the `instanceCustomId` member 
 to the primitive mesh id. This value will be recovered with `gl_InstanceCustomIndexEXT`
 in the closest hit shader.
 
@@ -190,11 +190,11 @@ in the closest hit shader.
   for(auto& node : m_gltfScene.m_nodes)
   {
     nvvk::RaytracingBuilderKHR::Instance rayInst;
-    rayInst.transform  = node.worldMatrix;
-    rayInst.instanceId = node.primMesh;  // gl_InstanceCustomIndexEXT: to find which primitive
-    rayInst.blasId     = node.primMesh;
-    rayInst.flags      = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-    rayInst.hitGroupId = 0;  // We will use the same hit group for all objects
+    rayInst.transform        = node.worldMatrix;
+    rayInst.instanceCustomId = node.primMesh;  // gl_InstanceCustomIndexEXT: to find which primitive
+    rayInst.blasId           = node.primMesh;
+    rayInst.flags            = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    rayInst.hitGroupId       = 0;  // We will use the same hit group for all objects
     tlas.emplace_back(rayInst);
   }
 ~~~~
