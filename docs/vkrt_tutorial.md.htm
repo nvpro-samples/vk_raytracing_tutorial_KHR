@@ -76,7 +76,7 @@ The SDK 1.2.161 and up which can be found under https://vulkan.lunarg.com/sdk/ho
 Nevertheless, if you are in the Beta period, it is suggested to install and compile all of the following and replace
 with the current environment.
 
-* Latest driver: https://developer.nvidia.com/vulkan-driver
+* Latest *beta* driver: https://developer.nvidia.com/vulkan-driver
 * Vulkan headers: https://github.com/KhronosGroup/Vulkan-Headers
 * Validator: https://github.com/KhronosGroup/Vulkan-ValidationLayers
 * Vulkan-Hpp: https://github.com/KhronosGroup/Vulkan-Hpp
@@ -131,6 +131,22 @@ Behind the scenes, the helper is selecting a physical device supporting the requ
 then placing the `vk::PhysicalDevice*FeaturesKHR` structs on the `pNext` chain of `VkDeviceCreateInfo` before
 calling `vkCreateDevice`. This enables the ray tracing features and fills in the two structs with info on the
 device's ray tracing capabilities.
+
+!!! NOTE Loading function pointers
+    As in OpenGL, when using extensions in Vulkan, you need to manually load in function pointers for extensions, using
+    `vkGetInstanceProcAddr` and `vkGetDeviceProcAddr`. The `nvvk::Context` class that this sample depends on magically does
+    this for you, for the Vulkan C API. For the Vulkan C++ API, the `nvvk::AppBase::setup` function follows the instructions
+    at <a href="https://github.com/KhronosGroup/Vulkan-Hpp#extensions--per-device-function-pointers">the vulkan.hpp Github page</a>
+    to load the C++ entry points:
+    ```` C
+        // Initialize function pointers
+    vk::DynamicLoader         dl;
+    PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr =
+        dl.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr");
+    VULKAN_HPP_DEFAULT_DISPATCHER.init(vkGetInstanceProcAddr);
+    VULKAN_HPP_DEFAULT_DISPATCHER.init(instance);
+    VULKAN_HPP_DEFAULT_DISPATCHER.init(device);
+    ````
 
 In the `HelloVulkan` class in `hello_vulkan.h`, add an initialization function and a member storing the capabilities of
 the GPU for ray tracing:
@@ -650,11 +666,15 @@ and the index of its corresponding BLAS (`blasId`) in the vector passed to `buil
 be available during shading as `gl_InstanceCustomIndex`, as well as the index of the hit group that represents the shaders that will be
 invoked upon hitting the object (`VkAccelerationStructureInstanceKHR::instanceShaderBindingTableRecordOffset`, a.k.a. `hitGroupId` in the helper).
 
-!!! Note gl_InstanceId
-    We could have ignored to use the custom index, since the Id will be equivalent to 
-    gl_InstanceId. As gl_InstanceId specifies the index of the instance that intersects the
-    current ray, which is in this case the same value as **i**. In later examples the 
-    value will be different.
+!!! WARNING gl_InstanceId
+    Do not confuse `gl_InstanceID` with `gl_InstanceCustomIndex`. The `gl_InstanceID` is simply
+    the index of the intersected instance as it appeared in the array of instances used to build
+    the TLAS.
+    
+    In this specific example, we could have ignored the custom index, since the Id
+    will be equivalent to `gl_InstanceId` (as `gl_InstanceId` specifies the index of the
+    instance that intersects the current ray, which is in this case the same value as `i`).
+    In later examples the value will be different.
 
 This index and the notion of hit group are tied to the definition of the ray tracing pipeline and the Shader Binding
 Table, described later in this tutorial and used to select determine which shaders are invoked at runtime. For now
@@ -1117,10 +1137,13 @@ unlike the compute pipeline, you dispatch individual shader invocations, rather 
   model at the pixel location. It will then invoke `traceRayEXT()`, that will shoot the ray in the scene. `traceRayEXT`
   invokes the next few shader types, which communicate results using ray trace payloads.
 
-Ray trace payloads are declared with `rayPayloadEXT` and `rayPayloadInExt`, and exist in a separate namespace within the ray trace
-pipeline (i.e. each distinct payload should have a unique `location=N` qualifier, but these qualifiers do not conflict with descriptor
-sets and the like). Each ray generation shader invocation has a local copy of the ray trace payloads, visible only to it and the
-shaders it invokes through `traceRayEXT()`. Declare payloads wisely, as excessive memory usage reduces SM occupancy (parallelism).
+Ray trace payloads are declared as `rayPayloadEXT` or `rayPayloadInEXT` variables; together, they establish
+a caller/callee relationship between shader stages. Each invocation of a shader creates its own local copy
+of its declared `rayPayloadEXT` variables, when invoking another shader by calling `traceRayEXT()`,
+the caller can select one of its payloads to be made visible to the
+callee shader as its `rayPayloadInEXT` variable (also known as the "incoming payload").
+
+Declare payloads wisely, as excessive memory usage reduces SM occupancy (parallelism).
 
 The next two shader types should be used:
 
@@ -1181,8 +1204,8 @@ The `shaders` folder now contains 3 more files:
   shader program simply writes a constant color into the output buffer.
 
 * `raytrace.rmiss` defines the miss shader. This shader will be executed when no geometry is hit, and will write a
-  constant color into the ray payload `rayPayloadInEXT`, which is provided automatically. Since our current ray generation
-  program does not trace any rays for now, this shader will not be called.
+  constant color into the ray payload `rayPayloadInEXT`. Since our current ray generation program does not trace any rays
+  for now, this shader will not be called.
 
 * `raytrace.rchit` contains a very simple closest hit shader. It will be executed upon hitting the geometry (our
   triangles). As the miss shader, it takes the ray payload `rayPayloadInEXT`. It also has a second input defining the
@@ -1214,7 +1237,8 @@ the light source information:
 
 Our implementation of the ray tracing pipeline generation starts by adding the ray generation and miss shader stages,
 followed by the closest hit shader. Note that this order is arbitrary, as the extension allows the developer to set up
-the pipeline in any order.
+the pipeline in any order. The "stages" terminology is a holdover from the rasterization pipeline; in raytracing,
+we orchestrate the order that shaders are invoked and the data flow between them ourselves.
 
 All stages are stored in an `std::vector` of `vk::PipelineShaderStageCreateInfo` objects. As mentioned, at this step,
 indices within this vector will be used as unique identifiers for the shaders. These identifiers are stored in the
@@ -1730,9 +1754,6 @@ The payload, identified with `rayPayloadEXT` is then our `hitPayload` structure.
 layout(location = 0) rayPayloadEXT hitPayload prd;
 ````
 
-### Note
-
-> In incoming shaders, like miss and closest hit, the payload will be `rayPayloadInEXT`.
 
 The `main` function of the shader then starts by computing the floating-point pixel coordinates, normalized between 0
 and 1. The `gl_LaunchIDEXT` contains the integer coordinates of the pixel being rendered, while `gl_LaunchSizeEXT`
@@ -1789,7 +1810,13 @@ We now trace the ray itself by calling `traceRayEXT`. This takes as arguments
 
 * The origin, min range, direction, and max range of the ray.
 
-* The location of the payload, in this case, `location=0`.
+* The location of the payload as declared in this shader, in this case, `location=0`. This compile-time constant establishes
+  the caller/callee relationship of `rayPayloadInEXT`, allowing you to choose where you want the called shader outputs to go.
+  For shaders (callees) invoked as a direct result of this `traceRayEXT`, their `rayPayloadInEXT` variable will
+  **alias** the `rayPayloadEXT` of the location specified by the caller of `traceRayEXT`. For this to work properly, both
+  variables should have the same structure. This allows us to determine at runtime where callee shader outputs are written to,
+  which can be particularly useful for recursive ray tracers.
+  
 
 ```` C  
   traceRayEXT(topLevelAS, // acceleration structure
@@ -1816,6 +1843,35 @@ Finally, we write the resulting payload into the output image.
 Raster                         |     | Ray Trace
 :-----------------------------:|:---:|:--------------------------------:
 ![](Images/resultRasterCube.png width="350px")   | <-> |   ![](Images/resultRaytraceFlatCube.png width="350px")
+
+!!!NOTE `rayPayloadEXT` locations
+    The `location` qualifiers are used to give payloads a unique identifier
+    for `traceRayEXT`. For some reason, you cannot just pass payloads by-name to
+    `traceRayEXT` (this was deemed un-GLSL-y).
+    
+    The scope of the `location` is just within one invocation of one shader. Hence,
+    
+    * If two different shader modules linked into the same ray trace pipeline
+      declare a payload with the same `location` number, these payloads do not interfere
+      with each other.
+    
+    * If a shader is invoked recursively, each invocation's payloads are separate,
+      even though their `location` numbers are the same. This is the reason ray
+      trace shaders require a GPU stack, a rather novel concept for computer graphics.
+
+    Note how payload `location`s are different from things like descriptor `set`s
+    and `binding`s, or vertex attribute `location`s, whose scope is global to the
+    entire pipeline.
+
+!!!NOTE `rayPayloadInEXT` locations
+    The `rayPayloadInEXT` variable has a `location` as well because it can also be
+    passed as the payload for `traceRayEXT`. In this case, the calling shader's
+    incoming payload itself becomes the incoming payload for the callee shader.
+    
+    Note that there is no requirement that the `location` of the callee's incoming
+    payload match the `payload` argument the caller passed to `traceRayEXT`! This
+    is quite unlike the `in`/`out` variables used to connect vertex shaders and
+    fragment shaders.
 
 ## Miss shader (raytrace.miss)
 
