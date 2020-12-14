@@ -21,7 +21,7 @@ layout(set = 1, binding = B_VERTICES) readonly buffer _VertexBuf {float vertices
 layout(set = 1, binding = B_INDICES) readonly buffer _Indices {uint indices[];};
 layout(set = 1, binding = B_NORMALS) readonly buffer _NormalBuf {float normals[];};
 layout(set = 1, binding = B_TEXCOORDS) readonly buffer _TexCoordBuf {float texcoord0[];};
-layout(set = 1, binding = B_MATERIALS) readonly buffer _MaterialBuffer {GltfMaterial materials[];};
+layout(set = 1, binding = B_MATERIALS) readonly buffer _MaterialBuffer {GltfShadeMaterial materials[];};
 layout(set = 1, binding = B_TEXTURES) uniform sampler2D texturesMap[]; // all textures
 
 
@@ -121,7 +121,7 @@ void main()
   }
 
   // Material of the object
-  GltfMaterial mat = materials[nonuniformEXT(matIndex)];
+  GltfShadeMaterial mat = materials[nonuniformEXT(matIndex)];
 
   // Diffuse
   vec3 diffuse = computeDiffuse(mat, L, world_normal);

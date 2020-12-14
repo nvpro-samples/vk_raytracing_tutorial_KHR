@@ -28,7 +28,7 @@ layout(location = 4) in vec3 worldPos;
 // Outgoing
 layout(location = 0) out vec4 outColor;
 // Buffers
-layout(set = 0, binding = B_MATERIALS) buffer _GltfMaterial { GltfMaterial materials[]; };
+layout(set = 0, binding = B_MATERIALS) buffer _GltfMaterial { GltfShadeMaterial materials[]; };
 layout(set = 0, binding = B_TEXTURES) uniform sampler2D[] textureSamplers;
 
 // clang-format on
@@ -37,7 +37,7 @@ layout(set = 0, binding = B_TEXTURES) uniform sampler2D[] textureSamplers;
 void main()
 {
   // Material of the object
-  GltfMaterial mat = materials[nonuniformEXT(pushC.matetrialId)];
+  GltfShadeMaterial mat = materials[nonuniformEXT(pushC.matetrialId)];
 
   vec3 N = normalize(fragNormal);
 

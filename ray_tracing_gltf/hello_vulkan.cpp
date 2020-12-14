@@ -48,6 +48,8 @@ extern std::vector<std::string> defaultSearchPaths;
 
 #include "nvh/alignment.hpp"
 #include "shaders/binding.glsl"
+#include "shaders/gltf.glsl"
+
 
 // Holding the camera matrices
 struct CameraMatrices
@@ -237,11 +239,19 @@ void HelloVulkan::loadScene(const std::string& filename)
       m_alloc.createBuffer(cmdBuf, m_gltfScene.m_indices,
                            vkBU::eIndexBuffer | vkBU::eStorageBuffer | vkBU::eShaderDeviceAddress
                                | vkBU::eAccelerationStructureBuildInputReadOnlyKHR);
-  m_normalBuffer   = m_alloc.createBuffer(cmdBuf, m_gltfScene.m_normals,
+  m_normalBuffer = m_alloc.createBuffer(cmdBuf, m_gltfScene.m_normals,
                                         vkBU::eVertexBuffer | vkBU::eStorageBuffer);
-  m_uvBuffer       = m_alloc.createBuffer(cmdBuf, m_gltfScene.m_texcoords0,
+  m_uvBuffer     = m_alloc.createBuffer(cmdBuf, m_gltfScene.m_texcoords0,
                                     vkBU::eVertexBuffer | vkBU::eStorageBuffer);
-  m_materialBuffer = m_alloc.createBuffer(cmdBuf, m_gltfScene.m_materials, vkBU::eStorageBuffer);
+
+  // Copying all materials, only the elements we need
+  std::vector<GltfShadeMaterial> shadeMaterials;
+  for(auto& m : m_gltfScene.m_materials)
+  {
+    shadeMaterials.emplace_back(
+        GltfShadeMaterial{m.pbrBaseColorFactor, m.pbrBaseColorTexture, m.emissiveFactor});
+  }
+  m_materialBuffer = m_alloc.createBuffer(cmdBuf, shadeMaterials, vkBU::eStorageBuffer);
 
   // Instance Matrices used by rasterizer
   std::vector<nvmath::mat4f> nodeMatrices;
@@ -844,7 +854,7 @@ void HelloVulkan::createRtShaderBindingTable()
   auto result = m_device.getRayTracingShaderGroupHandlesKHR(m_rtPipeline, 0, groupCount, sbtSize,
                                                             shaderHandleStorage.data());
   if(result != vk::Result::eSuccess)
-    LOGE("Fail getRayTracingShaderGroupHandlesKHR: %s", vk::to_string(result));
+    LOGE("Fail getRayTracingShaderGroupHandlesKHR: %s", vk::to_string(result).c_str());
 
   // Write the handles in the SBT
   m_rtSBTBuffer = m_alloc.createBuffer(

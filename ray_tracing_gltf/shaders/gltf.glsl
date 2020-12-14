@@ -1,34 +1,12 @@
 
-struct GltfMaterial
+struct GltfShadeMaterial
 {
-  int shadingModel;  // 0: metallic-roughness, 1: specular-glossiness
-
-  // PbrMetallicRoughness
-  vec4  pbrBaseColorFactor;
-  int   pbrBaseColorTexture;
-  float pbrMetallicFactor;
-  float pbrRoughnessFactor;
-  int   pbrMetallicRoughnessTexture;
-
-  // KHR_materials_pbrSpecularGlossiness
-  vec4  khrDiffuseFactor;
-  int   khrDiffuseTexture;
-  vec3  khrSpecularFactor;
-  float khrGlossinessFactor;
-  int   khrSpecularGlossinessTexture;
-
-  int   emissiveTexture;
-  vec3  emissiveFactor;
-  int   alphaMode;
-  float alphaCutoff;
-  bool  doubleSided;
-
-  int   normalTexture;
-  float normalTextureScale;
-  int   occlusionTexture;
-  float occlusionTextureStrength;
+  vec4 pbrBaseColorFactor;
+  int  pbrBaseColorTexture;
+  vec3 emissiveFactor;
 };
 
+#ifndef __cplusplus
 struct PrimMeshInfo
 {
   uint indexOffset;
@@ -37,14 +15,14 @@ struct PrimMeshInfo
 };
 
 
-vec3 computeDiffuse(GltfMaterial mat, vec3 lightDir, vec3 normal)
+vec3 computeDiffuse(GltfShadeMaterial mat, vec3 lightDir, vec3 normal)
 {
   // Lambertian
   float dotNL = max(dot(normal, lightDir), 0.0);
   return mat.pbrBaseColorFactor.xyz * dotNL;
 }
 
-vec3 computeSpecular(GltfMaterial mat, vec3 viewDir, vec3 lightDir, vec3 normal)
+vec3 computeSpecular(GltfShadeMaterial mat, vec3 viewDir, vec3 lightDir, vec3 normal)
 {
   // Compute specular only if not in shadow
   const float kPi        = 3.14159265;
@@ -58,3 +36,4 @@ vec3 computeSpecular(GltfMaterial mat, vec3 viewDir, vec3 lightDir, vec3 normal)
 
   return vec3(specular);
 }
+#endif
