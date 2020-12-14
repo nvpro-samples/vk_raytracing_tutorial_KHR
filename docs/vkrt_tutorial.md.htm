@@ -1368,10 +1368,9 @@ itself, but hit groups can comprise up to 3 shaders (intersection, any hit, clos
 
 The ray generation and closest hit shaders can trace rays, making the ray tracing a potentially recursive process. To
 allow the underlying RTX layer to optimize the pipeline we indicate the maximum recursion depth used by our shaders. For
-the simplistic shaders we currently have, we set this depth to 1, meaning that even if the shaders would trigger
-recursion (ie. a hit shader calling `TraceRayEXT()`), this recursion would be prevented by setting the result of this trace
-call as a miss. Note that it is preferable to keep the recursion level as low as possible, replacing it by a loop
-formulation instead.
+the simplistic shaders we currently have, we set this depth to 1, meaning that we must not trigger
+recursion at all (i.e. a hit shader calling `TraceRayEXT()`). Note that it is preferable to keep the recursion level
+as low as possible, replacing it by a loop formulation instead.
 
 ```` C
   rayPipelineInfo.setMaxPipelineRayRecursionDepth(1);  // Ray depth
@@ -2160,6 +2159,11 @@ At the end of the method, we destroy the shader module for the shadow miss shade
 ```` C
   m_device.destroy(shadowmissSM);
 ````
+
+!!! WARNING Recursion Limit
+    The spec does not guarantee a recursion check at runtime. If you exceed either
+    the recursion depth you reported in the raytrace pipeline create info, or the
+    physical device recursion limit, undefined behaviour results.
 
 ## `traceRaysKHR`
 
