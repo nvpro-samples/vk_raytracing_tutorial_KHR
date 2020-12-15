@@ -75,24 +75,48 @@ void HelloVulkan::setup(const vk::Instance&       instance,
 //
 void HelloVulkan::updateUniformBuffer(const vk::CommandBuffer& cmdBuf)
 {
+  // Prepare new UBO contents on host.
   const float aspectRatio = m_size.width / static_cast<float>(m_size.height);
-
-  CameraMatrices ubo = {};
-  ubo.view           = CameraManip.getMatrix();
-  ubo.proj           = nvmath::perspectiveVK(CameraManip.getFov(), aspectRatio, 0.1f, 1000.0f);
-  // ubo.proj[1][1] *= -1;  // Inverting Y for Vulkan
-  ubo.viewInverse = nvmath::invert(ubo.view);
+  CameraMatrices hostUBO = {};
+  hostUBO.view           = CameraManip.getMatrix();
+  hostUBO.proj           = nvmath::perspectiveVK(CameraManip.getFov(), aspectRatio, 0.1f, 1000.0f);
+  // hostUBO.proj[1][1] *= -1;  // Inverting Y for Vulkan (not needed with perspectiveVK).
+  hostUBO.viewInverse = nvmath::invert(hostUBO.view);
   // #VKRay
-  ubo.projInverse = nvmath::invert(ubo.proj);
+  hostUBO.projInverse = nvmath::invert(hostUBO.proj);
 
-  cmdBuf.updateBuffer<CameraMatrices>(m_cameraMat.buffer, 0, ubo);
+  // UBO on the device, and what stages access it.
+  vk::Buffer deviceUBO = m_cameraMat.buffer;
+  auto uboUsageStages = vk::PipelineStageFlagBits::eVertexShader
+                      | vk::PipelineStageFlagBits::eRayTracingShaderKHR;
 
-  // Making sure the matrix buffer will be available
-  vk::MemoryBarrier mb{vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eShaderRead};
-  cmdBuf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
-                         vk::PipelineStageFlagBits::eVertexShader
-                             | vk::PipelineStageFlagBits::eAccelerationStructureBuildKHR,
-                         vk::DependencyFlagBits::eDeviceGroup, {mb}, {}, {});
+  // Ensure that the modified UBO is not visible to previous frames.
+  vk::BufferMemoryBarrier beforeBarrier;
+  beforeBarrier.setSrcAccessMask(vk::AccessFlagBits::eShaderRead);
+  beforeBarrier.setDstAccessMask(vk::AccessFlagBits::eTransferWrite);
+  beforeBarrier.setBuffer(deviceUBO);
+  beforeBarrier.setOffset(0);
+  beforeBarrier.setSize(sizeof hostUBO);
+  cmdBuf.pipelineBarrier(
+    uboUsageStages,
+    vk::PipelineStageFlagBits::eTransfer,
+    vk::DependencyFlagBits::eDeviceGroup, {}, {beforeBarrier}, {});
+
+  // Schedule the host-to-device upload. (hostUBO is copied into the cmd
+  // buffer so it is okay to deallocate when the function returns).
+  cmdBuf.updateBuffer<CameraMatrices>(m_cameraMat.buffer, 0, hostUBO);
+
+  // Making sure the updated UBO will be visible.
+  vk::BufferMemoryBarrier afterBarrier;
+  afterBarrier.setSrcAccessMask(vk::AccessFlagBits::eTransferWrite);
+  afterBarrier.setDstAccessMask(vk::AccessFlagBits::eShaderRead);
+  afterBarrier.setBuffer(deviceUBO);
+  afterBarrier.setOffset(0);
+  afterBarrier.setSize(sizeof hostUBO);
+  cmdBuf.pipelineBarrier(
+    vk::PipelineStageFlagBits::eTransfer,
+    uboUsageStages,
+    vk::DependencyFlagBits::eDeviceGroup, {}, {afterBarrier}, {});
 }
 
 //--------------------------------------------------------------------------------------------------
