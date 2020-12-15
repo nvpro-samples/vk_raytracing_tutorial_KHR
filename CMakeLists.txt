@@ -52,3 +52,4 @@ add_subdirectory(ray_tracing_manyhits)
 add_subdirectory(ray_tracing_rayquery)
 add_subdirectory(ray_tracing_reflections)
 
+add_subdirectory(ray_tracing_indirect_scissor)

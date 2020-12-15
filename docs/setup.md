@@ -35,16 +35,17 @@ See also [build_all](https://github.com/nvpro-samples/build_all) from nvpro-samp
 ## Latest Vulkan SDK
 
 This repository tries to always be up to date with the latest Vulkan SDK, therefore we suggest to download and install it.
+Version 1.2.162.0 and up has ray tracing extensions support.
 
 **Vulkan SDK**: https://vulkan.lunarg.com/sdk/home
 
 
-## Beta Installation
+## Driver
 
-KHR ray tracing is still in Beta, therefore you will need the latest
-Vulkan driver.
+NVIDIA driver 160.0 and up support Vulkan ray tracing. 
 
-**Latest driver**: https://developer.nvidia.com/vulkan-driver
+* Standard driver: https://www.nvidia.com/Download/index.aspx
+* Vulkan beta driver: https://developer.nvidia.com/vulkan-driver
 
 
 ## CMake

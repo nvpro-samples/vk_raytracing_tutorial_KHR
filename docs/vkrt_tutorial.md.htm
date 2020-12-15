@@ -1697,11 +1697,17 @@ the usage flag to include that stage. This was done in section Additions to the 
 
 ## updateUniformBuffer
 
-The computation of the matrix inverses is done in `updateUniformBuffer`, after setting the `ubo.proj` matrix:
+The computation of the matrix inverses is done in `updateUniformBuffer`, after setting the `hostUBO.proj` matrix:
 
 ```` C
 // #VKRay
-ubo.projInverse = nvmath::invert(ubo.proj);
+hostUBO.projInverse = nvmath::invert(hostUBO.proj);
+````
+
+We also have to indicate that the UBO will be used in the raytracing shaders.
+```` C
+  auto uboUsageStages = vk::PipelineStageFlagBits::eVertexShader
+                      | vk::PipelineStageFlagBits::eRayTracingShaderKHR;
 ````
 
 ## Ray generation (raytrace.rgen)
@@ -2164,6 +2170,20 @@ At the end of the method, we destroy the shader module for the shadow miss shade
     The spec does not guarantee a recursion check at runtime. If you exceed either
     the recursion depth you reported in the raytrace pipeline create info, or the
     physical device recursion limit, undefined behaviour results.
+    
+    The KHR raytracing spec lowers the minimum guaranteed recursion limit from
+    31 (in the original NV spec) to the much more modest limit of 1 (i.e. no
+    recursion at all). Since we now need a recursion limit of 2, we should check
+    that the device supports the needed level of recursion:
+    
+    ```` C
+      // Spec only guarantees 1 level of "recursion". Check for that sad possibility here.
+      if (m_rtProperties.maxRayRecursionDepth <= 1) {
+        throw std::runtime_error("Device fails to support ray recursion (m_rtProperties.maxRayRecursionDepth <= 1)");
+      }
+    ````
+    
+    Recall that `m_rtProperties` was filled in in `HelloVulkan::initRayTracing`.
 
 ## `traceRaysKHR`
 
