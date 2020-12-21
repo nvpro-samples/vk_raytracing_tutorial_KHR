@@ -385,11 +385,6 @@ We first declare the extensions and include common files.
 #include "wavefront.glsl"
 ~~~~
 
-Then we **must** add the following, otherwise the intersection shader will not report any hit.
-
-~~~~ C++
-hitAttributeEXT vec3 HitAttribute;
-~~~~
 
 The following is the topology of all spheres, which we will be able to retrieve using `gl_PrimitiveID`.
 
