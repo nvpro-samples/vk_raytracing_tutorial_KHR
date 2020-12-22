@@ -233,19 +233,19 @@ with utility functions for building those acceleration structures. In the header
 
 ```` C
 // #VKRay
-#include "nvvk/raytrace_vk.hpp"
+#include "nvvk/raytraceKHR_vk.hpp"
 ````
 
 so that we can add that helper as a member in the `HelloVulkan` class,
 
 ```` C
-nvvk::RaytracingBuilder m_rtBuilder;
+nvvk::RaytracingBuilderKHR m_rtBuilder;
 ````
 
 and initialize it at the end of `initRaytracing()`:
 
 ```` C
-m_rtBuilder.setup(m_device, m_alloc, m_graphicsQueueIndex);
+m_rtBuilder.setup(m_device, &m_alloc, m_graphicsQueueIndex);
 ````
 
 !!! Note Memory Management
@@ -256,7 +256,7 @@ m_rtBuilder.setup(m_device, m_alloc, m_graphicsQueueIndex);
     This selects the simple one-`VkDeviceMemory`-per-object strategy, which is easier to understand for
     teaching purposes but not practical for production use.
 
-## Bottom-Level Acceleration Structureg
+## Bottom-Level Acceleration Structure
 
 The first step of building a BLAS object consists in converting the geometry data of an `ObjModel` into
 multiple structures consumed by the AS builder. We are holding all those structures under 
