@@ -421,7 +421,7 @@ void HelloVulkan::createLanternIndirectCompPipeline()
   stageInfo.setPName("main");
 
   // Set up push constant and pipeline layout.
-  constexpr auto pushSize = sizeof(m_lanternIndirectPushConstants); 
+  constexpr auto        pushSize   = static_cast<uint32_t>(sizeof(m_lanternIndirectPushConstants));
   vk::PushConstantRange pushCRange = {vk::ShaderStageFlagBits::eCompute, 0, pushSize};
   static_assert(pushSize <= 128, "Spec guarantees only 128 byte push constant");
   vk::PipelineLayoutCreateInfo layoutInfo;
