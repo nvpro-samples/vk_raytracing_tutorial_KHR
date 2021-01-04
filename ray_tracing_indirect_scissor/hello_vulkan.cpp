@@ -76,10 +76,10 @@ void HelloVulkan::setup(const vk::Instance&       instance,
 void HelloVulkan::updateUniformBuffer(const vk::CommandBuffer& cmdBuf)
 {
   // Prepare new UBO contents on host.
-  const float aspectRatio = m_size.width / static_cast<float>(m_size.height);
-  CameraMatrices hostUBO = {};
-  hostUBO.view           = CameraManip.getMatrix();
-  hostUBO.proj           = nvmath::perspectiveVK(CameraManip.getFov(), aspectRatio, 0.1f, 1000.0f);
+  const float    aspectRatio = m_size.width / static_cast<float>(m_size.height);
+  CameraMatrices hostUBO     = {};
+  hostUBO.view               = CameraManip.getMatrix();
+  hostUBO.proj = nvmath::perspectiveVK(CameraManip.getFov(), aspectRatio, 0.1f, 1000.0f);
   // hostUBO.proj[1][1] *= -1;  // Inverting Y for Vulkan (not needed with perspectiveVK).
   hostUBO.viewInverse = nvmath::invert(hostUBO.view);
   // #VKRay
@@ -87,8 +87,8 @@ void HelloVulkan::updateUniformBuffer(const vk::CommandBuffer& cmdBuf)
 
   // UBO on the device, and what stages access it.
   vk::Buffer deviceUBO = m_cameraMat.buffer;
-  auto uboUsageStages = vk::PipelineStageFlagBits::eVertexShader
-                      | vk::PipelineStageFlagBits::eRayTracingShaderKHR;
+  auto       uboUsageStages =
+      vk::PipelineStageFlagBits::eVertexShader | vk::PipelineStageFlagBits::eRayTracingShaderKHR;
 
   // Ensure that the modified UBO is not visible to previous frames.
   vk::BufferMemoryBarrier beforeBarrier;
@@ -97,10 +97,8 @@ void HelloVulkan::updateUniformBuffer(const vk::CommandBuffer& cmdBuf)
   beforeBarrier.setBuffer(deviceUBO);
   beforeBarrier.setOffset(0);
   beforeBarrier.setSize(sizeof hostUBO);
-  cmdBuf.pipelineBarrier(
-    uboUsageStages,
-    vk::PipelineStageFlagBits::eTransfer,
-    vk::DependencyFlagBits::eDeviceGroup, {}, {beforeBarrier}, {});
+  cmdBuf.pipelineBarrier(uboUsageStages, vk::PipelineStageFlagBits::eTransfer,
+                         vk::DependencyFlagBits::eDeviceGroup, {}, {beforeBarrier}, {});
 
   // Schedule the host-to-device upload. (hostUBO is copied into the cmd
   // buffer so it is okay to deallocate when the function returns).
@@ -113,10 +111,8 @@ void HelloVulkan::updateUniformBuffer(const vk::CommandBuffer& cmdBuf)
   afterBarrier.setBuffer(deviceUBO);
   afterBarrier.setOffset(0);
   afterBarrier.setSize(sizeof hostUBO);
-  cmdBuf.pipelineBarrier(
-    vk::PipelineStageFlagBits::eTransfer,
-    uboUsageStages,
-    vk::DependencyFlagBits::eDeviceGroup, {}, {afterBarrier}, {});
+  cmdBuf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, uboUsageStages,
+                         vk::DependencyFlagBits::eDeviceGroup, {}, {afterBarrier}, {});
 }
 
 
@@ -297,7 +293,7 @@ void HelloVulkan::loadModel(const std::string& filename, nvmath::mat4f transform
 // Add a light-emitting colored lantern to the scene. May only be called before TLAS build.
 void HelloVulkan::addLantern(nvmath::vec3f pos, nvmath::vec3f color, float brightness, float radius)
 {
-  assert(m_lanternCount == 0); // Indicates TLAS build has not happened yet.
+  assert(m_lanternCount == 0);  // Indicates TLAS build has not happened yet.
 
   m_lanterns.push_back({pos, color, brightness, radius});
 }
@@ -724,56 +720,49 @@ nvvk::RaytracingBuilderKHR::BlasInput HelloVulkan::objectToVkGeometryKHR(const O
 
 // Tesselate a sphere as a list of triangles; return its
 // vertices and indices as reference arguments.
-void HelloVulkan::fillLanternVerts(std::vector<nvmath::vec3f>& vertices, std::vector<uint32_t>& indices)
+void HelloVulkan::fillLanternVerts(std::vector<nvmath::vec3f>& vertices,
+                                   std::vector<uint32_t>&      indices)
 {
   // Create a spherical lantern model by recursively tesselating an octahedron.
   struct VertexIndex
   {
     nvmath::vec3f vertex;
-    uint32_t       index; // Keep track of this vert's _eventual_ index in vertices.
+    uint32_t      index;  // Keep track of this vert's _eventual_ index in vertices.
   };
   struct Triangle
   {
     VertexIndex vert0, vert1, vert2;
   };
 
-  VertexIndex posX{{ m_lanternModelRadius, 0, 0}, 0};
+  VertexIndex posX{{m_lanternModelRadius, 0, 0}, 0};
   VertexIndex negX{{-m_lanternModelRadius, 0, 0}, 1};
-  VertexIndex posY{{0,  m_lanternModelRadius, 0}, 2};
+  VertexIndex posY{{0, m_lanternModelRadius, 0}, 2};
   VertexIndex negY{{0, -m_lanternModelRadius, 0}, 3};
-  VertexIndex posZ{{0, 0,  m_lanternModelRadius}, 4};
+  VertexIndex posZ{{0, 0, m_lanternModelRadius}, 4};
   VertexIndex negZ{{0, 0, -m_lanternModelRadius}, 5};
-  uint32_t vertexCount = 6;
+  uint32_t    vertexCount = 6;
 
   // Initial triangle list is octahedron.
-  std::vector<Triangle> triangles {
-    { posX, posY, posZ },
-    { posX, posY, negZ },
-    { posX, negY, posZ },
-    { posX, negY, negZ },
-    { negX, posY, posZ },
-    { negX, posY, negZ },
-    { negX, negY, posZ },
-    { negX, negY, negZ } };
-  
+  std::vector<Triangle> triangles{{posX, posY, posZ}, {posX, posY, negZ}, {posX, negY, posZ},
+                                  {posX, negY, negZ}, {negX, posY, posZ}, {negX, posY, negZ},
+                                  {negX, negY, posZ}, {negX, negY, negZ}};
+
   // Recursion: every iteration, convert the current model to a new
   // model by breaking each triangle into 4 triangles.
-  for (int recursions = 0; recursions < 3; ++recursions)
+  for(int recursions = 0; recursions < 3; ++recursions)
   {
     std::vector<Triangle> new_triangles;
-    for (Triangle t : triangles) {
+    for(Triangle t : triangles)
+    {
       // Split each of three edges in half, then fixup the
       // length of the midpoint to match m_lanternModelRadius.
       // Record the index the new vertices will eventually have in vertices.
-      VertexIndex v01 {
-        m_lanternModelRadius * nvmath::normalize(t.vert0.vertex + t.vert1.vertex),
-        vertexCount++ };
-      VertexIndex v12 {
-        m_lanternModelRadius * nvmath::normalize(t.vert1.vertex + t.vert2.vertex),
-        vertexCount++ };
-      VertexIndex v02 {
-        m_lanternModelRadius * nvmath::normalize(t.vert0.vertex + t.vert2.vertex),
-        vertexCount++ };
+      VertexIndex v01{m_lanternModelRadius * nvmath::normalize(t.vert0.vertex + t.vert1.vertex),
+                      vertexCount++};
+      VertexIndex v12{m_lanternModelRadius * nvmath::normalize(t.vert1.vertex + t.vert2.vertex),
+                      vertexCount++};
+      VertexIndex v02{m_lanternModelRadius * nvmath::normalize(t.vert0.vertex + t.vert2.vertex),
+                      vertexCount++};
 
       // Old triangle becomes 4 new triangles.
       new_triangles.push_back({t.vert0, v01, v02});
@@ -790,7 +779,7 @@ void HelloVulkan::fillLanternVerts(std::vector<nvmath::vec3f>& vertices, std::ve
 
   // Write out the vertices to the vertices vector, and
   // connect the tesselated triangles with indices in the indices vector.
-  for (Triangle t : triangles)
+  for(Triangle t : triangles)
   {
     vertices[t.vert0.index] = t.vert0.vertex;
     vertices[t.vert1.index] = t.vert1.vertex;
@@ -823,11 +812,11 @@ void HelloVulkan::createLanternModel()
 
   auto vertexBytes      = vertices.size() * sizeof vertices[0];
   m_lanternVertexBuffer = m_alloc.createBuffer(vertexBytes, usageFlags, memFlags);
-  void* map = m_alloc.map(m_lanternVertexBuffer);
+  void* map             = m_alloc.map(m_lanternVertexBuffer);
   memcpy(map, vertices.data(), vertexBytes);
   m_alloc.unmap(m_lanternVertexBuffer);
 
-  auto indexBytes = indices.size() * sizeof indices[0];
+  auto indexBytes      = indices.size() * sizeof indices[0];
   m_lanternIndexBuffer = m_alloc.createBuffer(indexBytes, usageFlags, memFlags);
   map                  = m_alloc.map(m_lanternIndexBuffer);
   memcpy(map, indices.data(), indexBytes);
@@ -948,8 +937,8 @@ void HelloVulkan::createRtDescriptorSet()
   using vkDSLB = vk::DescriptorSetLayoutBinding;
 
   // TLAS (binding = 0)
-  m_rtDescSetLayoutBind.addBinding(vkDSLB(0, vkDT::eAccelerationStructureKHR, 1,
-                                          vkSS::eRaygenKHR | vkSS::eClosestHitKHR));
+  m_rtDescSetLayoutBind.addBinding(
+      vkDSLB(0, vkDT::eAccelerationStructureKHR, 1, vkSS::eRaygenKHR | vkSS::eClosestHitKHR));
   // Output image (binding = 1)
   m_rtDescSetLayoutBind.addBinding(
       vkDSLB(1, vkDT::eStorageImage, 1, vkSS::eRaygenKHR));  // Output image
@@ -969,8 +958,8 @@ void HelloVulkan::createRtDescriptorSet()
   descASInfo.setPAccelerationStructures(&tlas);
   vk::DescriptorImageInfo imageInfo{
       {}, m_offscreenColor.descriptor.imageView, vk::ImageLayout::eGeneral};
-  vk::DescriptorBufferInfo lanternBufferInfo{
-      m_lanternIndirectBuffer.buffer, 0, m_lanternCount * sizeof(LanternIndirectEntry)};
+  vk::DescriptorBufferInfo lanternBufferInfo{m_lanternIndirectBuffer.buffer, 0,
+                                             m_lanternCount * sizeof(LanternIndirectEntry)};
 
   std::vector<vk::WriteDescriptorSet> writes;
   writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, 0, &descASInfo));
@@ -1052,7 +1041,7 @@ void HelloVulkan::createRtPipeline()
   vk::ShaderModule raygenSM =
       nvvk::createShaderModule(m_device,  //
                                nvh::loadFile("shaders/raytrace.rgen.spv", true, paths, true));
-  
+
   // Miss shader 0 invoked when a primary ray doesn't hit geometry. Fills in clear color.
   vk::ShaderModule missSM =
       nvvk::createShaderModule(m_device,  //
@@ -1065,8 +1054,9 @@ void HelloVulkan::createRtPipeline()
 
   // Miss shader 2 is invoked when a shadow ray for lantern lighting misses the
   // lantern. It shouldn't be invoked, but I include it just in case.
-  vk::ShaderModule lanternmissSM = nvvk::createShaderModule(
-      m_device, nvh::loadFile("shaders/lanternShadow.rmiss.spv", true, paths, true));
+  vk::ShaderModule lanternmissSM =
+      nvvk::createShaderModule(m_device,
+                               nvh::loadFile("shaders/lanternShadow.rmiss.spv", true, paths, true));
 
   std::vector<vk::PipelineShaderStageCreateInfo> stages;
 
@@ -1084,7 +1074,7 @@ void HelloVulkan::createRtPipeline()
   stages.push_back({{}, vk::ShaderStageFlagBits::eMissKHR, missSM, "main"});
   mg.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(mg);
-  
+
   // Shadow Miss
   stages.push_back({{}, vk::ShaderStageFlagBits::eMissKHR, shadowmissSM, "main"});
   mg.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
@@ -1113,36 +1103,34 @@ void HelloVulkan::createRtPipeline()
                                nvh::loadFile("shaders/lantern.rchit.spv", true, paths, true));
 
   vk::RayTracingShaderGroupCreateInfoKHR lanternHg{
-    vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup,
-    VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
-    VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
+      vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup, VK_SHADER_UNUSED_KHR,
+      VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
   stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, lanternChitSM, "main"});
   lanternHg.setClosestHitShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(lanternHg);
 
   // OBJ Lantern Shadow Ray Hit Group
-  vk::ShaderModule lanternShadowObjChitSM =
-      nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/lanternShadowObj.rchit.spv", true, paths, true));
+  vk::ShaderModule lanternShadowObjChitSM = nvvk::createShaderModule(
+      m_device,  //
+      nvh::loadFile("shaders/lanternShadowObj.rchit.spv", true, paths, true));
 
   vk::RayTracingShaderGroupCreateInfoKHR lanternShadowObjHg{
-    vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup,
-    VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
-    VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
+      vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup, VK_SHADER_UNUSED_KHR,
+      VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
   stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, lanternShadowObjChitSM, "main"});
   lanternShadowObjHg.setClosestHitShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(lanternShadowObjHg);
 
   // Lantern Lantern Shadow Ray Hit Group
-  vk::ShaderModule lanternShadowLanternChitSM =
-      nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/lanternShadowLantern.rchit.spv", true, paths, true));
+  vk::ShaderModule lanternShadowLanternChitSM = nvvk::createShaderModule(
+      m_device,  //
+      nvh::loadFile("shaders/lanternShadowLantern.rchit.spv", true, paths, true));
 
   vk::RayTracingShaderGroupCreateInfoKHR lanternShadowLanternHg{
-    vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup,
-    VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
-    VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
-  stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, lanternShadowLanternChitSM, "main"});
+      vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup, VK_SHADER_UNUSED_KHR,
+      VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
+  stages.push_back(
+      {{}, vk::ShaderStageFlagBits::eClosestHitKHR, lanternShadowLanternChitSM, "main"});
   lanternShadowLanternHg.setClosestHitShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(lanternShadowLanternHg);
 
@@ -1171,8 +1159,7 @@ void HelloVulkan::createRtPipeline()
 
   // In this case, m_rtShaderGroups.size() == 8: we have one raygen group,
   // three miss shader groups, and four hit groups.
-  rayPipelineInfo.setGroupCount(static_cast<uint32_t>(
-      m_rtShaderGroups.size()));
+  rayPipelineInfo.setGroupCount(static_cast<uint32_t>(m_rtShaderGroups.size()));
   rayPipelineInfo.setPGroups(m_rtShaderGroups.data());
 
   rayPipelineInfo.setMaxPipelineRayRecursionDepth(2);  // Ray depth
@@ -1199,7 +1186,7 @@ void HelloVulkan::createRtPipeline()
 void HelloVulkan::createRtShaderBindingTable()
 {
   auto groupCount = static_cast<uint32_t>(m_rtShaderGroups.size());
-  assert(groupCount == 8 && "Update Comment"); // 8 shaders: raygen, 3 miss, 4 chit
+  assert(groupCount == 8 && "Update Comment");  // 8 shaders: raygen, 3 miss, 4 chit
 
   uint32_t groupHandleSize = m_rtProperties.shaderGroupHandleSize;  // Size of a program identifier
   // Compute the actual size needed per SBT entry (round-up to alignment needed).
@@ -1250,15 +1237,16 @@ void HelloVulkan::createLanternIndirectDescriptorSet()
 
   m_lanternIndirectDescPool      = m_lanternIndirectDescSetLayoutBind.createPool(m_device);
   m_lanternIndirectDescSetLayout = m_lanternIndirectDescSetLayoutBind.createLayout(m_device);
-  m_lanternIndirectDescSet       =
-    m_device.allocateDescriptorSets({m_lanternIndirectDescPool, 1, &m_lanternIndirectDescSetLayout})[0];
+  m_lanternIndirectDescSet       = m_device.allocateDescriptorSets(
+      {m_lanternIndirectDescPool, 1, &m_lanternIndirectDescSetLayout})[0];
 
   assert(m_lanternIndirectBuffer.buffer);
-  vk::DescriptorBufferInfo lanternBufferInfo{
-      m_lanternIndirectBuffer.buffer, 0, m_lanternCount * sizeof(LanternIndirectEntry)};
+  vk::DescriptorBufferInfo lanternBufferInfo{m_lanternIndirectBuffer.buffer, 0,
+                                             m_lanternCount * sizeof(LanternIndirectEntry)};
 
   std::vector<vk::WriteDescriptorSet> writes;
-  writes.emplace_back(m_lanternIndirectDescSetLayoutBind.makeWrite(m_lanternIndirectDescSet, 0, &lanternBufferInfo));
+  writes.emplace_back(m_lanternIndirectDescSetLayoutBind.makeWrite(m_lanternIndirectDescSet, 0,
+                                                                   &lanternBufferInfo));
   m_device.updateDescriptorSets(static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
 
@@ -1267,16 +1255,16 @@ void HelloVulkan::createLanternIndirectDescriptorSet()
 void HelloVulkan::createLanternIndirectCompPipeline()
 {
   // Compile compute shader and package as stage.
-  vk::ShaderModule computeShader =
-      nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/lanternIndirect.comp.spv", true, defaultSearchPaths, true));
+  vk::ShaderModule computeShader = nvvk::createShaderModule(
+      m_device,  //
+      nvh::loadFile("shaders/lanternIndirect.comp.spv", true, defaultSearchPaths, true));
   vk::PipelineShaderStageCreateInfo stageInfo;
   stageInfo.setStage(vk::ShaderStageFlagBits::eCompute);
   stageInfo.setModule(computeShader);
   stageInfo.setPName("main");
 
   // Set up push constant and pipeline layout.
-  constexpr auto pushSize = sizeof(m_lanternIndirectPushConstants); 
+  constexpr auto        pushSize   = static_cast<uint32_t>(sizeof(m_lanternIndirectPushConstants));
   vk::PushConstantRange pushCRange = {vk::ShaderStageFlagBits::eCompute, 0, pushSize};
   static_assert(pushSize <= 128, "Spec guarantees only 128 byte push constant");
   vk::PipelineLayoutCreateInfo layoutInfo;
@@ -1290,7 +1278,8 @@ void HelloVulkan::createLanternIndirectCompPipeline()
   vk::ComputePipelineCreateInfo pipelineInfo;
   pipelineInfo.setStage(stageInfo);
   pipelineInfo.setLayout(m_lanternIndirectCompPipelineLayout);
-  m_lanternIndirectCompPipeline = static_cast<const vk::Pipeline&>(m_device.createComputePipeline({}, pipelineInfo));
+  m_lanternIndirectCompPipeline =
+      static_cast<const vk::Pipeline&>(m_device.createComputePipeline({}, pipelineInfo));
 
   m_device.destroy(computeShader);
 }
@@ -1311,14 +1300,16 @@ void HelloVulkan::createLanternIndirectBuffer()
 
   using Usage = vk::BufferUsageFlagBits;
   m_lanternIndirectBuffer =
-     m_alloc.createBuffer(sizeof(LanternIndirectEntry) * m_lanternCount,
-                          Usage::eIndirectBuffer | Usage::eTransferDst
-                              | Usage::eShaderDeviceAddress | Usage::eStorageBuffer,
-                          vk::MemoryPropertyFlagBits::eDeviceLocal);
+      m_alloc.createBuffer(sizeof(LanternIndirectEntry) * m_lanternCount,
+                           Usage::eIndirectBuffer | Usage::eTransferDst
+                               | Usage::eShaderDeviceAddress | Usage::eStorageBuffer,
+                           vk::MemoryPropertyFlagBits::eDeviceLocal);
 
   std::vector<LanternIndirectEntry> entries(m_lanternCount);
-  for (size_t i = 0; i < m_lanternCount; ++i) entries[i].lantern = m_lanterns[i];
-  cmdBuf.updateBuffer(m_lanternIndirectBuffer.buffer, 0, entries.size() * sizeof entries[0], entries.data());
+  for(size_t i = 0; i < m_lanternCount; ++i)
+    entries[i].lantern = m_lanterns[i];
+  cmdBuf.updateBuffer(m_lanternIndirectBuffer.buffer, 0, entries.size() * sizeof entries[0],
+                      entries.data());
 
   cmdBufGet.submitAndWait(cmdBuf);
 }
@@ -1342,7 +1333,7 @@ void HelloVulkan::raytrace(const vk::CommandBuffer& cmdBuf, const nvmath::vec4f&
   // fill in the ray trace indirect parameters for each lantern pass.
 
   // First, barrier before, ensure writes aren't visible to previous frame.
-  vk::BufferMemoryBarrier       bufferBarrier;
+  vk::BufferMemoryBarrier bufferBarrier;
   bufferBarrier.setSrcAccessMask(vk::AccessFlagBits::eIndirectCommandRead);
   bufferBarrier.setDstAccessMask(vk::AccessFlagBits::eShaderWrite);
   bufferBarrier.setSrcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED);
@@ -1350,53 +1341,52 @@ void HelloVulkan::raytrace(const vk::CommandBuffer& cmdBuf, const nvmath::vec4f&
   bufferBarrier.setBuffer(m_lanternIndirectBuffer.buffer);
   bufferBarrier.offset = 0;
   bufferBarrier.size   = m_lanternCount * sizeof m_lanterns[0];
-  cmdBuf.pipelineBarrier(                     //
-    vk::PipelineStageFlagBits::eDrawIndirect, //
-    vk::PipelineStageFlagBits::eComputeShader,//
-    vk::DependencyFlags(0),                   //
-    {}, {bufferBarrier}, {});
+  cmdBuf.pipelineBarrier(                         //
+      vk::PipelineStageFlagBits::eDrawIndirect,   //
+      vk::PipelineStageFlagBits::eComputeShader,  //
+      vk::DependencyFlags(0),                     //
+      {}, {bufferBarrier}, {});
 
   // Bind compute shader, update push constant and descriptors, dispatch compute.
   cmdBuf.bindPipeline(vk::PipelineBindPoint::eCompute, m_lanternIndirectCompPipeline);
-  nvmath::mat4 view = getViewMatrix();
-  m_lanternIndirectPushConstants.viewRowX = view.row(0);
-  m_lanternIndirectPushConstants.viewRowY = view.row(1);
-  m_lanternIndirectPushConstants.viewRowZ = view.row(2);
-  m_lanternIndirectPushConstants.proj = getProjMatrix();
-  m_lanternIndirectPushConstants.nearZ = nearZ;
-  m_lanternIndirectPushConstants.screenX = m_size.width;
-  m_lanternIndirectPushConstants.screenY = m_size.height;
+  nvmath::mat4 view                           = getViewMatrix();
+  m_lanternIndirectPushConstants.viewRowX     = view.row(0);
+  m_lanternIndirectPushConstants.viewRowY     = view.row(1);
+  m_lanternIndirectPushConstants.viewRowZ     = view.row(2);
+  m_lanternIndirectPushConstants.proj         = getProjMatrix();
+  m_lanternIndirectPushConstants.nearZ        = nearZ;
+  m_lanternIndirectPushConstants.screenX      = m_size.width;
+  m_lanternIndirectPushConstants.screenY      = m_size.height;
   m_lanternIndirectPushConstants.lanternCount = int32_t(m_lanternCount);
-  cmdBuf.pushConstants<LanternIndirectPushConstants>(
-    m_lanternIndirectCompPipelineLayout,
-    vk::ShaderStageFlagBits::eCompute,
-    0, m_lanternIndirectPushConstants);
-  cmdBuf.bindDescriptorSets(
-    vk::PipelineBindPoint::eCompute, m_lanternIndirectCompPipelineLayout, 0, {m_lanternIndirectDescSet}, {});
+  cmdBuf.pushConstants<LanternIndirectPushConstants>(m_lanternIndirectCompPipelineLayout,
+                                                     vk::ShaderStageFlagBits::eCompute, 0,
+                                                     m_lanternIndirectPushConstants);
+  cmdBuf.bindDescriptorSets(vk::PipelineBindPoint::eCompute, m_lanternIndirectCompPipelineLayout, 0,
+                            {m_lanternIndirectDescSet}, {});
   cmdBuf.dispatch(1, 1, 1);
 
   // Ensure compute results are visible when doing indirect ray trace.
   bufferBarrier.setSrcAccessMask(vk::AccessFlagBits::eShaderWrite);
   bufferBarrier.setDstAccessMask(vk::AccessFlagBits::eIndirectCommandRead);
-  cmdBuf.pipelineBarrier(                      //
-    vk::PipelineStageFlagBits::eComputeShader, //
-    vk::PipelineStageFlagBits::eDrawIndirect,  //
-    vk::DependencyFlags(0),                    //
-    {}, {bufferBarrier}, {});
+  cmdBuf.pipelineBarrier(                         //
+      vk::PipelineStageFlagBits::eComputeShader,  //
+      vk::PipelineStageFlagBits::eDrawIndirect,   //
+      vk::DependencyFlags(0),                     //
+      {}, {bufferBarrier}, {});
 
 
   // Now move on to the actual ray tracing.
   m_debug.beginLabel(cmdBuf, "Ray trace");
 
   // Initialize push constant values
-  m_rtPushConstants.clearColor     = clearColor;
-  m_rtPushConstants.lightPosition  = m_pushConstant.lightPosition;
-  m_rtPushConstants.lightIntensity = m_pushConstant.lightIntensity;
-  m_rtPushConstants.lightType      = m_pushConstant.lightType;
-  m_rtPushConstants.lanternPassNumber = -1; // Global non-lantern pass
-  m_rtPushConstants.screenX = m_size.width;
-  m_rtPushConstants.screenY = m_size.height;
-  m_rtPushConstants.lanternDebug = m_lanternDebug;
+  m_rtPushConstants.clearColor        = clearColor;
+  m_rtPushConstants.lightPosition     = m_pushConstant.lightPosition;
+  m_rtPushConstants.lightIntensity    = m_pushConstant.lightIntensity;
+  m_rtPushConstants.lightType         = m_pushConstant.lightType;
+  m_rtPushConstants.lanternPassNumber = -1;  // Global non-lantern pass
+  m_rtPushConstants.screenX           = m_size.width;
+  m_rtPushConstants.screenY           = m_size.height;
+  m_rtPushConstants.lanternDebug      = m_lanternDebug;
 
   cmdBuf.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, m_rtPipeline);
   cmdBuf.bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR, m_rtPipelineLayout, 0,
@@ -1421,20 +1411,18 @@ void HelloVulkan::raytrace(const vk::CommandBuffer& cmdBuf, const nvmath::vec4f&
       Stride{0u, 0u, 0u}};                                              // callable
 
   // First pass, illuminate scene with global light.
-  cmdBuf.traceRaysKHR(
-    &strideAddresses[0], &strideAddresses[1], //
-    &strideAddresses[2], &strideAddresses[3], //
-    m_size.width, m_size.height, 1);
+  cmdBuf.traceRaysKHR(&strideAddresses[0], &strideAddresses[1],  //
+                      &strideAddresses[2], &strideAddresses[3],  //
+                      m_size.width, m_size.height, 1);
 
   // Lantern passes, ensure previous pass completed, then add light contribution from each lantern.
-  for (int i = 0; i < static_cast<int>(m_lanternCount); ++i)
+  for(int i = 0; i < static_cast<int>(m_lanternCount); ++i)
   {
     // Barrier to ensure previous pass finished.
     vk::Image                 offscreenImage{m_offscreenColor.image};
-    vk::ImageSubresourceRange colorRange(
-      vk::ImageAspectFlagBits::eColor, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS
-    );
-    vk::ImageMemoryBarrier imageBarrier;
+    vk::ImageSubresourceRange colorRange(vk::ImageAspectFlagBits::eColor, 0,
+                                         VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS);
+    vk::ImageMemoryBarrier    imageBarrier;
     imageBarrier.setOldLayout(vk::ImageLayout::eGeneral);
     imageBarrier.setNewLayout(vk::ImageLayout::eGeneral);
     imageBarrier.setSrcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED);
@@ -1443,25 +1431,24 @@ void HelloVulkan::raytrace(const vk::CommandBuffer& cmdBuf, const nvmath::vec4f&
     imageBarrier.setSubresourceRange(colorRange);
     imageBarrier.setSrcAccessMask(vk::AccessFlagBits::eShaderWrite);
     imageBarrier.setDstAccessMask(vk::AccessFlagBits::eShaderRead);
-    cmdBuf.pipelineBarrier(
-      vk::PipelineStageFlagBits::eRayTracingShaderKHR, //
-      vk::PipelineStageFlagBits::eRayTracingShaderKHR, //
-      vk::DependencyFlags(0), //
-      {}, {}, {imageBarrier});
+    cmdBuf.pipelineBarrier(vk::PipelineStageFlagBits::eRayTracingShaderKHR,  //
+                           vk::PipelineStageFlagBits::eRayTracingShaderKHR,  //
+                           vk::DependencyFlags(0),                           //
+                           {}, {}, {imageBarrier});
 
     // Set lantern pass number.
     m_rtPushConstants.lanternPassNumber = i;
     cmdBuf.pushConstants<RtPushConstant>(m_rtPipelineLayout,
-                                    vk::ShaderStageFlagBits::eRaygenKHR
-                                        | vk::ShaderStageFlagBits::eClosestHitKHR
-                                        | vk::ShaderStageFlagBits::eMissKHR,
-                                    0, m_rtPushConstants);
+                                         vk::ShaderStageFlagBits::eRaygenKHR
+                                             | vk::ShaderStageFlagBits::eClosestHitKHR
+                                             | vk::ShaderStageFlagBits::eMissKHR,
+                                         0, m_rtPushConstants);
 
     // Execute lantern pass.
-    cmdBuf.traceRaysIndirectKHR(
-      &strideAddresses[0], &strideAddresses[1], //
-      &strideAddresses[2], &strideAddresses[3], //
-      m_device.getBufferAddress({m_lanternIndirectBuffer.buffer}) + i * sizeof(LanternIndirectEntry));
+    cmdBuf.traceRaysIndirectKHR(&strideAddresses[0], &strideAddresses[1],  //
+                                &strideAddresses[2], &strideAddresses[3],  //
+                                m_device.getBufferAddress({m_lanternIndirectBuffer.buffer})
+                                    + i * sizeof(LanternIndirectEntry));
   }
 
   m_debug.endLabel(cmdBuf);
