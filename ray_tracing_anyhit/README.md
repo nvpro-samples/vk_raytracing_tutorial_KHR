@@ -18,7 +18,7 @@ used for simple transparency. In this example we will show what is needed to do 
 transparency effect.
 
  **Note:**
-    This example is based on many elements from the [Antialiasing Tutorial](vkrt_tuto_jitter_cam.md.htm).
+    This example is based on many elements from the [Antialiasing Tutorial](../ray_tracing_jitter_cam/README.md).
 
 
 

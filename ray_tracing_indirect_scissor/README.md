@@ -9,7 +9,7 @@ and shadows, with a finite radius of effect. A compute shader will calculate
 scissor rectangles for each lantern, and an indirect trace rays command will
 dispatch rays for lanterns only within those scissor rectangles.
 
-[<h1>LINK TO FULL TUTORIAL</h1>](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/vkrt_tuto_indirect_scissor.md.htm)
+[<h1>LINK TO FULL TUTORIAL</h1>](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/vkrt_tuto_indirect_scissor.md.html)
 
 ![](../docs/Images/indirect_scissor/intro.png)
 
