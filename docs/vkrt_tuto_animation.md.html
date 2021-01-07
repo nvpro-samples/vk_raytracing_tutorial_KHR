@@ -9,7 +9,7 @@
 
 ![](Images/animation2.gif)
 
-This is an extension of the [Vulkan ray tracing tutorial](vkrt_tutorial.md.htm).
+This is an extension of the [Vulkan ray tracing tutorial](vkrt_tutorial.md.html).
 
 We will discuss two animation methods: animating only the transformation matrices, and animating the geometry itself.
 
@@ -169,7 +169,7 @@ m_rtBuilder.updateTlasMatrices(m_tlas);
 
 We currently use `nvvk::RaytracingBuilder` to update the matrices for convenience, but
 this could be done more efficiently if one kept some of the buffer and memory references. Using a 
-memory allocator, such as the one described in the [Many Objects Tutorial](vkrt_tuto_instances.md.htm),
+memory allocator, such as the one described in the [Many Objects Tutorial](vkrt_tuto_instances.md.html),
 could also be an alternative for avoiding multiple reallocations. Here's the implementation of `nvvk::RaytracingBuilder::updateTlasMatrices`.
 
 ### Staging Buffer
