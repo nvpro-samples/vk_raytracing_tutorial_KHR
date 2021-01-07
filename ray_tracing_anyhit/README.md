@@ -227,11 +227,11 @@ d 0.5
 
 ## Accumulation
 
-As mentioned earlier, for the effect to work, we need to accumulate frames over time. Please implement the following from [Jitter Camera/Antialiasing](vkrt_tuto_jitter_cam.md):
+As mentioned earlier, for the effect to work, we need to accumulate frames over time. Please implement the following from [Jitter Camera/Antialiasing](https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/tree/master/ray_tracing_jitter_cam):
 
-* [Frame Number](vkrt_tuto_jitter_cam.md.htm#toc1.2)
-* [Storing or Updating](vkrt_tuto_jitter_cam.md.htm#toc1.4)
-* [Application Frame Update](vkrt_tuto_jitter_cam.md.htm#toc2)
+* [Frame Number](https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/tree/master/ray_tracing_jitter_cam#frame-number)
+* [Storing or Updating](https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/tree/master/ray_tracing_jitter_cam#storing-or-updating)
+* [Application Frame Update](https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/tree/master/ray_tracing_jitter_cam#application-frame-update)
 
 
 ## Fixing The Pipeline

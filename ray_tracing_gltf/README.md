@@ -449,7 +449,7 @@ void main()
 
 # Faster Path Tracer
 
-The implementation above is recursive and this is really not optimal. As described in the [reflection](../vk_ray_tracing_reflection) 
+The implementation above is recursive and this is really not optimal. As described in the [reflection](../ray_tracing_reflections) 
 tutorial, the best is to break the recursivity and do most of the work in the `RayGen`.
 
 The following change can give up to **3 time faster** rendering.

@@ -9,9 +9,6 @@ This is an extension of the Vulkan ray tracing [tutorial](https://nvpro-samples.
 
 In this extension, we will implement antialiasing by jittering the offset of each ray for each pixel over time, instead of always shooting each ray from the middle of its pixel.
 
-(insert setup.md.html here)
-
-
 ## Random Functions
 
 We will use some simple functions for random number generation, which suffice for this example.
