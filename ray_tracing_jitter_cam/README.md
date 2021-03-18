@@ -1,4 +1,4 @@
-﻿# Jitter Camera - Tutorial
+# Jitter Camera - Tutorial
 
 ![](images/antialiasing.png)
 

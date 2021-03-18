@@ -1,4 +1,4 @@
-﻿# NVIDIA Vulkan Ray Tracing Tutorial
+# NVIDIA Vulkan Ray Tracing Tutorial
 
 This example is the result of the ray tracing tutorial.
 The tutorial is adding ray tracing capability to an OBJ rasterizer in Vulkan

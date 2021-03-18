@@ -33,11 +33,11 @@
 #include <vulkan/vulkan.hpp>
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
-#include "imgui.h"
-#include "imgui_impl_glfw.h"
 
 #include "hello_vulkan.h"
-#include "imgui_camera_widget.h"
+#include "imgui.h"
+#include "imgui/backends/imgui_impl_glfw.h"
+#include "imgui/extras/imgui_camera_widget.h"
 #include "nvh/cameramanipulator.hpp"
 #include "nvh/fileoperations.hpp"
 #include "nvpsystem.hpp"
@@ -126,15 +126,13 @@ int main(int argc, char** argv)
   }
 
   // setup some basic things for the sample, logging file for example
-  NVPSystem system(argv[0], PROJECT_NAME);
+  NVPSystem system(PROJECT_NAME);
 
   // Search path for shaders and other media
   defaultSearchPaths = {
-      PROJECT_ABSDIRECTORY,
-      PROJECT_ABSDIRECTORY "..",
-      NVPSystem::exePath(),
-      NVPSystem::exePath() + "..",
-      NVPSystem::exePath() + std::string(PROJECT_NAME),
+      NVPSystem::exePath() + PROJECT_RELDIRECTORY,
+      NVPSystem::exePath() + PROJECT_RELDIRECTORY "..",
+      std::string(PROJECT_NAME),
   };
 
   // Requesting Vulkan extensions and layers
@@ -304,7 +302,7 @@ int main(int argc, char** argv)
       helloVk.drawPost(cmdBuf);
       // Rendering UI
       ImGui::Render();
-      ImGui::RenderDrawDataVK(cmdBuf, ImGui::GetDrawData());
+      ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmdBuf);
       cmdBuf.endRenderPass();
     }
 

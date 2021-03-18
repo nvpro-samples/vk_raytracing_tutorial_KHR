@@ -1,4 +1,4 @@
-﻿# NVIDIA Vulkan Trace Rays Indirect Tutorial
+# NVIDIA Vulkan Trace Rays Indirect Tutorial
 This is an extension of the [Vulkan ray tracing tutorial](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/).
 
 We will discuss the `vkCmdTraceRaysIndirectKHR` command, which allows the

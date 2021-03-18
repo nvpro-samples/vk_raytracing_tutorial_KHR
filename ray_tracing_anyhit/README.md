@@ -1,4 +1,4 @@
-﻿# Any Hit Shaders - Tutorial
+# Any Hit Shaders - Tutorial
 <small>Authors: [Martin-Karl Lefrançois](https://devblogs.nvidia.com/author/mlefrancois/), Neil Bickford </small>
 
 ![](../docs/Images/anyhit.png)
@@ -116,10 +116,10 @@ In `createRtPipeline()`, after loading `raytrace.rchit.spv`, load `raytrace.rahi
 add the any hit shader to the hit group
 
 ~~~~ C++
+  hg.setClosestHitShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, chitSM, "main"});
-  hg.setClosestHitShader(static_cast<uint32_t>(stages.size() - 1));
+  hg.setAnyHitShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eAnyHitKHR, ahitSM, "main"});
-  hg.setAnyHitShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(hg);
 ~~~~
 
@@ -382,8 +382,8 @@ vk::ShaderModule ahit1SM =
     nvvk::createShaderModule(m_device,  //
                              nvh::loadFile("shaders/raytrace_1.rahit.spv", true, paths));
 hg.setClosestHitShader(VK_SHADER_UNUSED_NV);  // Not used by shadow (skipped)
+hg.setAnyHitShader(static_cast<uint32_t>(stages.size()));
 stages.push_back({{}, vk::ShaderStageFlagBits::eAnyHitNV, ahit1SM, "main"});
-hg.setAnyHitShader(static_cast<uint32_t>(stages.size() - 1));
 m_rtShaderGroups.push_back(hg);
 ~~~~ 
 

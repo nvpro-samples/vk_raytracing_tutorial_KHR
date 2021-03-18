@@ -33,11 +33,9 @@
 #include <vulkan/vulkan.hpp>
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
-#include "imgui.h"
-#include "imgui_impl_glfw.h"
-
 #include "hello_vulkan.h"
-#include "imgui_camera_widget.h"
+#include "imgui/backends/imgui_impl_glfw.h"
+#include "imgui/extras/imgui_camera_widget.h"
 #include "nvh/cameramanipulator.hpp"
 #include "nvh/fileoperations.hpp"
 #include "nvpsystem.hpp"
@@ -98,7 +96,7 @@ int main(int argc, char** argv)
 
   // Setup camera
   CameraManip.setWindowSize(SAMPLE_WIDTH, SAMPLE_HEIGHT);
-  CameraManip.setLookat(nvmath::vec3f(5, 4, -4), nvmath::vec3f(0, 1, 0), nvmath::vec3f(0, 1, 0));
+  CameraManip.setLookat({3.937, 3.702, -5.448}, {-1.170, 0.592, -1.674}, {0.000, 1.000, 0.000});
 
   // Setup Vulkan
   if(!glfwVulkanSupported())
@@ -108,15 +106,13 @@ int main(int argc, char** argv)
   }
 
   // setup some basic things for the sample, logging file for example
-  NVPSystem system(argv[0], PROJECT_NAME);
+  NVPSystem system(PROJECT_NAME);
 
   // Search path for shaders and other media
   defaultSearchPaths = {
-      PROJECT_ABSDIRECTORY,
-      PROJECT_ABSDIRECTORY "..",
-      NVPSystem::exePath(),
-      NVPSystem::exePath() + "..",
-      NVPSystem::exePath() + std::string(PROJECT_NAME),
+      NVPSystem::exePath() + PROJECT_RELDIRECTORY,
+      NVPSystem::exePath() + PROJECT_RELDIRECTORY "..",
+      std::string(PROJECT_NAME),
   };
 
   // Requesting Vulkan extensions and layers
@@ -179,17 +175,21 @@ int main(int argc, char** argv)
   // Creation of the example
   helloVk.loadModel(nvh::findFile("media/scenes/wuson.obj", defaultSearchPaths, true),
                     nvmath::translation_mat4(nvmath::vec3f(-1, 0, 0)));
-  HelloVulkan::ObjInstance inst;
-  inst.objIndex    = 0;
-  inst.transform   = nvmath::translation_mat4(nvmath::vec3f(1, 0, 0));
-  inst.transformIT = nvmath::transpose(nvmath::invert(inst.transform));
-  helloVk.m_objInstance.push_back(inst);
+
+  HelloVulkan::ObjInstance inst = helloVk.m_objInstance[0];  // Instance the wuson object
+  inst.transform                = nvmath::translation_mat4(nvmath::vec3f(1, 0, 0));
+  inst.transformIT              = nvmath::transpose(nvmath::invert(inst.transform));
+  helloVk.m_objInstance.push_back(inst);  // Adding an instance of the wuson
+
   helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
-  helloVk.m_objInstance[0].hitgroup = 1;
-  helloVk.m_objInstance[1].hitgroup = 2;
+
+  // Hit shader record info
   helloVk.m_hitShaderRecord.resize(2);
   helloVk.m_hitShaderRecord[0].color = nvmath::vec4f(0, 1, 0, 0);  // Green
   helloVk.m_hitShaderRecord[1].color = nvmath::vec4f(0, 1, 1, 0);  // Cyan
+  helloVk.m_objInstance[0].hitgroup  = 1;                          // wuson 0
+  helloVk.m_objInstance[1].hitgroup  = 2;                          // wuson 1
+
 
   helloVk.createOffscreenRender();
   helloVk.createDescriptorSetLayout();
@@ -297,7 +297,7 @@ int main(int argc, char** argv)
       helloVk.drawPost(cmdBuf);
       // Rendering UI
       ImGui::Render();
-      ImGui::RenderDrawDataVK(cmdBuf, ImGui::GetDrawData());
+      ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmdBuf);
       cmdBuf.endRenderPass();
     }
 

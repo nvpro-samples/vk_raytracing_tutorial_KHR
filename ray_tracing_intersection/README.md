@@ -1,4 +1,4 @@
-﻿# Intersection Shader - Tutorial
+# Intersection Shader - Tutorial
 
 ![](images/intersection.png)
 <small>Author: [Martin-Karl Lefrançois](https://devblogs.nvidia.com/author/mlefrancois/)</small>
@@ -315,8 +315,8 @@ Here is how the two hit group looks like:
     vk::RayTracingShaderGroupCreateInfoKHR hg{vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup,
                                               VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
                                               VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
+    hg.setClosestHitShader(static_cast<uint32_t>(stages.size()));
     stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, chitSM, "main"});
-    hg.setClosestHitShader(static_cast<uint32_t>(stages.size() - 1));
     m_rtShaderGroups.push_back(hg);
   }
 
@@ -331,10 +331,10 @@ Here is how the two hit group looks like:
     vk::RayTracingShaderGroupCreateInfoKHR hg{vk::RayTracingShaderGroupTypeKHR::eProceduralHitGroup,
                                               VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
                                               VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
+    hg.setClosestHitShader(static_cast<uint32_t>(stages.size()));
     stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, chit2SM, "main"});
-    hg.setClosestHitShader(static_cast<uint32_t>(stages.size() - 1));
+    hg.setIntersectionShader(static_cast<uint32_t>(stages.size()));
     stages.push_back({{}, vk::ShaderStageFlagBits::eIntersectionKHR, rintSM, "main"});
-    hg.setIntersectionShader(static_cast<uint32_t>(stages.size() - 1));
     m_rtShaderGroups.push_back(hg);
   }
 ~~~~

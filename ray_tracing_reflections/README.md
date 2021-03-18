@@ -1,4 +1,4 @@
-﻿# Reflections - Tutorial
+# Reflections - Tutorial
 
 ![](images/reflections.png)
 

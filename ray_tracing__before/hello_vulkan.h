@@ -128,5 +128,5 @@ public:
   nvvk::Texture               m_offscreenColor;
   vk::Format                  m_offscreenColorFormat{vk::Format::eR32G32B32A32Sfloat};
   nvvk::Texture               m_offscreenDepth;
-  vk::Format                  m_offscreenDepthFormat{vk::Format::eD32Sfloat};
+  vk::Format                  m_offscreenDepthFormat;
 };

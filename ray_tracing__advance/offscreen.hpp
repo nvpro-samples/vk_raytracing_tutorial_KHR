@@ -40,7 +40,10 @@
 class Offscreen
 {
 public:
-  void setup(const vk::Device& device, nvvk::Allocator* allocator, uint32_t queueFamily);
+  void setup(const vk::Device&         device,
+             const vk::PhysicalDevice& physicalDevice,
+             nvvk::Allocator*          allocator,
+             uint32_t                  queueFamily);
   void destroy();
 
   void createFramebuffer(VkExtent2D& size);
@@ -66,7 +69,7 @@ private:
   nvvk::Texture m_colorTexture;
   vk::Format    m_colorFormat{vk::Format::eR32G32B32A32Sfloat};
   nvvk::Texture m_depthTexture;
-  vk::Format    m_depthFormat{vk::Format::eD32Sfloat};
+  vk::Format    m_depthFormat;
 
   nvvk::Allocator* m_alloc{nullptr};  // Allocator for buffer, images, acceleration structures
   vk::Device       m_device;

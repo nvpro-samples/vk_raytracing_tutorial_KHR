@@ -1,4 +1,4 @@
-﻿# NVIDIA Vulkan Ray Tracing Tutorial - glTF Scene
+# NVIDIA Vulkan Ray Tracing Tutorial - glTF Scene
 
 ![img](images/vk_ray_tracing_gltf_KHR.png)
 

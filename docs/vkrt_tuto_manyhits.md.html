@@ -1,4 +1,4 @@
-﻿<meta charset="utf-8" lang="en">
+<meta charset="utf-8" lang="en">
 **NVIDIA Vulkan Ray Tracing Tutorial**
 **Multiple Closest Hit Shaders**
 
@@ -68,8 +68,8 @@ Then add a new hit group group immediately after adding the first hit group:
 
 ~~~~ C++
   // Second group
+  hg.setClosestHitShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, chit2SM, "main"});
-  hg.setClosestHitShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(hg);
 ~~~~
 

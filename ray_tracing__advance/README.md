@@ -1,4 +1,4 @@
-﻿# NVIDIA Vulkan Ray Tracing Tutorial
+# NVIDIA Vulkan Ray Tracing Tutorial
 
 This example is the combination of all tutorials.
 

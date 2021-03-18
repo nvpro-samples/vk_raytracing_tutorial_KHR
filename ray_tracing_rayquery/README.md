@@ -1,4 +1,4 @@
-﻿# Ray Query - Tutorial
+# Ray Query - Tutorial
 
 
 ![](images/rayquery.png)

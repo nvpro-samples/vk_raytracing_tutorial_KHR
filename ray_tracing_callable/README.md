@@ -1,4 +1,4 @@
-﻿# Callable Shaders - Tutorial
+# Callable Shaders - Tutorial
 
 ![](images/callable.png)
 <small>Author: [Martin-Karl Lefrançois](https://devblogs.nvidia.com/author/mlefrancois/)</small>
@@ -78,14 +78,14 @@ In `HelloVulkan::createRtPipeline()`, immediately after adding the closest-hit s
   vk::ShaderModule call2 =
       nvvk::createShaderModule(m_device, nvh::loadFile("shaders/light_inf.rcall.spv", true, paths));
 
+  callGroup.setGeneralShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eCallableKHR, call0, "main"});
-  callGroup.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(callGroup);
+  callGroup.setGeneralShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eCallableKHR, call1, "main"});
-  callGroup.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(callGroup);
+  callGroup.setGeneralShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eCallableKHR, call2, "main"});
-  callGroup.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(callGroup);
 ~~~~
 

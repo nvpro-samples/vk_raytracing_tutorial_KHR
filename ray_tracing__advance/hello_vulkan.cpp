@@ -84,7 +84,7 @@ void HelloVulkan::setup(const vk::Instance&       instance,
   m_debug.setup(m_device);
 
 
-  m_offscreen.setup(device, &m_alloc, queueFamily);
+  m_offscreen.setup(device, physicalDevice, &m_alloc, queueFamily);
   m_raytrace.setup(device, physicalDevice, &m_alloc, queueFamily);
 }
 
@@ -94,10 +94,10 @@ void HelloVulkan::setup(const vk::Instance&       instance,
 void HelloVulkan::updateUniformBuffer(const vk::CommandBuffer& cmdBuf)
 {
   // Prepare new UBO contents on host.
-  const float aspectRatio = m_size.width / static_cast<float>(m_size.height);
-  CameraMatrices hostUBO = {};
-  hostUBO.view           = CameraManip.getMatrix();
-  hostUBO.proj           = nvmath::perspectiveVK(CameraManip.getFov(), aspectRatio, 0.1f, 1000.0f);
+  const float    aspectRatio = m_size.width / static_cast<float>(m_size.height);
+  CameraMatrices hostUBO     = {};
+  hostUBO.view               = CameraManip.getMatrix();
+  hostUBO.proj = nvmath::perspectiveVK(CameraManip.getFov(), aspectRatio, 0.1f, 1000.0f);
   // hostUBO.proj[1][1] *= -1;  // Inverting Y for Vulkan (not needed with perspectiveVK).
   hostUBO.viewInverse = nvmath::invert(hostUBO.view);
   // #VKRay
@@ -105,8 +105,8 @@ void HelloVulkan::updateUniformBuffer(const vk::CommandBuffer& cmdBuf)
 
   // UBO on the device, and what stages access it.
   vk::Buffer deviceUBO = m_cameraMat.buffer;
-  auto uboUsageStages = vk::PipelineStageFlagBits::eVertexShader
-                      | vk::PipelineStageFlagBits::eRayTracingShaderKHR;
+  auto       uboUsageStages =
+      vk::PipelineStageFlagBits::eVertexShader | vk::PipelineStageFlagBits::eRayTracingShaderKHR;
 
   // Ensure that the modified UBO is not visible to previous frames.
   vk::BufferMemoryBarrier beforeBarrier;
@@ -115,10 +115,8 @@ void HelloVulkan::updateUniformBuffer(const vk::CommandBuffer& cmdBuf)
   beforeBarrier.setBuffer(deviceUBO);
   beforeBarrier.setOffset(0);
   beforeBarrier.setSize(sizeof hostUBO);
-  cmdBuf.pipelineBarrier(
-    uboUsageStages,
-    vk::PipelineStageFlagBits::eTransfer,
-    vk::DependencyFlagBits::eDeviceGroup, {}, {beforeBarrier}, {});
+  cmdBuf.pipelineBarrier(uboUsageStages, vk::PipelineStageFlagBits::eTransfer,
+                         vk::DependencyFlagBits::eDeviceGroup, {}, {beforeBarrier}, {});
 
   // Schedule the host-to-device upload. (hostUBO is copied into the cmd
   // buffer so it is okay to deallocate when the function returns).
@@ -131,10 +129,8 @@ void HelloVulkan::updateUniformBuffer(const vk::CommandBuffer& cmdBuf)
   afterBarrier.setBuffer(deviceUBO);
   afterBarrier.setOffset(0);
   afterBarrier.setSize(sizeof hostUBO);
-  cmdBuf.pipelineBarrier(
-    vk::PipelineStageFlagBits::eTransfer,
-    uboUsageStages,
-    vk::DependencyFlagBits::eDeviceGroup, {}, {afterBarrier}, {});
+  cmdBuf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, uboUsageStages,
+                         vk::DependencyFlagBits::eDeviceGroup, {}, {afterBarrier}, {});
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -251,8 +247,8 @@ void HelloVulkan::createGraphicsPipeline()
   std::vector<std::string>                paths = defaultSearchPaths;
   nvvk::GraphicsPipelineGeneratorCombined gpb(m_device, m_pipelineLayout, m_offscreen.renderPass());
   gpb.depthStencilState.depthTestEnable = true;
-  gpb.addShader(nvh::loadFile("shaders/vert_shader.vert.spv", true, paths, true), vkSS::eVertex);
-  gpb.addShader(nvh::loadFile("shaders/frag_shader.frag.spv", true, paths, true), vkSS::eFragment);
+  gpb.addShader(nvh::loadFile("spv/vert_shader.vert.spv", true, paths, true), vkSS::eVertex);
+  gpb.addShader(nvh::loadFile("spv/frag_shader.frag.spv", true, paths, true), vkSS::eFragment);
   gpb.addBindingDescription({0, sizeof(VertexObj)});
   gpb.addAttributeDescriptions(std::vector<vk::VertexInputAttributeDescription>{
       {0, 0, vk::Format::eR32G32B32Sfloat, offsetof(VertexObj, pos)},

@@ -1,4 +1,4 @@
-﻿<meta charset="utf-8" lang="en">
+<meta charset="utf-8" lang="en">
 **NVIDIA Vulkan Ray Tracing Tutorial**
 **Trace Rays Indirect**
 
@@ -673,7 +673,7 @@ void HelloVulkan::createTopLevelAS()
   tlas.reserve(m_objInstance.size() + m_lanternCount);
 
   // Add the OBJ instances.
-  for(int i = 0; i < static_cast<int>(m_objInstance.size()); i++)
+  for(uint32_t i = 0; i < static_cast<uint32_t>(m_objInstance.size()); i++)
   {
     nvvk::RaytracingBuilderKHR::Instance rayInst;
     rayInst.transform        = m_objInstance[i].transform;  // Position of the instance
@@ -817,8 +817,8 @@ TLAS build.
   vk::RayTracingShaderGroupCreateInfoKHR hg{vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup,
                                             VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
                                             VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
+  hg.setClosestHitShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, chitSM, "main"});
-  hg.setClosestHitShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(hg);
 
   // Lantern Primary Ray Hit Group
@@ -830,8 +830,8 @@ TLAS build.
     vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup,
     VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
     VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
+  lanternHg.setClosestHitShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, lanternChitSM, "main"});
-  lanternHg.setClosestHitShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(lanternHg);
   
   // ...
@@ -1121,8 +1121,8 @@ and add this code for loading the last 2 closest hit shaders after loading
     vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup,
     VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
     VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
+  lanternShadowObjHg.setClosestHitShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, lanternShadowObjChitSM, "main"});
-  lanternShadowObjHg.setClosestHitShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(lanternShadowObjHg);
 
   // Lantern Lantern Shadow Ray Hit Group
@@ -1134,8 +1134,8 @@ and add this code for loading the last 2 closest hit shaders after loading
     vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup,
     VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
     VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
+  lanternShadowLanternHg.setClosestHitShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, lanternShadowLanternChitSM, "main"});
-  lanternShadowLanternHg.setClosestHitShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(lanternShadowLanternHg);
 ````
 
@@ -1149,7 +1149,7 @@ We need to destroy the added shader modules at the end of the function.
 ````
 
 Through all this, we still load shader stages in the same order as they will appear
-in the SBT in order to keep things simple (note `stages.size() - 1`). Add a comment
+in the SBT in order to keep things simple (note `stages.size()`). Add a comment
 at the top of this function to help us keep track of all the new shaders.
 
 ```` C

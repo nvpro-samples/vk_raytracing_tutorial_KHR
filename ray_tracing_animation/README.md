@@ -1,4 +1,4 @@
-﻿# Ray Tracing Animation - Tutorial
+# Ray Tracing Animation - Tutorial
 
 ![](images/animation2.gif)
 
@@ -122,7 +122,7 @@ This is absolutely needed, since otherwise the TLAS cannot be updated.
 void HelloVulkan::createTopLevelAS()
 {
   m_tlas.reserve(m_objInstance.size());
-  for(int i = 0; i < static_cast<int>(m_objInstance.size()); i++)
+  for(uint32_t i = 0; i < static_cast<uint32_t>(m_objInstance.size()); i++)
   {
     nvvk::RaytracingBuilder::Instance rayInst;
     rayInst.transform        = m_objInstance[i].transform;  // Position of the instance

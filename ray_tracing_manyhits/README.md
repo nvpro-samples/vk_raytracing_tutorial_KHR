@@ -1,4 +1,4 @@
-﻿# Multiple Closest Hit Shaders - Tutorial
+# Multiple Closest Hit Shaders - Tutorial
 
 ![](images/manyhits.png)
 
@@ -21,11 +21,12 @@ Then you can change the `helloVk.loadModel` calls to the following:
   // Creation of the example
   helloVk.loadModel(nvh::findFile("media/scenes/wuson.obj", defaultSearchPaths, true),
                     nvmath::translation_mat4(nvmath::vec3f(-1, 0, 0)));
-  HelloVulkan::ObjInstance inst;
-  inst.objIndex    = 0;
-  inst.transform   = nvmath::translation_mat4(nvmath::vec3f(1, 0, 0));
-  inst.transformIT = nvmath::transpose(nvmath::invert(inst.transform));
-  helloVk.m_objInstance.push_back(inst);
+  
+  HelloVulkan::ObjInstance inst = helloVk.m_objInstance[0];  // Instance the wuson object
+  inst.transform                = nvmath::translation_mat4(nvmath::vec3f(1, 0, 0));
+  inst.transformIT              = nvmath::transpose(nvmath::invert(inst.transform));
+  helloVk.m_objInstance.push_back(inst);  // Adding an instance of the wuson
+
   helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
 ~~~~
 
@@ -67,8 +68,8 @@ Then add a new hit group group immediately after adding the first hit group:
 
 ~~~~ C++
   // Second group
+  hg.setClosestHitShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, chit2SM, "main"});
-  hg.setClosestHitShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(hg);
 ~~~~
 
@@ -315,11 +316,12 @@ The following modification will add another entry to the SBT with a different co
 In the description of the scene in `main`, we will tell the `wuson` models to use hit groups 1 and 2 respectively, and to have different colors.
 
 ~~~~ C++
-  helloVk.m_objInstance[0].hitgroup = 1;
-  helloVk.m_objInstance[1].hitgroup = 2;
+  // Hit shader record info
   helloVk.m_hitShaderRecord.resize(2);
   helloVk.m_hitShaderRecord[0].color = nvmath::vec4f(0, 1, 0, 0);  // Green
   helloVk.m_hitShaderRecord[1].color = nvmath::vec4f(0, 1, 1, 0);  // Cyan
+  helloVk.m_objInstance[0].hitgroup  = 1;                          // wuson 0
+  helloVk.m_objInstance[1].hitgroup  = 2;                          // wuson 1
 ~~~~
 
 ### `createRtShaderBindingTable`

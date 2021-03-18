@@ -246,19 +246,15 @@ void Raytracer::updateRtDescriptorSet(const vk::ImageView& outputImage)
 //
 void Raytracer::createRtPipeline(vk::DescriptorSetLayout& sceneDescLayout)
 {
-  std::vector<std::string> paths = defaultSearchPaths;
-
-  vk::ShaderModule raygenSM =
-      nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace.rgen.spv", true, paths, true));
-  vk::ShaderModule missSM =
-      nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace.rmiss.spv", true, paths, true));
+  vk::ShaderModule raygenSM = nvvk::createShaderModule(
+      m_device, nvh::loadFile("spv/raytrace.rgen.spv", true, defaultSearchPaths, true));
+  vk::ShaderModule missSM = nvvk::createShaderModule(
+      m_device, nvh::loadFile("spv/raytrace.rmiss.spv", true, defaultSearchPaths, true));
 
   // The second miss shader is invoked when a shadow ray misses the geometry. It
   // simply indicates that no occlusion has been found
   vk::ShaderModule shadowmissSM = nvvk::createShaderModule(
-      m_device, nvh::loadFile("shaders/raytraceShadow.rmiss.spv", true, paths, true));
+      m_device, nvh::loadFile("spv/raytraceShadow.rmiss.spv", true, defaultSearchPaths, true));
 
 
   std::vector<vk::PipelineShaderStageCreateInfo> stages;
@@ -267,60 +263,55 @@ void Raytracer::createRtPipeline(vk::DescriptorSetLayout& sceneDescLayout)
   vk::RayTracingShaderGroupCreateInfoKHR rg{vk::RayTracingShaderGroupTypeKHR::eGeneral,
                                             VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
                                             VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
+  rg.setGeneralShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eRaygenKHR, raygenSM, "main"});
-  rg.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(rg);  // 0
 
   // Miss
   vk::RayTracingShaderGroupCreateInfoKHR mg{vk::RayTracingShaderGroupTypeKHR::eGeneral,
                                             VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
                                             VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
+  mg.setGeneralShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eMissKHR, missSM, "main"});
-  mg.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(mg);  // 1
   // Shadow Miss
+  mg.setGeneralShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eMissKHR, shadowmissSM, "main"});
-  mg.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(mg);  // 2
 
   // Hit Group0 - Closest Hit + AnyHit
-  vk::ShaderModule chitSM =
-      nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace.rchit.spv", true, paths, true));
-  vk::ShaderModule ahitSM =
-      nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace.rahit.spv", true, paths, true));
+  vk::ShaderModule chitSM = nvvk::createShaderModule(
+      m_device, nvh::loadFile("spv/raytrace.rchit.spv", true, defaultSearchPaths, true));
+  vk::ShaderModule ahitSM = nvvk::createShaderModule(
+      m_device, nvh::loadFile("spv/raytrace.rahit.spv", true, defaultSearchPaths, true));
 
   vk::RayTracingShaderGroupCreateInfoKHR hg{vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup,
                                             VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
                                             VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
+  hg.setClosestHitShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, chitSM, "main"});
-  hg.setClosestHitShader(static_cast<uint32_t>(stages.size() - 1));
+  hg.setAnyHitShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eAnyHitKHR, ahitSM, "main"});
-  hg.setAnyHitShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(hg);  // 3
 
 
   // Hit Group1 - Closest Hit + Intersection (procedural)
-  vk::ShaderModule chit2SM =
-      nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace2.rchit.spv", true, paths, true));
-  vk::ShaderModule ahit2SM =
-      nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace2.rahit.spv", true, paths, true));
-  vk::ShaderModule rintSM =
-      nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace.rint.spv", true, paths, true));
+  vk::ShaderModule chit2SM = nvvk::createShaderModule(
+      m_device, nvh::loadFile("spv/raytrace2.rchit.spv", true, defaultSearchPaths, true));
+  vk::ShaderModule ahit2SM = nvvk::createShaderModule(
+      m_device, nvh::loadFile("spv/raytrace2.rahit.spv", true, defaultSearchPaths, true));
+  vk::ShaderModule rintSM = nvvk::createShaderModule(
+      m_device, nvh::loadFile("spv/raytrace.rint.spv", true, defaultSearchPaths, true));
   {
     vk::RayTracingShaderGroupCreateInfoKHR hg{vk::RayTracingShaderGroupTypeKHR::eProceduralHitGroup,
                                               VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
                                               VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
+    hg.setClosestHitShader(static_cast<uint32_t>(stages.size()));
     stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, chit2SM, "main"});
-    hg.setClosestHitShader(static_cast<uint32_t>(stages.size() - 1));
+    hg.setAnyHitShader(static_cast<uint32_t>(stages.size()));
     stages.push_back({{}, vk::ShaderStageFlagBits::eAnyHitKHR, ahit2SM, "main"});
-    hg.setAnyHitShader(static_cast<uint32_t>(stages.size() - 1));
+    hg.setIntersectionShader(static_cast<uint32_t>(stages.size()));
     stages.push_back({{}, vk::ShaderStageFlagBits::eIntersectionKHR, rintSM, "main"});
-    hg.setIntersectionShader(static_cast<uint32_t>(stages.size() - 1));
     m_rtShaderGroups.push_back(hg);  // 4
   }
 
@@ -329,24 +320,21 @@ void Raytracer::createRtPipeline(vk::DescriptorSetLayout& sceneDescLayout)
                                                    VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
                                                    VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
 
-  vk::ShaderModule call0 =
-      nvvk::createShaderModule(m_device,
-                               nvh::loadFile("shaders/light_point.rcall.spv", true, paths, true));
-  vk::ShaderModule call1 =
-      nvvk::createShaderModule(m_device,
-                               nvh::loadFile("shaders/light_spot.rcall.spv", true, paths, true));
-  vk::ShaderModule call2 =
-      nvvk::createShaderModule(m_device,
-                               nvh::loadFile("shaders/light_inf.rcall.spv", true, paths, true));
+  vk::ShaderModule call0 = nvvk::createShaderModule(
+      m_device, nvh::loadFile("spv/light_point.rcall.spv", true, defaultSearchPaths, true));
+  vk::ShaderModule call1 = nvvk::createShaderModule(
+      m_device, nvh::loadFile("spv/light_spot.rcall.spv", true, defaultSearchPaths, true));
+  vk::ShaderModule call2 = nvvk::createShaderModule(
+      m_device, nvh::loadFile("spv/light_inf.rcall.spv", true, defaultSearchPaths, true));
 
+  callGroup.setGeneralShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eCallableKHR, call0, "main"});
-  callGroup.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(callGroup);  // 5
+  callGroup.setGeneralShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eCallableKHR, call1, "main"});
-  callGroup.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(callGroup);  // 6
+  callGroup.setGeneralShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eCallableKHR, call2, "main"});
-  callGroup.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(callGroup);  //7
 
 

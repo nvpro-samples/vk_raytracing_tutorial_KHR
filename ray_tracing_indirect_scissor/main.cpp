@@ -34,10 +34,10 @@
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
 #include "imgui.h"
-#include "imgui_impl_glfw.h"
+#include "imgui/backends/imgui_impl_glfw.h"
 
 #include "hello_vulkan.h"
-#include "imgui_camera_widget.h"
+#include "imgui/extras/imgui_camera_widget.h"
 #include "nvh/cameramanipulator.hpp"
 #include "nvh/fileoperations.hpp"
 #include "nvpsystem.hpp"
@@ -110,15 +110,13 @@ int main(int argc, char** argv)
   }
 
   // setup some basic things for the sample, logging file for example
-  NVPSystem system(argv[0], PROJECT_NAME);
+  NVPSystem system(PROJECT_NAME);
 
   // Search path for shaders and other media
   defaultSearchPaths = {
-      PROJECT_ABSDIRECTORY,
-      PROJECT_ABSDIRECTORY "..",
-      NVPSystem::exePath(),
-      NVPSystem::exePath() + "..",
-      NVPSystem::exePath() + std::string(PROJECT_NAME),
+      NVPSystem::exePath() + PROJECT_RELDIRECTORY,
+      NVPSystem::exePath() + PROJECT_RELDIRECTORY "..",
+      std::string(PROJECT_NAME),
   };
 
   // Requesting Vulkan extensions and layers
@@ -180,16 +178,16 @@ int main(int argc, char** argv)
   // Creation of the example
   helloVk.loadModel(nvh::findFile("media/scenes/Medieval_building.obj", defaultSearchPaths, true));
   helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
-  helloVk.addLantern({ 8.000f, 1.100f,  3.600f}, {1.0f, 0.0f, 0.0f}, 0.4f, 4.0f);
-  helloVk.addLantern({ 8.000f, 0.600f,  3.900f}, {0.0f, 1.0f, 0.0f}, 0.4f, 4.0f);
-  helloVk.addLantern({ 8.000f, 1.100f,  4.400f}, {0.0f, 0.0f, 1.0f}, 0.4f, 4.0f);
-  helloVk.addLantern({ 1.730f, 1.812f, -1.604f}, {0.0f, 0.4f, 0.4f}, 0.4f, 4.0f);
-  helloVk.addLantern({ 1.730f, 1.862f,  1.916f}, {0.0f, 0.2f, 0.4f}, 0.3f, 3.0f);
+  helloVk.addLantern({8.000f, 1.100f, 3.600f}, {1.0f, 0.0f, 0.0f}, 0.4f, 4.0f);
+  helloVk.addLantern({8.000f, 0.600f, 3.900f}, {0.0f, 1.0f, 0.0f}, 0.4f, 4.0f);
+  helloVk.addLantern({8.000f, 1.100f, 4.400f}, {0.0f, 0.0f, 1.0f}, 0.4f, 4.0f);
+  helloVk.addLantern({1.730f, 1.812f, -1.604f}, {0.0f, 0.4f, 0.4f}, 0.4f, 4.0f);
+  helloVk.addLantern({1.730f, 1.862f, 1.916f}, {0.0f, 0.2f, 0.4f}, 0.3f, 3.0f);
   helloVk.addLantern({-2.000f, 1.900f, -0.700f}, {0.8f, 0.8f, 0.6f}, 0.4f, 3.9f);
-  helloVk.addLantern({ 0.100f, 0.080f, -2.392f}, {1.0f, 0.0f, 1.0f}, 0.5f, 5.0f);
-  helloVk.addLantern({ 1.948f, 0.080f,  0.598f}, {1.0f, 1.0f, 1.0f}, 0.6f, 6.0f);
-  helloVk.addLantern({-2.300f, 0.080f,  2.100f}, {0.0f, 0.7f, 0.0f}, 0.6f, 6.0f);
-  helloVk.addLantern({-1.400f, 4.300f,  0.150f}, {1.0f, 1.0f, 0.0f}, 0.7f, 7.0f);
+  helloVk.addLantern({0.100f, 0.080f, -2.392f}, {1.0f, 0.0f, 1.0f}, 0.5f, 5.0f);
+  helloVk.addLantern({1.948f, 0.080f, 0.598f}, {1.0f, 1.0f, 1.0f}, 0.6f, 6.0f);
+  helloVk.addLantern({-2.300f, 0.080f, 2.100f}, {0.0f, 0.7f, 0.0f}, 0.6f, 6.0f);
+  helloVk.addLantern({-1.400f, 4.300f, 0.150f}, {1.0f, 1.0f, 0.0f}, 0.7f, 7.0f);
 
   helloVk.createOffscreenRender();
   helloVk.createDescriptorSetLayout();
@@ -301,7 +299,7 @@ int main(int argc, char** argv)
       helloVk.drawPost(cmdBuf);
       // Rendering UI
       ImGui::Render();
-      ImGui::RenderDrawDataVK(cmdBuf, ImGui::GetDrawData());
+      ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmdBuf);
       cmdBuf.endRenderPass();
     }
 

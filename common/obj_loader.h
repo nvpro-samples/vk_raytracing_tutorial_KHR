@@ -52,5 +52,5 @@ public:
   std::vector<uint32_t>    m_indices;
   std::vector<MaterialObj> m_materials;
   std::vector<std::string> m_textures;
-  std::vector<uint32_t>    m_matIndx;
+  std::vector<int32_t>     m_matIndx;
 };

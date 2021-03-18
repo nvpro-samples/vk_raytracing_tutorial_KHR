@@ -68,6 +68,7 @@ void HelloVulkan::setup(const vk::Instance&       instance,
   AppBase::setup(instance, device, physicalDevice, queueFamily);
   m_alloc.init(device, physicalDevice);
   m_debug.setup(m_device);
+  m_offscreenDepthFormat = nvvk::findDepthFormat(physicalDevice);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -220,8 +221,8 @@ void HelloVulkan::createGraphicsPipeline()
   std::vector<std::string>                paths = defaultSearchPaths;
   nvvk::GraphicsPipelineGeneratorCombined gpb(m_device, m_pipelineLayout, m_offscreenRenderPass);
   gpb.depthStencilState.depthTestEnable = true;
-  gpb.addShader(nvh::loadFile("shaders/vert_shader.vert.spv", true, paths, true), vkSS::eVertex);
-  gpb.addShader(nvh::loadFile("shaders/frag_shader.frag.spv", true, paths, true), vkSS::eFragment);
+  gpb.addShader(nvh::loadFile("spv/vert_shader.vert.spv", true, paths, true), vkSS::eVertex);
+  gpb.addShader(nvh::loadFile("spv/frag_shader.frag.spv", true, paths, true), vkSS::eFragment);
   gpb.addBindingDescription({0, sizeof(VertexObj)});
   gpb.addAttributeDescriptions(std::vector<vk::VertexInputAttributeDescription>{
       {0, 0, vk::Format::eR32G32B32Sfloat, offsetof(VertexObj, pos)},
@@ -597,13 +598,12 @@ void HelloVulkan::createPostPipeline()
   m_postPipelineLayout = m_device.createPipelineLayout(pipelineLayoutCreateInfo);
 
   // Pipeline: completely generic, no vertices
-  std::vector<std::string> paths = defaultSearchPaths;
-
   nvvk::GraphicsPipelineGeneratorCombined pipelineGenerator(m_device, m_postPipelineLayout,
                                                             m_renderPass);
-  pipelineGenerator.addShader(nvh::loadFile("shaders/passthrough.vert.spv", true, paths, true),
+  pipelineGenerator.addShader(nvh::loadFile("spv/passthrough.vert.spv", true, defaultSearchPaths,
+                                            true),
                               vk::ShaderStageFlagBits::eVertex);
-  pipelineGenerator.addShader(nvh::loadFile("shaders/post.frag.spv", true, paths, true),
+  pipelineGenerator.addShader(nvh::loadFile("spv/post.frag.spv", true, defaultSearchPaths, true),
                               vk::ShaderStageFlagBits::eFragment);
   pipelineGenerator.rasterizationState.setCullMode(vk::CullModeFlagBits::eNone);
   m_postPipeline = pipelineGenerator.createPipeline();
@@ -901,7 +901,7 @@ void HelloVulkan::createTopLevelAS()
   tlas.reserve(m_objInstance.size() + m_lanternCount);
 
   // Add the OBJ instances.
-  for(int i = 0; i < static_cast<int>(m_objInstance.size()); i++)
+  for(uint32_t i = 0; i < static_cast<uint32_t>(m_objInstance.size()); i++)
   {
     nvvk::RaytracingBuilderKHR::Instance rayInst;
     rayInst.transform        = m_objInstance[i].transform;  // Position of the instance
@@ -1036,27 +1036,22 @@ void HelloVulkan::updateRtDescriptorSet()
 // 8 =====================================================================================
 void HelloVulkan::createRtPipeline()
 {
-  std::vector<std::string> paths = defaultSearchPaths;
-
-  vk::ShaderModule raygenSM =
-      nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace.rgen.spv", true, paths, true));
+  vk::ShaderModule raygenSM = nvvk::createShaderModule(
+      m_device, nvh::loadFile("spv/raytrace.rgen.spv", true, defaultSearchPaths, true));
 
   // Miss shader 0 invoked when a primary ray doesn't hit geometry. Fills in clear color.
-  vk::ShaderModule missSM =
-      nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace.rmiss.spv", true, paths, true));
+  vk::ShaderModule missSM = nvvk::createShaderModule(
+      m_device, nvh::loadFile("spv/raytrace.rmiss.spv", true, defaultSearchPaths, true));
 
   // Miss shader 1 is invoked when a shadow ray (for the main scene light)
   // misses the geometry. It simply indicates that no occlusion has been found.
   vk::ShaderModule shadowmissSM = nvvk::createShaderModule(
-      m_device, nvh::loadFile("shaders/raytraceShadow.rmiss.spv", true, paths, true));
+      m_device, nvh::loadFile("spv/raytraceShadow.rmiss.spv", true, defaultSearchPaths, true));
 
   // Miss shader 2 is invoked when a shadow ray for lantern lighting misses the
   // lantern. It shouldn't be invoked, but I include it just in case.
-  vk::ShaderModule lanternmissSM =
-      nvvk::createShaderModule(m_device,
-                               nvh::loadFile("shaders/lanternShadow.rmiss.spv", true, paths, true));
+  vk::ShaderModule lanternmissSM = nvvk::createShaderModule(
+      m_device, nvh::loadFile("spv/lanternShadow.rmiss.spv", true, defaultSearchPaths, true));
 
   std::vector<vk::PipelineShaderStageCreateInfo> stages;
 
@@ -1064,74 +1059,71 @@ void HelloVulkan::createRtPipeline()
   vk::RayTracingShaderGroupCreateInfoKHR rg{vk::RayTracingShaderGroupTypeKHR::eGeneral,
                                             VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
                                             VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
+  rg.setGeneralShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eRaygenKHR, raygenSM, "main"});
-  rg.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(rg);
   // Miss
   vk::RayTracingShaderGroupCreateInfoKHR mg{vk::RayTracingShaderGroupTypeKHR::eGeneral,
                                             VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
                                             VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
+  mg.setGeneralShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eMissKHR, missSM, "main"});
-  mg.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(mg);
 
   // Shadow Miss
+  mg.setGeneralShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eMissKHR, shadowmissSM, "main"});
-  mg.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(mg);
 
   // Lantern Miss
+  mg.setGeneralShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eMissKHR, lanternmissSM, "main"});
-  mg.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(mg);
 
   // OBJ Primary Ray Hit Group - Closest Hit + AnyHit (not used)
-  vk::ShaderModule chitSM =
-      nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace.rchit.spv", true, paths, true));
+  vk::ShaderModule chitSM = nvvk::createShaderModule(
+      m_device, nvh::loadFile("spv/raytrace.rchit.spv", true, defaultSearchPaths, true));
 
   vk::RayTracingShaderGroupCreateInfoKHR hg{vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup,
                                             VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
                                             VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
+  hg.setClosestHitShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, chitSM, "main"});
-  hg.setClosestHitShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(hg);
 
   // Lantern Primary Ray Hit Group
-  vk::ShaderModule lanternChitSM =
-      nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/lantern.rchit.spv", true, paths, true));
+  vk::ShaderModule lanternChitSM = nvvk::createShaderModule(
+      m_device, nvh::loadFile("spv/lantern.rchit.spv", true, defaultSearchPaths, true));
 
   vk::RayTracingShaderGroupCreateInfoKHR lanternHg{
       vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup, VK_SHADER_UNUSED_KHR,
       VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
+  lanternHg.setClosestHitShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, lanternChitSM, "main"});
-  lanternHg.setClosestHitShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(lanternHg);
 
   // OBJ Lantern Shadow Ray Hit Group
   vk::ShaderModule lanternShadowObjChitSM = nvvk::createShaderModule(
-      m_device,  //
-      nvh::loadFile("shaders/lanternShadowObj.rchit.spv", true, paths, true));
+      m_device, nvh::loadFile("spv/lanternShadowObj.rchit.spv", true, defaultSearchPaths, true));
 
   vk::RayTracingShaderGroupCreateInfoKHR lanternShadowObjHg{
       vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup, VK_SHADER_UNUSED_KHR,
       VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
+  lanternShadowObjHg.setClosestHitShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, lanternShadowObjChitSM, "main"});
-  lanternShadowObjHg.setClosestHitShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(lanternShadowObjHg);
 
   // Lantern Lantern Shadow Ray Hit Group
-  vk::ShaderModule lanternShadowLanternChitSM = nvvk::createShaderModule(
-      m_device,  //
-      nvh::loadFile("shaders/lanternShadowLantern.rchit.spv", true, paths, true));
+  vk::ShaderModule lanternShadowLanternChitSM =
+      nvvk::createShaderModule(m_device, nvh::loadFile("spv/lanternShadowLantern.rchit.spv", true,
+                                                       defaultSearchPaths, true));
 
   vk::RayTracingShaderGroupCreateInfoKHR lanternShadowLanternHg{
       vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup, VK_SHADER_UNUSED_KHR,
       VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
+  lanternShadowLanternHg.setClosestHitShader(static_cast<uint32_t>(stages.size()));
   stages.push_back(
       {{}, vk::ShaderStageFlagBits::eClosestHitKHR, lanternShadowLanternChitSM, "main"});
-  lanternShadowLanternHg.setClosestHitShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(lanternShadowLanternHg);
 
   vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo;
@@ -1257,7 +1249,7 @@ void HelloVulkan::createLanternIndirectCompPipeline()
   // Compile compute shader and package as stage.
   vk::ShaderModule computeShader = nvvk::createShaderModule(
       m_device,  //
-      nvh::loadFile("shaders/lanternIndirect.comp.spv", true, defaultSearchPaths, true));
+      nvh::loadFile("spv/lanternIndirect.comp.spv", true, defaultSearchPaths, true));
   vk::PipelineShaderStageCreateInfo stageInfo;
   stageInfo.setStage(vk::ShaderStageFlagBits::eCompute);
   stageInfo.setModule(computeShader);

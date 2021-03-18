@@ -29,29 +29,15 @@ list(APPEND COMMON_SOURCE_FILES ${EXTRA_COMMON})
 include_directories(${TUTO_KHR_DIR}/common)
 
 
+
 #--------------------------------------------------------------------------------------------------
 # GLSL to SPIR-V custom build
-#
-SET(VULKAN_TARGET_ENV vulkan1.2)
-UNSET(GLSL_SOURCES)
-UNSET(SPV_OUTPUT)
-file(GLOB_RECURSE GLSL_HEADER_FILES "shaders/*.h" "shaders/*.glsl")
-file(GLOB_RECURSE GLSL_SOURCE_FILES
-    "shaders/*.comp"
-    "shaders/*.frag"
-    "shaders/*.vert"
-    "shaders/*.rchit"
-    "shaders/*.rahit"
-    "shaders/*.rint"
-    "shaders/*.rmiss"
-    "shaders/*.rgen"
-    "shaders/*.rcall"
-    )
-foreach(GLSL ${GLSL_SOURCE_FILES})
-    get_filename_component(FILE_NAME ${GLSL} NAME)
-    _compile_GLSL(${GLSL} "shaders/${FILE_NAME}.spv" GLSL_SOURCES SPV_OUTPUT)
-endforeach(GLSL)
-list(APPEND GLSL_SOURCES ${GLSL_HEADER_FILES})
+compile_glsl_directory(
+	SRC "${CMAKE_CURRENT_SOURCE_DIR}/shaders" 
+	DST "${CMAKE_CURRENT_SOURCE_DIR}/spv" 
+	VULKAN_TARGET "vulkan1.2"
+	)
+
 
 
 #--------------------------------------------------------------------------------------------------
@@ -87,25 +73,8 @@ endforeach(RELEASELIB)
 #--------------------------------------------------------------------------------------------------
 # copies binaries that need to be put next to the exe files (ZLib, etc.)
 #
-_copy_binaries_to_target( ${PROJNAME} )
+_finalize_target( ${PROJNAME} )
 
 
-#install(FILES ${SPV_OUTPUT} CONFIGURATIONS Release DESTINATION "bin_${ARCH}/${PROJNAME}/shaders")
-#install(FILES ${SPV_OUTPUT} CONFIGURATIONS Debug DESTINATION "bin_${ARCH}_debug/${PROJNAME}/shaders")
-#install(FILES ${CUBIN_SOURCES} CONFIGURATIONS Release DESTINATION "bin_${ARCH}/${PROJNAME}")
-#install(FILES ${CUBIN_SOURCES} CONFIGURATIONS Debug DESTINATION "bin_${ARCH}_debug/${PROJNAME}")
-#install(DIRECTORY "../media" CONFIGURATIONS Release DESTINATION "bin_${ARCH}/${PROJNAME}")
-#install(DIRECTORY "../media" CONFIGURATIONS Debug DESTINATION "bin_${ARCH}_debug/${PROJNAME}")
-
-#----------------------------------------------------------------------------------------------------
-# Copying elements
-# Media
-# target_copy_to_output_dir(TARGET ${PROJECT_NAME} FILES "${TUTO_KHR_DIR}/media")
-# Spir-V Shaders
-target_copy_to_output_dir(
-  TARGET ${PROJECT_NAME} 
-  RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
-  DEST_SUBFOLDER "${PROJECT_NAME}/"
-  FILES ${SPV_OUTPUT}
-  )
-
+install(FILES ${SPV_OUTPUT} CONFIGURATIONS Release DESTINATION "bin_${ARCH}/${PROJNAME}/spv")
+install(FILES ${SPV_OUTPUT} CONFIGURATIONS Debug DESTINATION "bin_${ARCH}_debug/${PROJNAME}/spv")

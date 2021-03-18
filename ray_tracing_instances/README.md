@@ -1,4 +1,4 @@
-﻿# NVIDIA Vulkan Ray Tracing Tutorial
+# NVIDIA Vulkan Ray Tracing Tutorial
 
 ![img](images/instances.png)
 

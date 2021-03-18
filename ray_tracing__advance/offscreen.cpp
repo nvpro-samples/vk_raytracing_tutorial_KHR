@@ -39,12 +39,16 @@ extern std::vector<std::string> defaultSearchPaths;
 // Post-processing
 //////////////////////////////////////////////////////////////////////////
 
-void Offscreen::setup(const vk::Device& device, nvvk::Allocator* allocator, uint32_t queueFamily)
+void Offscreen::setup(const vk::Device&         device,
+                      const vk::PhysicalDevice& physicalDevice,
+                      nvvk::Allocator*          allocator,
+                      uint32_t                  queueFamily)
 {
   m_device             = device;
   m_alloc              = allocator;
   m_graphicsQueueIndex = queueFamily;
   m_debug.setup(m_device);
+  m_depthFormat = nvvk::findDepthFormat(physicalDevice);
 }
 
 void Offscreen::destroy()
@@ -150,12 +154,11 @@ void Offscreen::createPipeline(vk::RenderPass& renderPass)
   m_pipelineLayout = m_device.createPipelineLayout(pipelineLayoutCreateInfo);
 
   // Pipeline: completely generic, no vertices
-  std::vector<std::string> paths = defaultSearchPaths;
-
   nvvk::GraphicsPipelineGeneratorCombined pipelineGenerator(m_device, m_pipelineLayout, renderPass);
-  pipelineGenerator.addShader(nvh::loadFile("shaders/passthrough.vert.spv", true, paths, true),
+  pipelineGenerator.addShader(nvh::loadFile("spv/passthrough.vert.spv", true, defaultSearchPaths,
+                                            true),
                               vk::ShaderStageFlagBits::eVertex);
-  pipelineGenerator.addShader(nvh::loadFile("shaders/post.frag.spv", true, paths, true),
+  pipelineGenerator.addShader(nvh::loadFile("spv/post.frag.spv", true, defaultSearchPaths, true),
                               vk::ShaderStageFlagBits::eFragment);
   pipelineGenerator.rasterizationState.setCullMode(vk::CullModeFlagBits::eNone);
   m_pipeline = pipelineGenerator.createPipeline();

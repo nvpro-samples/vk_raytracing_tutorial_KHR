@@ -1,4 +1,4 @@
-﻿                        <meta charset="utf-8">
+                        <meta charset="utf-8">
             **NVIDIA Vulkan Ray Tracing Tutorial**
 <small>
 By [Martin-Karl Lefrançois](https://devblogs.nvidia.com/author/mlefrancois/),
@@ -8,7 +8,7 @@ By [Martin-Karl Lefrançois](https://devblogs.nvidia.com/author/mlefrancois/),
 
 The focus of this document and the provided code is to showcase a basic integration of
 ray tracing within an existing Vulkan sample, using the
-[`VK_KHR_ray_tracing`](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VK_KHR_ray_tracing)
+[`VK_KHR_ray_tracing_pipeline`](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VK_KHR_ray_tracing_pipeline)
 extension. This tutorial starts from a basic Vulkan application and provides step-by-step instructions to modify and add
 methods and functions. The sections are organized by components, with subsections identifying the modified functions.
 
@@ -69,17 +69,13 @@ cd build
 cmake ..
 ~~~~~
 
-## Beta Installation
+## Tools Installation
 
-The SDK 1.2.161 and up which can be found under https://vulkan.lunarg.com/sdk/home will work with this project.
+You need a graphics card with support for the `VK_KHR_ray_tracing_pipeline` extension.
+For NVIDIA graphics cards, you need a [Vulkan driver](https://developer.nvidia.com/vulkan-driver)
+released in 2021 or later.
 
-Nevertheless, if you are in the Beta period, it is suggested to install and compile all of the following and replace
-with the current environment.
-
-* Latest *beta* driver: https://developer.nvidia.com/vulkan-driver
-* Vulkan headers: https://github.com/KhronosGroup/Vulkan-Headers
-* Validator: https://github.com/KhronosGroup/Vulkan-ValidationLayers
-* Vulkan-Hpp: https://github.com/KhronosGroup/Vulkan-Hpp
+The Vulkan SDK 1.2.161 and up which can be found under https://vulkan.lunarg.com/sdk/home will work with this project.
 
 !!! Tip Visual Assist
     To get auto-completion, edit vulkan.hpp and change two places from:<br>
@@ -108,7 +104,7 @@ extra tutorials.
 
 Go to the `main` function of the `main.cpp` file, and find where we request Vulkan extensions with
 `nvvk::ContextCreateInfo`.
-To be able to use ray tracing, we will need VK_KHR_ACCELERATION_STRUCTURE and VK_KHR_RAY_TRACING_PIPELINE.
+To be able to use ray tracing, we will need `VK_KHR_ACCELERATION_STRUCTURE` and `VK_KHR_RAY_TRACING_PIPELINE`.
 Those extensions have also dependencies on other extension, therefore all the following
 extensions will need to be added.
 
@@ -159,7 +155,7 @@ vk::PhysicalDeviceRayTracingPipelinePropertiesKHR  m_rtProperties;
 
 At the end of `hello_vulkan.cpp`, add the body of `initRayTracing()`, which will query the ray tracing capabilities
 of the GPU using this extension. In particular, it will obtain the maximum recursion depth,
-ie. the number of nested ray tracing calls that can be performed from a single ray. This can be seen as the number
+i.e. the number of nested ray tracing calls that can be performed from a single ray. This can be seen as the number
 of times a ray can bounce in the scene in a recursive path tracer. Note that for performance purposes, recursion
 should in practice be kept to a minimum, favoring a loop formulation. This also queries the shader header size,
 needed in a later section for creating the shader binding table.
@@ -256,7 +252,7 @@ m_rtBuilder.setup(m_device, m_alloc, m_graphicsQueueIndex);
     This selects the simple one-`VkDeviceMemory`-per-object strategy, which is easier to understand for
     teaching purposes but not practical for production use.
 
-## Bottom-Level Acceleration Structureg
+## Bottom-Level Acceleration Structure
 
 The first step of building a BLAS object consists in converting the geometry data of an `ObjModel` into
 multiple structures consumed by the AS builder. We are holding all those structures under 
@@ -294,7 +290,7 @@ Its implementation will fill three structures that will eventually be passed to 
     <!-- and I would have appreciated a crude analogy. -->
 
 
-Multiple of the above structure can be combined in arrays and built into a single blas. In this example, 
+Multiple of the above structure can be combined in arrays and built into a single BLAS. In this example,
 this array will always be a length of one.
 
 Note that we consider all objects opaque for now, and indicate this to the builder for
@@ -508,7 +504,7 @@ Now that we know the maximum scratch memory needed, we allocate a scratch buffer
     VkDeviceAddress scratchAddress = vkGetBufferDeviceAddress(m_device, &bufferInfo);
 ````
 
-To know the size that the BLAS is really taking, we use queries and setting the type to `VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR`. 
+To know the size that the BLAS is really taking, we use queries of the type `VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR`.
 This is needed if we want to compact the acceleration structure in a second step. By default, the 
 memory allocated by the creation of the acceleration structure has the size of the worst case. After creation,
 the real space can be smaller, and it is possible to copy the acceleration structure to one that is 
@@ -534,7 +530,7 @@ TDR if the job was too heavy.
 Note the barrier after each
 build call: this is required as we reuse the scratch space across builds, and hence need to ensure
 the previous build has completed before starting the next. We could have used multiple scratch buffers,
-but it would have been expensive memory wise, and the device can only build one BLAS at a time, so we 
+but it would have been expensive memory wise, and the device can only build one BLAS at a time, so it
 wouldn't be faster.
 
 ```` C
@@ -691,7 +687,7 @@ void HelloVulkan::createTopLevelAS()
 {
   std::vector<nvvk::RaytracingBuilderKHR::Instance> tlas;
   tlas.reserve(m_objInstance.size());
-  for(int i = 0; i < static_cast<int>(m_objInstance.size()); i++)
+  for(uint32_t i = 0; i < static_cast<uint32_t>(m_objInstance.size()); i++)
   {
     nvvk::RaytracingBuilderKHR::Instance rayInst;
     rayInst.transform        = m_objInstance[i].transform;  // Position of the instance
@@ -1269,15 +1265,15 @@ void HelloVulkan::createRtPipeline()
   vk::RayTracingShaderGroupCreateInfoKHR rg{vk::RayTracingShaderGroupTypeKHR::eGeneral,
                                            VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
                                            VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
+  rg.setGeneralShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eRaygenKHR, raygenSM, "main"});
-  rg.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(rg);
   // Miss
   vk::RayTracingShaderGroupCreateInfoKHR mg{vk::RayTracingShaderGroupTypeKHR::eGeneral,
                                            VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
                                            VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
+  mg.setGeneralShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eMissKHR, missSM, "main"});
-  mg.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(mg);
 
 ````
@@ -1301,8 +1297,8 @@ shaders.
   vk::RayTracingShaderGroupCreateInfoKHR hg{vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup,
                                            VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
                                            VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
+  hg.setClosestHitShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, chitSM, "main"});
-  hg.setClosestHitShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(hg);
 ````
 
@@ -1806,10 +1802,8 @@ We now trace the ray itself by calling `traceRayEXT`. This takes as arguments
   `hitGroupId`
   (`VkAccelerationStructureInstanceKHR::instanceShaderBindingTableRecordOffset`)
   of each instance is used to look up a hit group in the SBT's hit
-  group array. Since we only have one hit group, both are set to
-  0. The details of this are rather complicated; you can read more
-  in <a href="https://www.willusher.io/graphics/2019/11/20/the-sbt-three-ways">Will
-  Usher's article</a>.
+  group array. Since we only have one hit group, both are set to 0. The details of this are rather complicated; you can read more in [Will Usher's article](https://www.willusher.io/graphics/2019/11/20/the-sbt-three-ways).
+<!-- Not sure why but Markdeep adds an extra bullet point if I split the above line -->
 
 * `missIndex`, the index, within the miss shader group array of the SBT, of the shader to call if no intersection is found.
 
@@ -2145,8 +2139,8 @@ After pushing the miss shader `missSM`, we also push the miss shader for the sha
 
 ```` C
   // Shadow Miss
+  mg.setGeneralShader(static_cast<uint32_t>(stages.size()));
   stages.push_back({{}, vk::ShaderStageFlagBits::eMissKHR, shadowmissSM, "main"});
-  mg.setGeneralShader(static_cast<uint32_t>(stages.size() - 1));
   m_rtShaderGroups.push_back(mg);
 ````
 

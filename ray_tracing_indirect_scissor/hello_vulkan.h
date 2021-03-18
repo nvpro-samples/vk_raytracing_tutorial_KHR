@@ -60,13 +60,10 @@ public:
   void createTextureImages(const vk::CommandBuffer&        cmdBuf,
                            const std::vector<std::string>& textures);
 
-  nvmath::mat4 getViewMatrix()
-  {
-    return CameraManip.getMatrix();
-  }
+  nvmath::mat4 getViewMatrix() { return CameraManip.getMatrix(); }
 
   static constexpr float nearZ = 0.1f;
-  nvmath::mat4 getProjMatrix()
+  nvmath::mat4           getProjMatrix()
   {
     const float aspectRatio = m_size.width / static_cast<float>(m_size.height);
     return nvmath::perspectiveVK(CameraManip.getFov(), aspectRatio, nearZ, 1000.0f);
@@ -113,7 +110,7 @@ public:
     nvmath::vec3f position;
     nvmath::vec3f color;
     float         brightness;
-    float         radius;     // Max world-space distance that light illuminates.
+    float         radius;  // Max world-space distance that light illuminates.
   };
 
   // Information on each colored lantern, plus the info needed for dispatching the
@@ -129,7 +126,7 @@ public:
     int32_t                       offsetY;
 
     // Filled in by the host.
-    Lantern                       lantern;
+    Lantern lantern;
   };
 
   // Array of objects and instances in the scene. Not modifiable after acceleration structure build.
@@ -172,7 +169,7 @@ public:
   nvvk::Texture               m_offscreenColor;
   vk::Format                  m_offscreenColorFormat{vk::Format::eR32G32B32A32Sfloat};
   nvvk::Texture               m_offscreenDepth;
-  vk::Format                  m_offscreenDepthFormat{vk::Format::eD32Sfloat};
+  vk::Format                  m_offscreenDepthFormat;
 
   // #VKRay
   void                                  initRayTracing();
@@ -180,18 +177,18 @@ public:
 
 private:
   void fillLanternVerts(std::vector<nvmath::vec3f>& vertices, std::vector<uint32_t>& indices);
-  void                                  createLanternModel();
+  void createLanternModel();
 
 public:
-  void                                  createBottomLevelAS();
-  void                                  createTopLevelAS();
-  void                                  createRtDescriptorSet();
-  void                                  updateRtDescriptorSet();
-  void                                  createRtPipeline();
-  void                                  createLanternIndirectDescriptorSet();
-  void                                  createLanternIndirectCompPipeline();
-  void                                  createRtShaderBindingTable();
-  void                                  createLanternIndirectBuffer();
+  void createBottomLevelAS();
+  void createTopLevelAS();
+  void createRtDescriptorSet();
+  void updateRtDescriptorSet();
+  void createRtPipeline();
+  void createLanternIndirectDescriptorSet();
+  void createLanternIndirectCompPipeline();
+  void createRtShaderBindingTable();
+  void createLanternIndirectBuffer();
 
   void raytrace(const vk::CommandBuffer& cmdBuf, const nvmath::vec4f& clearColor);
 
@@ -202,7 +199,7 @@ public:
   nvvk::RaytracingBuilderKHR::BlasInput m_lanternBlasInput{};
 
   // Index of lantern's BLAS in the BLAS array stored in m_rtBuilder.
-  size_t                                m_lanternBlasId;
+  size_t m_lanternBlasId;
 
   vk::PhysicalDeviceRayTracingPipelinePropertiesKHR   m_rtProperties;
   nvvk::RaytracingBuilderKHR                          m_rtBuilder;
@@ -224,8 +221,8 @@ public:
   // Buffer to source vkCmdTraceRaysIndirectKHR indirect parameters and lantern color,
   // position, etc. from when doing lantern lighting passes.
   nvvk::Buffer m_lanternIndirectBuffer;
-  VkDeviceSize m_lanternCount = 0; // Set to actual lantern count after TLAS build, as
-                                   // that is the point no more lanterns may be added.
+  VkDeviceSize m_lanternCount = 0;  // Set to actual lantern count after TLAS build, as
+                                    // that is the point no more lanterns may be added.
 
   // Push constant for ray trace pipeline.
   struct RtPushConstant
@@ -241,14 +238,14 @@ public:
     // -1 if this is the full-screen pass. Otherwise, this pass is to add light
     // from lantern number lanternPassNumber. We use this to lookup trace indirect
     // parameters in m_lanternIndirectBuffer.
-    int32_t       lanternPassNumber;
+    int32_t lanternPassNumber;
 
     // Pixel dimensions of the output image.
-    int32_t       screenX;
-    int32_t       screenY;
+    int32_t screenX;
+    int32_t screenY;
 
     // See m_lanternDebug.
-    int32_t       lanternDebug;
+    int32_t lanternDebug;
   } m_rtPushConstants;
 
   // Copied to RtPushConstant::lanternDebug. If true,
@@ -261,12 +258,12 @@ public:
   // Barely fits in 128-byte push constant limit guaranteed by spec.
   struct LanternIndirectPushConstants
   {
-    nvmath::vec4 viewRowX; // First 3 rows of view matrix.
-    nvmath::vec4 viewRowY; // Set w=1 implicitly in shader.
+    nvmath::vec4 viewRowX;  // First 3 rows of view matrix.
+    nvmath::vec4 viewRowY;  // Set w=1 implicitly in shader.
     nvmath::vec4 viewRowZ;
 
-    nvmath::mat4 proj;     // Perspective matrix
-    float nearZ;           // Near plane used to create projection matrix.
+    nvmath::mat4 proj;   // Perspective matrix
+    float        nearZ;  // Near plane used to create projection matrix.
 
     // Pixel dimensions of output image (needed to scale NDC to screen coordinates).
     int32_t screenX;
