@@ -229,19 +229,19 @@ with utility functions for building those acceleration structures. In the header
 
 ```` C
 // #VKRay
-#include "nvvk/raytrace_vk.hpp"
+#include "nvvk/raytraceKHR_vk.hpp"
 ````
 
 so that we can add that helper as a member in the `HelloVulkan` class,
 
 ```` C
-nvvk::RaytracingBuilder m_rtBuilder;
+nvvk::RaytracingBuilderKHR m_rtBuilder;
 ````
 
 and initialize it at the end of `initRaytracing()`:
 
 ```` C
-m_rtBuilder.setup(m_device, m_alloc, m_graphicsQueueIndex);
+m_rtBuilder.setup(m_device, &m_alloc, m_graphicsQueueIndex);
 ````
 
 !!! Note Memory Management
