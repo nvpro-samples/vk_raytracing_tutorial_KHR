@@ -1,41 +1,36 @@
-/* Copyright (c) 2014-2018, NVIDIA CORPORATION. All rights reserved.
+/*
+ * Copyright (c) 2014-2021, NVIDIA CORPORATION.  All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *  * Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- *  * Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *  * Neither the name of NVIDIA CORPORATION nor the names of its
- *    contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
- * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
- * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-FileCopyrightText: Copyright (c) 2014-2021 NVIDIA CORPORATION
+ * SPDX-License-Identifier: Apache-2.0
  */
+
 #pragma once
 #include <vulkan/vulkan.hpp>
 
-#define NVVK_ALLOC_DEDICATED
-#include "nvvk/allocator_vk.hpp"
+
 #include "nvvk/appbase_vkpp.hpp"
 #include "nvvk/debug_util_vk.hpp"
 #include "nvvk/descriptorsets_vk.hpp"
+#include "nvvk/resourceallocator_vk.hpp"
+#include "nvvk/memallocator_dma_vk.hpp"
 
 // #VKRay
 #include "nvh/gltfscene.hpp"
 #include "nvvk/raytraceKHR_vk.hpp"
+#include "nvvk/sbtwrapper_vk.hpp"
 
 //--------------------------------------------------------------------------------------------------
 // Simple rasterizer of OBJ objects
@@ -103,8 +98,8 @@ public:
   nvvk::Buffer               m_cameraMat;  // Device-Host of the camera matrices
   std::vector<nvvk::Texture> m_textures;   // vector of all textures of the scene
 
-  nvvk::AllocatorDedicated m_alloc;  // Allocator for buffer, images, acceleration structures
-  nvvk::DebugUtil          m_debug;  // Utility to name objects
+  nvvk::ResourceAllocatorDma m_alloc;  // Allocator for buffer, images, acceleration structures
+  nvvk::DebugUtil            m_debug;  // Utility to name objects
 
   // #Post
   void createOffscreenRender();
@@ -127,15 +122,13 @@ public:
   vk::Format                  m_offscreenDepthFormat;
 
   // #VKRay
-  nvvk::RaytracingBuilderKHR::BlasInput primitiveToGeometry(const nvh::GltfPrimMesh& prim);
-
+  auto primitiveToGeometry(const nvh::GltfPrimMesh& prim);
   void initRayTracing();
   void createBottomLevelAS();
   void createTopLevelAS();
   void createRtDescriptorSet();
   void updateRtDescriptorSet();
   void createRtPipeline();
-  void createRtShaderBindingTable();
   void raytrace(const vk::CommandBuffer& cmdBuf, const nvmath::vec4f& clearColor);
   void updateFrame();
   void resetFrame();
@@ -149,7 +142,7 @@ public:
   std::vector<vk::RayTracingShaderGroupCreateInfoKHR> m_rtShaderGroups;
   vk::PipelineLayout                                  m_rtPipelineLayout;
   vk::Pipeline                                        m_rtPipeline;
-  nvvk::Buffer                                        m_rtSBTBuffer;
+  nvvk::SBTWrapper                                    m_sbtWrapper;
 
   struct RtPushConstant
   {

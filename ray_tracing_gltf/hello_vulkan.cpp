@@ -1,29 +1,22 @@
-/* Copyright (c) 2014-2018, NVIDIA CORPORATION. All rights reserved.
+/*
+ * Copyright (c) 2014-2021, NVIDIA CORPORATION.  All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *  * Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- *  * Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *  * Neither the name of NVIDIA CORPORATION nor the names of its
- *    contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
- * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
- * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-FileCopyrightText: Copyright (c) 2014-2021 NVIDIA CORPORATION
+ * SPDX-License-Identifier: Apache-2.0
  */
+
 
 #include <sstream>
 #include <vulkan/vulkan.hpp>
@@ -42,6 +35,7 @@ extern std::vector<std::string> defaultSearchPaths;
 #include "nvh/nvprint.hpp"
 #include "nvvk/commands_vk.hpp"
 #include "nvvk/descriptorsets_vk.hpp"
+#include "nvvk/images_vk.hpp"
 #include "nvvk/pipeline_vk.hpp"
 #include "nvvk/renderpasses_vk.hpp"
 #include "nvvk/shaders_vk.hpp"
@@ -408,11 +402,13 @@ void HelloVulkan::destroyResources()
 
   // #VKRay
   m_rtBuilder.destroy();
+  m_sbtWrapper.destroy();
   m_device.destroy(m_rtDescPool);
   m_device.destroy(m_rtDescSetLayout);
   m_device.destroy(m_rtPipeline);
   m_device.destroy(m_rtPipelineLayout);
-  m_alloc.destroy(m_rtSBTBuffer);
+
+  m_alloc.deinit();
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -636,13 +632,13 @@ void HelloVulkan::initRayTracing()
                                       vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
   m_rtProperties = properties.get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
   m_rtBuilder.setup(m_device, &m_alloc, m_graphicsQueueIndex);
+  m_sbtWrapper.setup(m_device, m_graphicsQueueIndex, &m_alloc, m_rtProperties);
 }
 
 //--------------------------------------------------------------------------------------------------
 // Converting a GLTF primitive in the Raytracing Geometry used for the BLAS
 //
-nvvk::RaytracingBuilderKHR::BlasInput HelloVulkan::primitiveToGeometry(
-    const nvh::GltfPrimMesh& prim)
+auto HelloVulkan::primitiveToGeometry(const nvh::GltfPrimMesh& prim)
 {
   // Building part
   vk::DeviceAddress vertexAddress = m_device.getBufferAddress({m_vertexBuffer.buffer});
@@ -841,55 +837,15 @@ void HelloVulkan::createRtPipeline()
   m_rtPipeline = static_cast<const vk::Pipeline&>(
       m_device.createRayTracingPipelineKHR({}, {}, rayPipelineInfo));
 
+
+  // Creating the SBT
+  m_sbtWrapper.create(m_rtPipeline, rayPipelineInfo);
+
+
   m_device.destroy(raygenSM);
   m_device.destroy(missSM);
   m_device.destroy(shadowmissSM);
   m_device.destroy(chitSM);
-}
-
-//--------------------------------------------------------------------------------------------------
-// The Shader Binding Table (SBT)
-// - getting all shader handles and writing them in a SBT buffer
-// - Besides exception, this could be always done like this
-//   See how the SBT buffer is used in run()
-//
-void HelloVulkan::createRtShaderBindingTable()
-{
-  auto groupCount =
-      static_cast<uint32_t>(m_rtShaderGroups.size());               // shaders: raygen, 2 miss, chit
-  uint32_t groupHandleSize = m_rtProperties.shaderGroupHandleSize;  // Size of a program identifier
-  uint32_t groupSizeAligned =
-      nvh::align_up(groupHandleSize, m_rtProperties.shaderGroupBaseAlignment);
-
-  // Fetch all the shader handles used in the pipeline, so that they can be written in the SBT
-  uint32_t sbtSize = groupCount * groupSizeAligned;
-
-  std::vector<uint8_t> shaderHandleStorage(sbtSize);
-  auto result = m_device.getRayTracingShaderGroupHandlesKHR(m_rtPipeline, 0, groupCount, sbtSize,
-                                                            shaderHandleStorage.data());
-  if(result != vk::Result::eSuccess)
-    LOGE("Fail getRayTracingShaderGroupHandlesKHR: %s", vk::to_string(result).c_str());
-
-  // Write the handles in the SBT
-  m_rtSBTBuffer = m_alloc.createBuffer(
-      sbtSize,
-      vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eShaderDeviceAddressKHR
-          | vk::BufferUsageFlagBits::eShaderBindingTableKHR,
-      vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
-  m_debug.setObjectName(m_rtSBTBuffer.buffer, std::string("SBT").c_str());
-
-  // Write the handles in the SBT
-  void* mapped = m_alloc.map(m_rtSBTBuffer);
-  auto* pData  = reinterpret_cast<uint8_t*>(mapped);
-  for(uint32_t g = 0; g < groupCount; g++)
-  {
-    memcpy(pData, shaderHandleStorage.data() + g * groupHandleSize, groupHandleSize);  // raygen
-    pData += groupSizeAligned;
-  }
-  m_alloc.unmap(m_rtSBTBuffer);
-
-
-  m_alloc.finalizeAndReleaseStaging();
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -915,23 +871,10 @@ void HelloVulkan::raytrace(const vk::CommandBuffer& cmdBuf, const nvmath::vec4f&
                                            | vk::ShaderStageFlagBits::eMissKHR,
                                        0, m_rtPushConstants);
 
-  // Size of a program identifier
-  uint32_t groupSize =
-      nvh::align_up(m_rtProperties.shaderGroupHandleSize, m_rtProperties.shaderGroupBaseAlignment);
-  uint32_t          groupStride = groupSize;
-  vk::DeviceAddress sbtAddress  = m_device.getBufferAddress({m_rtSBTBuffer.buffer});
 
-  using Stride = vk::StridedDeviceAddressRegionKHR;
-  std::array<Stride, 4> strideAddresses{
-      Stride{sbtAddress + 0u * groupSize, groupStride, groupSize * 1},  // raygen
-      Stride{sbtAddress + 1u * groupSize, groupStride, groupSize * 2},  // miss
-      Stride{sbtAddress + 3u * groupSize, groupStride, groupSize * 1},  // hit
-      Stride{0u, 0u, 0u}};                                              // callable
-
-  cmdBuf.traceRaysKHR(&strideAddresses[0], &strideAddresses[1], &strideAddresses[2],
-                      &strideAddresses[3],  //
-                      m_size.width, m_size.height,
-                      1);  //
+  auto regions = m_sbtWrapper.getRegions();
+  cmdBuf.traceRaysKHR(regions[0], regions[1], regions[2], regions[3],  //
+                      m_size.width, m_size.height, 1);
 
 
   m_debug.endLabel(cmdBuf);

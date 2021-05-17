@@ -1,29 +1,22 @@
-/* Copyright (c) 2014-2018, NVIDIA CORPORATION. All rights reserved.
+/*
+ * Copyright (c) 2014-2021, NVIDIA CORPORATION.  All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *  * Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- *  * Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *  * Neither the name of NVIDIA CORPORATION nor the names of its
- *    contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
- * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
- * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-FileCopyrightText: Copyright (c) 2014-2021 NVIDIA CORPORATION
+ * SPDX-License-Identifier: Apache-2.0
  */
+
 
 // ImGui - standalone example application for Glfw + Vulkan, using programmable
 // pipeline If you are new to ImGui, see examples/README.txt and documentation
@@ -34,17 +27,45 @@
 #include <vulkan/vulkan.hpp>
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
+#include "backends/imgui_impl_glfw.h"
 #include "imgui.h"
-#include "imgui/backends/imgui_impl_glfw.h"
 
 #include "hello_vulkan.h"
-#include "imgui/extras/imgui_camera_widget.h"
+#include "imgui/imgui_camera_widget.h"
 #include "nvh/cameramanipulator.hpp"
 #include "nvh/fileoperations.hpp"
 #include "nvpsystem.hpp"
 #include "nvvk/appbase_vkpp.hpp"
 #include "nvvk/commands_vk.hpp"
 #include "nvvk/context_vk.hpp"
+
+
+// Utility to time the execution of something resetting the timer
+// on each elapse call
+// Usage:
+// {
+//   MilliTimer timer;
+//   ... stuff ...
+//   double time_elapse = timer.elapse();
+// }
+#include <chrono>
+
+struct MilliTimer
+{
+  MilliTimer() { reset(); }
+  void   reset() { startTime = std::chrono::high_resolution_clock::now(); }
+  double elapse()
+  {
+    auto now = std::chrono::high_resolution_clock::now();
+    auto t =
+        std::chrono::duration_cast<std::chrono::microseconds>(now - startTime).count() / 1000.0;
+    startTime = now;
+    return t;
+  }
+  void print() { LOGI(" --> (%5.3f ms)\n", elapse()); }
+
+  std::chrono::high_resolution_clock::time_point startTime;
+};
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -175,6 +196,8 @@ int main(int argc, char** argv)
   // Setup Imgui
   helloVk.initGUI(0);  // Using sub-pass 0
 
+  MilliTimer timer;
+
   // Creation of the example
   std::random_device              rd;  //Will be used to obtain a seed for the random number engine
   std::mt19937                    gen(rd());  //Standard mersenne_twister_engine seeded with rd()
@@ -196,6 +219,9 @@ int main(int argc, char** argv)
 
   helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
 
+  double time_elapse = timer.elapse();
+  LOGI(" --> (%f)", time_elapse);
+
   helloVk.createOffscreenRender();
   helloVk.createDescriptorSetLayout();
   helloVk.createGraphicsPipeline();
@@ -209,7 +235,6 @@ int main(int argc, char** argv)
   helloVk.createTopLevelAS();
   helloVk.createRtDescriptorSet();
   helloVk.createRtPipeline();
-  helloVk.createRtShaderBindingTable();
 
   helloVk.createPostDescriptor();
   helloVk.createPostPipeline();

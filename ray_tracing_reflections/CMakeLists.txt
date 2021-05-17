@@ -45,7 +45,7 @@ compile_glsl_directory(
 target_sources(${PROJNAME} PUBLIC ${SOURCE_FILES} ${HEADER_FILES})
 target_sources(${PROJNAME} PUBLIC ${COMMON_SOURCE_FILES})
 target_sources(${PROJNAME} PUBLIC ${PACKAGE_SOURCE_FILES})
-target_sources(${PROJNAME} PUBLIC ${GLSL_SOURCES})
+target_sources(${PROJNAME} PUBLIC ${GLSL_SOURCES} ${GLSL_HEADERS})
 
 
 #--------------------------------------------------------------------------------------------------
@@ -54,13 +54,13 @@ target_sources(${PROJNAME} PUBLIC ${GLSL_SOURCES})
 source_group("Common"       FILES ${COMMON_SOURCE_FILES} ${PACKAGE_SOURCE_FILES})
 source_group("Sources"      FILES ${SOURCE_FILES})
 source_group("Headers"      FILES ${HEADER_FILES})
-source_group("Shader_Files" FILES ${GLSL_SOURCES})
+source_group("Shader_Files" FILES ${GLSL_SOURCES} ${GLSL_HEADERS})
 
 
 #--------------------------------------------------------------------------------------------------
 # Linkage
 #
-target_link_libraries(${PROJNAME} ${PLATFORM_LIBRARIES} shared_sources)
+target_link_libraries(${PROJNAME} ${PLATFORM_LIBRARIES} nvpro_core)
 
 foreach(DEBUGLIB ${LIBRARIES_DEBUG})
   target_link_libraries(${PROJNAME} debug ${DEBUGLIB})

@@ -1,29 +1,22 @@
-/* Copyright (c) 2014-2018, NVIDIA CORPORATION. All rights reserved.
+/*
+ * Copyright (c) 2014-2021, NVIDIA CORPORATION.  All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *  * Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- *  * Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *  * Neither the name of NVIDIA CORPORATION nor the names of its
- *    contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
- * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
- * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-FileCopyrightText: Copyright (c) 2014-2021 NVIDIA CORPORATION
+ * SPDX-License-Identifier: Apache-2.0
  */
+
 
 #include <sstream>
 #include <vulkan/vulkan.hpp>
@@ -33,12 +26,13 @@ extern std::vector<std::string> defaultSearchPaths;
 #define VMA_IMPLEMENTATION
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "fileformats/stb_image.h"
 #include "obj_loader.h"
+#include "stb_image.h"
 
 #include "hello_vulkan.h"
-#include "nvh//cameramanipulator.hpp"
+#include "nvh/cameramanipulator.hpp"
 #include "nvvk/descriptorsets_vk.hpp"
+#include "nvvk/images_vk.hpp"
 #include "nvvk/pipeline_vk.hpp"
 
 #include "nvh/fileoperations.hpp"
@@ -66,21 +60,7 @@ void HelloVulkan::setup(const vk::Instance&       instance,
                         uint32_t                  queueFamily)
 {
   AppBase::setup(instance, device, physicalDevice, queueFamily);
-#if defined(NVVK_ALLOC_DEDICATED)
-  m_alloc.init(device, physicalDevice);
-#elif defined(NVVK_ALLOC_DMA)
-  m_memAllocator.init(device, physicalDevice);
-  m_memAllocator.setAllocateFlags(VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT, true);
-  m_alloc.init(device, physicalDevice, &m_memAllocator);
-#elif defined(NVVK_ALLOC_VMA)
-  VmaAllocatorCreateInfo allocatorInfo = {};
-  allocatorInfo.physicalDevice         = physicalDevice;
-  allocatorInfo.instance               = instance;
-  allocatorInfo.device                 = device;
-  allocatorInfo.flags                  = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
-  vmaCreateAllocator(&allocatorInfo, &m_memAllocator);
-  m_alloc.init(device, physicalDevice, m_memAllocator);
-#endif
+  m_alloc.init(instance, device, physicalDevice);
   m_debug.setup(m_device);
 
 
@@ -459,11 +439,6 @@ void HelloVulkan::destroyResources()
   m_raytrace.destroy();
 
   m_alloc.deinit();
-#ifdef NVVK_ALLOC_DMA
-  m_memAllocator.deinit();
-#elif defined(NVVK_ALLOC_VMA)
-  vmaDestroyAllocator(m_memAllocator);
-#endif  // NVVK_ALLOC_DMA
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -530,7 +505,6 @@ void HelloVulkan::initRayTracing()
   m_raytrace.createTopLevelAS(m_objInstance, m_implObjects);
   m_raytrace.createRtDescriptorSet(m_offscreen.colorTexture().descriptor.imageView);
   m_raytrace.createRtPipeline(m_descSetLayout);
-  m_raytrace.createRtShaderBindingTable();
 }
 
 //--------------------------------------------------------------------------------------------------

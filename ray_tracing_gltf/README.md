@@ -70,7 +70,7 @@ But instead, we will use this following structure to retrieve the information of
 ## Loading glTF scene
 
 To load the scene, we will be using [TinyGLTF](https://github.com/syoyo/tinygltf) from Syoyo Fujita, then to avoid traversing 
-the scene graph, the information will be flatten using the helper [gltfScene](https://github.com/nvpro-samples/shared_sources/tree/master/nvh#gltfscenehpp).
+the scene graph, the information will be flatten using the helper [gltfScene](https://github.com/nvpro-samples/nvpro_core/tree/master/nvh#gltfscenehpp).
 
 ### Loading Scene
 
@@ -143,7 +143,7 @@ The function is similar, only the input is different.
 //--------------------------------------------------------------------------------------------------
 // Converting a GLTF primitive in the Raytracing Geometry used for the BLAS
 //
-nvvk::RaytracingBuilderKHR::Blas HelloVulkan::primitiveToGeometry(const nvh::GltfPrimMesh& prim)
+auto HelloVulkan::primitiveToGeometry(const nvh::GltfPrimMesh& prim)
 {
    // Building part
   vk::DeviceAddress vertexAddress = m_device.getBufferAddress({m_vertexBuffer.buffer});

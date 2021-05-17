@@ -70,7 +70,7 @@ of the above structures.
 //--------------------------------------------------------------------------------------------------
 // Converting a OBJ primitive to the ray tracing geometry used for the BLAS
 //
-nvvkpp::RaytracingBuilderKHR::Blas HelloVulkan::objectToVkGeometryKHR(const ObjModel& model)
+auto HelloVulkan::objectToVkGeometryKHR(const ObjModel& model)
 {
   // Setting up the creation info of acceleration structure
   vk::AccelerationStructureCreateGeometryTypeInfoKHR asCreate;

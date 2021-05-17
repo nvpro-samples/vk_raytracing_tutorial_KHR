@@ -60,7 +60,7 @@ source_group("Shaders Hdr"  FILES ${GLSL_HEADERS})
 #--------------------------------------------------------------------------------------------------
 # Linkage
 #
-target_link_libraries(${PROJNAME} ${PLATFORM_LIBRARIES} shared_sources)
+target_link_libraries(${PROJNAME} ${PLATFORM_LIBRARIES} nvpro_core)
 
 foreach(DEBUGLIB ${LIBRARIES_DEBUG})
   target_link_libraries(${PROJNAME} debug ${DEBUGLIB})

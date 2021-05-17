@@ -104,66 +104,38 @@ In `hello_vulkan.h`, add the following defines at the top of the file to indicat
 
 ~~~~ C++
 // #VKRay
-//#define ALLOC_DEDICATED
+// Choosing the allocator to use
 #define ALLOC_DMA
+//#define ALLOC_DEDICATED
+//#define ALLOC_VMA
 ~~~~
 
 
 Replace the definition of buffers and textures and include the right allocator.
 
 ~~~~ C++
-#if defined(ALLOC_DEDICATED)
-#include "nvvk/allocator_dedicated_vk.hpp"
-using nvvkBuffer  = nvvk::BufferDedicated;
-using nvvkTexture = nvvk::TextureDedicated;
-#elif defined(ALLOC_DMA)
-#include "nvvk/allocator_dma_vk.hpp"
-using nvvkBuffer  = nvvk::BufferDma;
-using nvvkTexture = nvvk::TextureDma;
+#if defined(ALLOC_DMA)
+#include <nvvk/memallocator_dma_vk.hpp>
+using Allocator = nvvk::ResourceAllocatorDma;
+#elif defined(ALLOC_VMA)
+#include <nvvk/memallocator_vma_vk.hpp>
+using Allocator = nvvk::ResourceAllocatorVma;
+#else
+using Allocator = nvvk::ResourceAllocatorDedicated;
 #endif
 ~~~~
 
-And do the same for the allocator
+And replace the  `ResourceAllocatorDedicatednvvk::` by the generic allocator type
 
 ~~~~ C++
-#if defined(ALLOC_DEDICATED)
-  nvvk::AllocatorDedicated m_alloc;  // Allocator for buffer, images, acceleration structures
-#elif defined(ALLOC_DMA)
-  nvvk::AllocatorDma            m_alloc;  // Allocator for buffer, images, acceleration structures
-  nvvk::DeviceMemoryAllocator   m_memAllocator;
-  nvvk::StagingMemoryManagerDma m_staging;
-#endif
+Allocator m_alloc;
 ~~~~
 
 ### `hello_vulkan.cpp`
 
-In the source file there are also a few changes to make.
+In the source file there is nothing to change, as all allocators are using 
+the same API.
 
-DMA needs to be initialized, which will be done in the `setup()` function:
-
-~~~~ C++
-#if defined(ALLOC_DEDICATED)
-  m_alloc.init(device, physicalDevice);
-#elif defined(ALLOC_DMA)
-  m_memAllocator.init(device, physicalDevice);
-  m_memAllocator.setAllocateFlags(VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR, true);
-  m_staging.init(m_memAllocator);
-  m_alloc.init(device, m_memAllocator, m_staging);
-#endif
-~~~~
-
-The RaytracerBuilder was made to allow various allocators, therefore nothing to change in the call to `m_rtBuilder.setup()`
-
-
-### Destruction
-
-The VMA allocator need to be released in `HelloVulkan::destroyResources()` after the last `m_alloc.destroy`.
-
-~~~~ C++
-#if defined(ALLOC_DMA)
-  m_dmaAllocator.deinit();
-#endif
-~~~~
 
 ## Result
 
@@ -178,13 +150,11 @@ Finally, here is the Vulkan Device Memory view from Nsight Graphics:
 
 ## VMA: Vulkan Memory Allocator
 
-We can also modify the code to use the [Vulkan Memory Allocator](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator) from AMD.
+We can also use the  [Vulkan Memory Allocator](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator)(VMA) from AMD.
 
-Download [vk_mem_alloc.h](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator/blob/master/src/vk_mem_alloc.h) from GitHub and add this to the `shared_sources` folder.
+VMA is a submodule under `nvpro_core/third_party` folder.
 
-There is already a variation of the allocator for VMA, which is located under [nvpro-samples](https://github.com/nvpro-samples/shared_sources/tree/master/nvvk). This allocator has the same simple interface as the `AllocatorDedicated` class in `allocator_dedicated_vkpp.hpp`, but will use VMA for memory management.
-
-VMA might use dedicated memory, which we do, so you need to add the following extension to the 
+VMA is using dedicated memory, so you need to add the following extension to the 
 creation of the context in `main.cpp`.
 
 ~~~~ C++
@@ -193,52 +163,18 @@ creation of the context in `main.cpp`.
 
 ### hello_vulkan.h
 
-Follow the changes done before and add the following
+Enable the VMA define 
 
 ~~~~ C++
 #define ALLOC_VMA
 ~~~~ 
 
-~~~~ C++
-#elif defined(ALLOC_VMA)
-#include "nvvk/allocator_vma_vk.hpp"
-using nvvkBuffer  = nvvk::BufferVma;
-using nvvkTexture = nvvk::TextureVma;
-~~~~
-
-~~~~ C++ 
-#elif defined(ALLOC_VMA)
-  nvvk::AllocatorVma            m_alloc;  // Allocator for buffer, images, acceleration structures
-  nvvk::StagingMemoryManagerVma m_staging;
-  VmaAllocator                  m_memAllocator;
-~~~~
-
-
 ### hello_vulkan.cpp
-First, the following should only be defined once in the entire program, and it should be defined before `#include "hello_vulkan.h"`:
+
+VMA requires the implementation of the functions and the following should only be defined once in the entire program, and it should be defined before `#include "hello_vulkan.h"`:
 
 ~~~~ C++
 #define VMA_IMPLEMENTATION
 ~~~~
 
-In `setup()`
-
-~~~~ C++
-#elif defined(ALLOC_VMA)
-  VmaAllocatorCreateInfo allocatorInfo = {};
-  allocatorInfo.instance               = instance;
-  allocatorInfo.physicalDevice         = physicalDevice;
-  allocatorInfo.device                 = device;
-  allocatorInfo.flags                  = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
-  vmaCreateAllocator(&allocatorInfo, &m_memAllocator);
-  m_staging.init(device, physicalDevice, m_memAllocator);
-  m_alloc.init(device, m_memAllocator, m_staging);
-~~~~
-
-In `destroyResources()`
-
-~~~~ C++
-#elif defined(ALLOC_VMA)
-  vmaDestroyAllocator(m_vmaAllocator);
-~~~~
-
+To see if you are using the VMA allocator, put a break point in `VMAMemoryAllocator::allocMemory()`.

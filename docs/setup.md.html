@@ -22,17 +22,14 @@ All following instructions are based on the modification of this project.
 
 Besides the current repository, you will also need to clone or download the following repositories:
 
-* [shared_sources](https://github.com/nvpro-samples/shared_sources): The primary framework that all samples depend on.
-* [shared_external](https://github.com/nvpro-samples/shared_external): Third party libraries that are provided pre-compiled, mostly for Windows x64 / MSVC.
+* [nvpro_core](https://github.com/nvpro-samples/nvpro_core): The primary framework that all samples depend on.
 
 The directory structure should be looking like:
 
 **********************************************************
 *   \ 
 *   |
-*   +-- 📂 shared_external
-*   |
-*   +-- 📂 shared_sources
+*   +-- 📂 nvpro_core
 *   |   
 *   +-- 📂 vk_raytracing_tutorial_KHR
 *   |   |
@@ -47,11 +44,13 @@ The directory structure should be looking like:
 
 
 !!! Warning
-    **Run CMake** in vk_raytracing_tutorial_KHR.
+    **Run CMake** in vk_raytracing_tutorial_KHR. 
 
-!!! Warning Beta
+!!! Warning Beta Vulkan SDK
     Modify `VULKAN > VULKAN_HEADERS_OVERRIDE_INCLUDE_DIR` to the path to beta vulkan headers.
 
+!!! Error
+    **32 bit is not supported**
 
 <!-- Markdeep: -->
 <link rel="stylesheet" href="vkrt_tutorial.css?">

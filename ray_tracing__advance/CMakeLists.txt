@@ -32,7 +32,7 @@ include_directories(${TUTO_KHR_DIR}/common)
 # GLSL to SPIR-V custom build
 compile_glsl_directory(
 	SRC "${CMAKE_CURRENT_SOURCE_DIR}/shaders" 
-	DST "${CMAKE_CURRENT_SOURCE_DIR}/spv" 
+	DST "${CMAKE_CURRENT_SOURCE_DIR}/spv"
 	VULKAN_TARGET "vulkan1.2"
 	)
 
@@ -57,7 +57,7 @@ source_group("Shader_Files" FILES ${GLSL_SOURCES} ${GLSL_HEADERS})
 #--------------------------------------------------------------------------------------------------
 # Linkage
 #
-target_link_libraries(${PROJNAME} ${PLATFORM_LIBRARIES} shared_sources)
+target_link_libraries(${PROJNAME} ${PLATFORM_LIBRARIES} nvpro_core)
 
 foreach(DEBUGLIB ${LIBRARIES_DEBUG})
   target_link_libraries(${PROJNAME} debug ${DEBUGLIB})

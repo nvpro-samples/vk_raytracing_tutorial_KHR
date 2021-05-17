@@ -21,7 +21,7 @@ methods and functions. The sections are organized by components, with subsection
 <script type="preformatted">
 This tutorial highlights the steps to add ray tracing to an existing Vulkan application, and assumes a working knowledge
 of Vulkan in general. The code verbosity of classical components such as swapchain management, render passes etc. is
-reduced using [C++ API helpers](https://github.com/nvpro-samples/shared_sources/tree/master/nvvk) and
+reduced using [C++ API helpers](https://github.com/nvpro-samples/nvpro_core/tree/master/nvvk) and
 NVIDIA's [nvpro-samples](https://github.com/nvpro-samples/build_all) framework. This framework contains many advanced
 examples and best practices for Vulkan and OpenGL. We also use a helper for the creation of the ray tracing acceleration
 structures, but we will document its contents extensively in this tutorial. The code is further simplified by using the
@@ -52,8 +52,7 @@ Then open the `build_all` folder and run either `clone_all.bat` (Windows) or
 **If you want to clone as few repositories as possible**, open a command line,
 and run the following commands to clone the repositories you need:
 ~~~~~
-git clone https://github.com/nvpro-samples/shared_sources.git
-git clone https://github.com/nvpro-samples/shared_external.git
+git clone --recursive --shallow-submodules https://github.com/nvpro-samples/nvpro_core.git
 git clone https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR.git
 ~~~~~
 
@@ -229,7 +228,7 @@ with utility functions for building those acceleration structures. In the header
 
 ```` C
 // #VKRay
-#include "nvvk/raytrace_vk.hpp"
+#include "nvvk/raytraceKHR_vk.hpp"
 ````
 
 so that we can add that helper as a member in the `HelloVulkan` class,
@@ -245,9 +244,9 @@ m_rtBuilder.setup(m_device, m_alloc, m_graphicsQueueIndex);
 ````
 
 !!! Note Memory Management
-    The raytrace helper uses `"nvvk/allocator_vk.hpp"` to avoid having to deal with vulkan memory management.
+    The raytrace helper uses `"nvvk/resourceallocator_vk.hpp"` to avoid having to deal with vulkan memory management.
     This provides the `nvvk::AccelKHR` type, which consists of a `VkAccelerationStructureKHR` paired
-    with info needed by the allocator to manage the buffer memory backing it. `"nvvk/allocator_vk.hpp"` requires a macro to
+    with info needed by the allocator to manage the buffer memory backing it. `"nvvk/resourceallocator_vk.hpp"` requires a macro to
     be defined before inclusion to select its memory allocation strategy. In this tutorial, we defined `NVVK_ALLOC_DEDICATED`.
     This selects the simple one-`VkDeviceMemory`-per-object strategy, which is easier to understand for
     teaching purposes but not practical for production use.
@@ -262,7 +261,7 @@ Add a new method to the `HelloVulkan`
 class:
 
 ```` C
-nvvk::RaytracingBuilderKHR::BlasInput objectToVkGeometryKHR(const ObjModel& model);
+auto objectToVkGeometryKHR(const ObjModel& model);
 ````
 
 Its implementation will fill three structures that will eventually be passed to the AS builder (`vkCmdBuildAccelerationStructuresKHR`).
@@ -300,7 +299,7 @@ potential optimization. (More specifically, this disables calls to the anyhit sh
 //--------------------------------------------------------------------------------------------------
 // Convert an OBJ model into the ray tracing geometry used to build the BLAS
 //
-nvvk::RaytracingBuilderKHR::BlasInput HelloVulkan::objectToVkGeometryKHR(const ObjModel& model)
+auto HelloVulkan::objectToVkGeometryKHR(const ObjModel& model)
 {
   // BLAS builder requires raw device addresses.
   vk::DeviceAddress vertexAddress = m_device.getBufferAddress({model.vertexBuffer.buffer});

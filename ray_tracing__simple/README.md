@@ -11,4 +11,4 @@ If you haven't done it, [**Start Ray Tracing Tutorial**](https://nvpro-samples.g
 
 Once the tutorial completed and the basics of ray tracing are in place, other tuturials are going further from this code base.
 
-See all other [additional ray tracing tutorials](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/vkrt_tuto_further.md.html)
+See all other [additional ray tracing tutorials](../README.md#extra-tutorials)
