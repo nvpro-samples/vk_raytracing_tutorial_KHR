@@ -24,7 +24,7 @@
 #include "nvvk/appbase_vkpp.hpp"
 #include "nvvk/debug_util_vk.hpp"
 #include "nvvk/descriptorsets_vk.hpp"
-#include "nvvk/resourceallocator_vk.hpp"
+#include "nvvk/memallocator_dma_vk.hpp"
 
 // #VKRay
 #include "nvvk/raytraceKHR_vk.hpp"
@@ -104,9 +104,8 @@ public:
   nvvk::Buffer               m_sceneDesc;  // Device buffer of the OBJ instances
   std::vector<nvvk::Texture> m_textures;   // vector of all textures of the scene
 
-  nvvk::ResourceAllocatorDedicated
-                  m_alloc;  // Allocator for buffer, images, acceleration structures
-  nvvk::DebugUtil m_debug;  // Utility to name objects
+  nvvk::ResourceAllocatorDma m_alloc;  // Allocator for buffer, images, acceleration structures
+  nvvk::DebugUtil            m_debug;  // Utility to name objects
 
   // #Post
   void createOffscreenRender();
@@ -126,7 +125,7 @@ public:
   nvvk::Texture               m_offscreenColor;
   vk::Format                  m_offscreenColorFormat{vk::Format::eR32G32B32A32Sfloat};
   nvvk::Texture               m_offscreenDepth;
-  vk::Format                  m_offscreenDepthFormat;
+  vk::Format                  m_offscreenDepthFormat{vk::Format::eX8D24UnormPack32};
 
   // #VKRay
   void initRayTracing();
@@ -154,8 +153,8 @@ public:
   {
     nvmath::vec4f clearColor;
     nvmath::vec3f lightPosition;
-    float         lightIntensity;
-    int           lightType;
-    int           specialization;
+    float         lightIntensity{100.0f};
+    int           lightType{0};
+    int           specialization{7};
   } m_rtPushConstants;
 };

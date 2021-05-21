@@ -24,6 +24,10 @@ endif()
 
 set(TUTO_KHR_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
+if(MSVC)
+    add_definitions(/wd26812)  # 'enum class' over 'enum'
+    add_definitions(/wd26451)  # Arithmetic overflow, casting 4 byte value to 8 byte value
+endif()
 
 #--------------------------------------------------------------------------------------------------
 # Package shared by all projects

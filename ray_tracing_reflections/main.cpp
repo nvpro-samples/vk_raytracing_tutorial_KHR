@@ -244,7 +244,7 @@ int main(int argc, char** argv)
     helloVk.updateUniformBuffer(cmdBuf);
 
     // Clearing screen
-    vk::ClearValue clearValues[2];
+    std::array<vk::ClearValue, 2> clearValues;
     clearValues[0].setColor(
         std::array<float, 4>({clearColor[0], clearColor[1], clearColor[2], clearColor[3]}));
     clearValues[1].setDepthStencil({1.0f, 0});
@@ -253,7 +253,7 @@ int main(int argc, char** argv)
     {
       vk::RenderPassBeginInfo offscreenRenderPassBeginInfo;
       offscreenRenderPassBeginInfo.setClearValueCount(2);
-      offscreenRenderPassBeginInfo.setPClearValues(clearValues);
+      offscreenRenderPassBeginInfo.setPClearValues(clearValues.data());
       offscreenRenderPassBeginInfo.setRenderPass(helloVk.m_offscreenRenderPass);
       offscreenRenderPassBeginInfo.setFramebuffer(helloVk.m_offscreenFramebuffer);
       offscreenRenderPassBeginInfo.setRenderArea({{}, helloVk.getSize()});
@@ -275,7 +275,7 @@ int main(int argc, char** argv)
     {
       vk::RenderPassBeginInfo postRenderPassBeginInfo;
       postRenderPassBeginInfo.setClearValueCount(2);
-      postRenderPassBeginInfo.setPClearValues(clearValues);
+      postRenderPassBeginInfo.setPClearValues(clearValues.data());
       postRenderPassBeginInfo.setRenderPass(helloVk.getRenderPass());
       postRenderPassBeginInfo.setFramebuffer(helloVk.getFramebuffers()[curFrame]);
       postRenderPassBeginInfo.setRenderArea({{}, helloVk.getSize()});

@@ -22,29 +22,6 @@
 #include "obj_loader.h"
 #include "nvh/nvprint.hpp"
 
-//-----------------------------------------------------------------------------
-// Extract the directory component from a complete path.
-//
-#ifdef WIN32
-#define CORRECT_PATH_SEP "\\"
-#define WRONG_PATH_SEP '/'
-#else
-#define CORRECT_PATH_SEP "/"
-#define WRONG_PATH_SEP '\\'
-#endif
-
-static inline std::string get_path(const std::string& file)
-{
-  std::string dir;
-  size_t      idx = file.find_last_of("\\/");
-  if(idx != std::string::npos)
-    dir = file.substr(0, idx);
-  if(!dir.empty())
-  {
-    dir += CORRECT_PATH_SEP;
-  }
-  return dir;
-}
 
 void ObjLoader::loadModel(const std::string& filename)
 {

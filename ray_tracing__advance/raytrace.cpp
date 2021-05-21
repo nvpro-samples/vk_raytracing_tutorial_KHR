@@ -360,9 +360,8 @@ void Raytracer::createRtPipeline(vk::DescriptorSetLayout& sceneDescLayout)
 
   rayPipelineInfo.setMaxPipelineRayRecursionDepth(2);  // Ray depth
   rayPipelineInfo.setLayout(m_rtPipelineLayout);
-  m_rtPipeline = static_cast<const vk::Pipeline&>(
-      m_device.createRayTracingPipelineKHR({}, {}, rayPipelineInfo));
 
+  m_rtPipeline = m_device.createRayTracingPipelineKHR({}, {}, rayPipelineInfo).value;
 
   m_sbtWrapper.create(m_rtPipeline, rayPipelineInfo);
 

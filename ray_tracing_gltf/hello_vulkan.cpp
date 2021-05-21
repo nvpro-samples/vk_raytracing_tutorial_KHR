@@ -120,10 +120,9 @@ void HelloVulkan::updateUniformBuffer(const vk::CommandBuffer& cmdBuf)
 //
 void HelloVulkan::createDescriptorSetLayout()
 {
-  using vkDS     = vk::DescriptorSetLayoutBinding;
-  using vkDT     = vk::DescriptorType;
-  using vkSS     = vk::ShaderStageFlagBits;
-  uint32_t nbTxt = static_cast<uint32_t>(m_textures.size());
+  using vkDS = vk::DescriptorSetLayoutBinding;
+  using vkDT = vk::DescriptorType;
+  using vkSS = vk::ShaderStageFlagBits;
 
   auto& bind = m_descSetLayoutBind;
   // Camera matrices (binding = 0)
@@ -417,7 +416,6 @@ void HelloVulkan::destroyResources()
 void HelloVulkan::rasterize(const vk::CommandBuffer& cmdBuf)
 {
   using vkPBP = vk::PipelineBindPoint;
-  using vkSS  = vk::ShaderStageFlagBits;
 
   std::vector<vk::DeviceSize> offsets = {0, 0, 0};
 
@@ -691,7 +689,6 @@ void HelloVulkan::createTopLevelAS()
 {
   std::vector<nvvk::RaytracingBuilderKHR::Instance> tlas;
   tlas.reserve(m_gltfScene.m_nodes.size());
-  uint32_t instID = 0;
   for(auto& node : m_gltfScene.m_nodes)
   {
     nvvk::RaytracingBuilderKHR::Instance rayInst;
@@ -834,8 +831,9 @@ void HelloVulkan::createRtPipeline()
 
   rayPipelineInfo.setMaxPipelineRayRecursionDepth(2);  // Ray depth
   rayPipelineInfo.setLayout(m_rtPipelineLayout);
-  m_rtPipeline = static_cast<const vk::Pipeline&>(
-      m_device.createRayTracingPipelineKHR({}, {}, rayPipelineInfo));
+
+  m_rtPipeline = m_device.createRayTracingPipelineKHR({}, {}, rayPipelineInfo).value;
+
 
 
   // Creating the SBT

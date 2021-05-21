@@ -18,11 +18,12 @@
  */
 
 #pragma once
-
+#include <vulkan/vulkan.hpp>
 
 #include "nvvk/appbase_vkpp.hpp"
 #include "nvvk/debug_util_vk.hpp"
 #include "nvvk/descriptorsets_vk.hpp"
+#include "nvvk/memallocator_dma_vk.hpp"
 #include "nvvk/resourceallocator_vk.hpp"
 
 //--------------------------------------------------------------------------------------------------
@@ -99,9 +100,8 @@ public:
   std::vector<nvvk::Texture> m_textures;   // vector of all textures of the scene
 
 
-  nvvk::ResourceAllocatorDedicated
-                  m_alloc;  // Allocator for buffer, images, acceleration structures
-  nvvk::DebugUtil m_debug;  // Utility to name objects
+  nvvk::ResourceAllocatorDma m_alloc;  // Allocator for buffer, images, acceleration structures
+  nvvk::DebugUtil            m_debug;  // Utility to name objects
 
 
   // #Post
@@ -122,5 +122,5 @@ public:
   nvvk::Texture               m_offscreenColor;
   vk::Format                  m_offscreenColorFormat{vk::Format::eR32G32B32A32Sfloat};
   nvvk::Texture               m_offscreenDepth;
-  vk::Format                  m_offscreenDepthFormat;
+  vk::Format                  m_offscreenDepthFormat{vk::Format::eX8D24UnormPack32};
 };

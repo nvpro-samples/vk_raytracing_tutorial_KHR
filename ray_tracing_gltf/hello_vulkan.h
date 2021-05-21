@@ -24,7 +24,6 @@
 #include "nvvk/appbase_vkpp.hpp"
 #include "nvvk/debug_util_vk.hpp"
 #include "nvvk/descriptorsets_vk.hpp"
-#include "nvvk/resourceallocator_vk.hpp"
 #include "nvvk/memallocator_dma_vk.hpp"
 
 // #VKRay
@@ -119,7 +118,7 @@ public:
   nvvk::Texture               m_offscreenColor;
   vk::Format                  m_offscreenColorFormat{vk::Format::eR32G32B32A32Sfloat};
   nvvk::Texture               m_offscreenDepth;
-  vk::Format                  m_offscreenDepthFormat;
+  vk::Format                  m_offscreenDepthFormat{vk::Format::eX8D24UnormPack32};
 
   // #VKRay
   auto primitiveToGeometry(const nvh::GltfPrimMesh& prim);

@@ -72,7 +72,7 @@ private:
   {
     nvmath::vec4f clearColor;
     nvmath::vec3f lightPosition;
-    float         lightIntensity;
+    float         lightIntensity{100.0f};
     nvmath::vec3f lightDirection{-1, -1, -1};
     float         lightSpotCutoff{deg2rad(12.5f)};
     float         lightSpotOuterCutoff{deg2rad(17.5f)};

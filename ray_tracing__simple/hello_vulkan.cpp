@@ -115,11 +115,11 @@ void HelloVulkan::updateUniformBuffer(const vk::CommandBuffer& cmdBuf)
 //
 void HelloVulkan::createDescriptorSetLayout()
 {
-  using vkDS     = vk::DescriptorSetLayoutBinding;
-  using vkDT     = vk::DescriptorType;
-  using vkSS     = vk::ShaderStageFlagBits;
-  uint32_t nbTxt = static_cast<uint32_t>(m_textures.size());
-  uint32_t nbObj = static_cast<uint32_t>(m_objModel.size());
+  using vkDS = vk::DescriptorSetLayoutBinding;
+  using vkDT = vk::DescriptorType;
+  using vkSS = vk::ShaderStageFlagBits;
+  auto nbTxt = static_cast<uint32_t>(m_textures.size());
+  auto nbObj = static_cast<uint32_t>(m_objModel.size());
 
   // Camera matrices (binding = 0)
   m_descSetLayoutBind.addBinding(
@@ -217,11 +217,12 @@ void HelloVulkan::createGraphicsPipeline()
   gpb.addShader(nvh::loadFile("spv/vert_shader.vert.spv", true, paths, true), vkSS::eVertex);
   gpb.addShader(nvh::loadFile("spv/frag_shader.frag.spv", true, paths, true), vkSS::eFragment);
   gpb.addBindingDescription({0, sizeof(VertexObj)});
-  gpb.addAttributeDescriptions(std::vector<vk::VertexInputAttributeDescription>{
-      {0, 0, vk::Format::eR32G32B32Sfloat, offsetof(VertexObj, pos)},
-      {1, 0, vk::Format::eR32G32B32Sfloat, offsetof(VertexObj, nrm)},
-      {2, 0, vk::Format::eR32G32B32Sfloat, offsetof(VertexObj, color)},
-      {3, 0, vk::Format::eR32G32Sfloat, offsetof(VertexObj, texCoord)}});
+  gpb.addAttributeDescriptions({
+      {0, 0, vk::Format::eR32G32B32Sfloat, static_cast<uint32_t>(offsetof(VertexObj, pos))},
+      {1, 0, vk::Format::eR32G32B32Sfloat, static_cast<uint32_t>(offsetof(VertexObj, nrm))},
+      {2, 0, vk::Format::eR32G32B32Sfloat, static_cast<uint32_t>(offsetof(VertexObj, color))},
+      {3, 0, vk::Format::eR32G32Sfloat, static_cast<uint32_t>(offsetof(VertexObj, texCoord))},
+  });
 
   m_graphicsPipeline = gpb.createPipeline();
   m_debug.setObjectName(m_graphicsPipeline, "Graphics");
@@ -857,8 +858,9 @@ void HelloVulkan::createRtPipeline()
 
   rayPipelineInfo.setMaxPipelineRayRecursionDepth(2);  // Ray depth
   rayPipelineInfo.setLayout(m_rtPipelineLayout);
-  m_rtPipeline = static_cast<const vk::Pipeline&>(
-      m_device.createRayTracingPipelineKHR({}, {}, rayPipelineInfo));
+
+  m_rtPipeline = m_device.createRayTracingPipelineKHR({}, {}, rayPipelineInfo).value;
+
 
   // Spec only guarantees 1 level of "recursion". Check for that sad possibility here.
   if(m_rtProperties.maxRayRecursionDepth <= 1)

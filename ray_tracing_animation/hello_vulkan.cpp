@@ -115,11 +115,11 @@ void HelloVulkan::updateUniformBuffer(const vk::CommandBuffer& cmdBuf)
 //
 void HelloVulkan::createDescriptorSetLayout()
 {
-  using vkDS     = vk::DescriptorSetLayoutBinding;
-  using vkDT     = vk::DescriptorType;
-  using vkSS     = vk::ShaderStageFlagBits;
-  uint32_t nbTxt = static_cast<uint32_t>(m_textures.size());
-  uint32_t nbObj = static_cast<uint32_t>(m_objModel.size());
+  using vkDS = vk::DescriptorSetLayoutBinding;
+  using vkDT = vk::DescriptorType;
+  using vkSS = vk::ShaderStageFlagBits;
+  auto nbTxt = static_cast<uint32_t>(m_textures.size());
+  auto nbObj = static_cast<uint32_t>(m_objModel.size());
 
   // Camera matrices (binding = 0)
   m_descSetLayoutBind.addBinding(
@@ -217,10 +217,12 @@ void HelloVulkan::createGraphicsPipeline()
   gpb.addShader(nvh::loadFile("spv/vert_shader.vert.spv", true, paths, true), vkSS::eVertex);
   gpb.addShader(nvh::loadFile("spv/frag_shader.frag.spv", true, paths, true), vkSS::eFragment);
   gpb.addBindingDescription({0, sizeof(VertexObj)});
-  gpb.addAttributeDescriptions({{0, 0, vk::Format::eR32G32B32Sfloat, offsetof(VertexObj, pos)},
-                                {1, 0, vk::Format::eR32G32B32Sfloat, offsetof(VertexObj, nrm)},
-                                {2, 0, vk::Format::eR32G32B32Sfloat, offsetof(VertexObj, color)},
-                                {3, 0, vk::Format::eR32G32Sfloat, offsetof(VertexObj, texCoord)}});
+  gpb.addAttributeDescriptions({
+      {0, 0, vk::Format::eR32G32B32Sfloat, static_cast<uint32_t>(offsetof(VertexObj, pos))},
+      {1, 0, vk::Format::eR32G32B32Sfloat, static_cast<uint32_t>(offsetof(VertexObj, nrm))},
+      {2, 0, vk::Format::eR32G32B32Sfloat, static_cast<uint32_t>(offsetof(VertexObj, color))},
+      {3, 0, vk::Format::eR32G32Sfloat, static_cast<uint32_t>(offsetof(VertexObj, texCoord))},
+  });
 
   m_graphicsPipeline = gpb.createPipeline();
   m_debug.setObjectName(m_graphicsPipeline, "Graphics");
@@ -851,8 +853,7 @@ void HelloVulkan::createRtPipeline()
 
   rayPipelineInfo.setMaxPipelineRayRecursionDepth(2);  // Ray depth
   rayPipelineInfo.setLayout(m_rtPipelineLayout);
-  m_rtPipeline = static_cast<const vk::Pipeline&>(
-      m_device.createRayTracingPipelineKHR({}, {}, rayPipelineInfo));
+  m_rtPipeline = m_device.createRayTracingPipelineKHR({}, {}, rayPipelineInfo).value;
 
 
   m_sbtWrapper.create(m_rtPipeline, rayPipelineInfo);
@@ -898,11 +899,11 @@ void HelloVulkan::raytrace(const vk::CommandBuffer& cmdBuf, const nvmath::vec4f&
 
 void HelloVulkan::animationInstances(float time)
 {
-  const int32_t nbWuson     = static_cast<int32_t>(m_objInstance.size() - 2);
-  const float   deltaAngle  = 6.28318530718f / static_cast<float>(nbWuson);
-  const float   wusonLength = 3.f;
-  const float   radius      = wusonLength / (2.f * sin(deltaAngle / 2.0f));
-  const float   offset      = time * 0.5f;
+  const auto  nbWuson     = static_cast<int32_t>(m_objInstance.size() - 2);
+  const float deltaAngle  = 6.28318530718f / static_cast<float>(nbWuson);
+  const float wusonLength = 3.f;
+  const float radius      = wusonLength / (2.f * sin(deltaAngle / 2.0f));
+  const float offset      = time * 0.5f;
 
   for(int i = 0; i < nbWuson; i++)
   {
@@ -986,7 +987,7 @@ void HelloVulkan::createCompPipelines()
   computePipelineCreateInfo.stage = nvvk::createShaderStageInfo(
       m_device, nvh::loadFile("spv/anim.comp.spv", true, defaultSearchPaths, true),
       VK_SHADER_STAGE_COMPUTE_BIT);
-  m_compPipeline = static_cast<const vk::Pipeline&>(
-      m_device.createComputePipeline({}, computePipelineCreateInfo));
+
+  m_compPipeline = m_device.createComputePipeline({}, computePipelineCreateInfo).value;
   m_device.destroy(computePipelineCreateInfo.stage.module);
 }

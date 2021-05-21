@@ -75,6 +75,6 @@ struct ImplInst
   std::vector<MaterialObj> implMat;     // All materials used by implicit obj
   nvvk::Buffer             implBuf;     // Buffer of objects
   nvvk::Buffer             implMatBuf;  // Buffer of material
-  int                      blasId;
+  int                      blasId{0};
   nvmath::mat4f            transform{1};
 };

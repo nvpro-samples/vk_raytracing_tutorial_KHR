@@ -62,7 +62,7 @@ private:
   nvvk::Texture m_colorTexture;
   vk::Format    m_colorFormat{vk::Format::eR32G32B32A32Sfloat};
   nvvk::Texture m_depthTexture;
-  vk::Format    m_depthFormat;
+  vk::Format    m_depthFormat{vk::Format::eX8D24UnormPack32};
 
   nvvk::ResourceAllocator* m_alloc{
       nullptr};  // Allocator for buffer, images, acceleration structures

@@ -114,11 +114,11 @@ void HelloVulkan::updateUniformBuffer(const vk::CommandBuffer& cmdBuf)
 //
 void HelloVulkan::createDescriptorSetLayout()
 {
-  using vkDS     = vk::DescriptorSetLayoutBinding;
-  using vkDT     = vk::DescriptorType;
-  using vkSS     = vk::ShaderStageFlagBits;
-  uint32_t nbTxt = static_cast<uint32_t>(m_textures.size());
-  uint32_t nbObj = static_cast<uint32_t>(m_objModel.size());
+  using vkDS = vk::DescriptorSetLayoutBinding;
+  using vkDT = vk::DescriptorType;
+  using vkSS = vk::ShaderStageFlagBits;
+  auto nbTxt = static_cast<uint32_t>(m_textures.size());
+  auto nbObj = static_cast<uint32_t>(m_objModel.size());
 
   // Camera matrices (binding = 0)
   m_descSetLayoutBind.addBinding(
@@ -166,12 +166,12 @@ void HelloVulkan::updateDescriptorSet()
   std::vector<vk::DescriptorBufferInfo> dbiMatIdx;
   std::vector<vk::DescriptorBufferInfo> dbiVert;
   std::vector<vk::DescriptorBufferInfo> dbiIdx;
-  for(size_t i = 0; i < m_objModel.size(); ++i)
+  for(auto &m : m_objModel)
   {
-    dbiMat.push_back({m_objModel[i].matColorBuffer.buffer, 0, VK_WHOLE_SIZE});
-    dbiMatIdx.push_back({m_objModel[i].matIndexBuffer.buffer, 0, VK_WHOLE_SIZE});
-    dbiVert.push_back({m_objModel[i].vertexBuffer.buffer, 0, VK_WHOLE_SIZE});
-    dbiIdx.push_back({m_objModel[i].indexBuffer.buffer, 0, VK_WHOLE_SIZE});
+    dbiMat.emplace_back(m.matColorBuffer.buffer, 0, VK_WHOLE_SIZE);
+    dbiMatIdx.emplace_back(m.matIndexBuffer.buffer, 0, VK_WHOLE_SIZE);
+    dbiVert.emplace_back(m.vertexBuffer.buffer, 0, VK_WHOLE_SIZE);
+    dbiIdx.emplace_back(m.indexBuffer.buffer, 0, VK_WHOLE_SIZE);
   }
   writes.emplace_back(m_descSetLayoutBind.makeWriteArray(m_descSet, 1, dbiMat.data()));
   writes.emplace_back(m_descSetLayoutBind.makeWriteArray(m_descSet, 4, dbiMatIdx.data()));
@@ -180,9 +180,9 @@ void HelloVulkan::updateDescriptorSet()
 
   // All texture samplers
   std::vector<vk::DescriptorImageInfo> diit;
-  for(size_t i = 0; i < m_textures.size(); ++i)
+  for(auto & t: m_textures)
   {
-    diit.push_back(m_textures[i].descriptor);
+    diit.emplace_back(t.descriptor);
   }
   writes.emplace_back(m_descSetLayoutBind.makeWriteArray(m_descSet, 3, diit.data()));
 
@@ -216,10 +216,12 @@ void HelloVulkan::createGraphicsPipeline()
   gpb.addShader(nvh::loadFile("spv/vert_shader.vert.spv", true, paths, true), vkSS::eVertex);
   gpb.addShader(nvh::loadFile("spv/frag_shader.frag.spv", true, paths, true), vkSS::eFragment);
   gpb.addBindingDescription({0, sizeof(VertexObj)});
-  gpb.addAttributeDescriptions({{0, 0, vk::Format::eR32G32B32Sfloat, offsetof(VertexObj, pos)},
-                                {1, 0, vk::Format::eR32G32B32Sfloat, offsetof(VertexObj, nrm)},
-                                {2, 0, vk::Format::eR32G32B32Sfloat, offsetof(VertexObj, color)},
-                                {3, 0, vk::Format::eR32G32Sfloat, offsetof(VertexObj, texCoord)}});
+  gpb.addAttributeDescriptions({
+      {0, 0, vk::Format::eR32G32B32Sfloat, static_cast<uint32_t>(offsetof(VertexObj, pos))},
+      {1, 0, vk::Format::eR32G32B32Sfloat, static_cast<uint32_t>(offsetof(VertexObj, nrm))},
+      {2, 0, vk::Format::eR32G32B32Sfloat, static_cast<uint32_t>(offsetof(VertexObj, color))},
+      {3, 0, vk::Format::eR32G32Sfloat, static_cast<uint32_t>(offsetof(VertexObj, texCoord))},
+  });
 
   m_graphicsPipeline = gpb.createPipeline();
   m_debug.setObjectName(m_graphicsPipeline, "Graphics");
@@ -840,8 +842,9 @@ void HelloVulkan::createRtPipeline()
 
   rayPipelineInfo.setMaxPipelineRayRecursionDepth(2);  // Ray depth
   rayPipelineInfo.setLayout(m_rtPipelineLayout);
-  m_rtPipeline = static_cast<const vk::Pipeline&>(
-      m_device.createRayTracingPipelineKHR({}, {}, rayPipelineInfo));
+
+  m_rtPipeline = m_device.createRayTracingPipelineKHR({}, {}, rayPipelineInfo).value;
+
 
   m_device.destroy(raygenSM);
   m_device.destroy(missSM);

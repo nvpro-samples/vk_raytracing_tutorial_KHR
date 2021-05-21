@@ -22,9 +22,9 @@
 // #VKRay
 //
 // Choosing the allocator to use
-#define ALLOC_DMA
+//#define ALLOC_DMA
 //#define ALLOC_DEDICATED
-//#define ALLOC_VMA
+#define ALLOC_VMA
 #include <nvvk/resourceallocator_vk.hpp>
 
 #if defined(ALLOC_DMA)
@@ -141,7 +141,7 @@ public:
   nvvk::Texture               m_offscreenColor;
   vk::Format                  m_offscreenColorFormat{vk::Format::eR32G32B32A32Sfloat};
   nvvk::Texture               m_offscreenDepth;
-  vk::Format                  m_offscreenDepthFormat;
+  vk::Format                  m_offscreenDepthFormat{vk::Format::eX8D24UnormPack32};
 
   // #VKRay
   void initRayTracing();
