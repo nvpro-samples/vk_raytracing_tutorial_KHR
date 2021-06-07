@@ -58,7 +58,7 @@ add_subdirectory(ray_tracing_reflections)
 add_subdirectory(ray_tracing_ao)
 add_subdirectory(ray_tracing_indirect_scissor)
 add_subdirectory(ray_tracing_specialization)
-
+add_subdirectory(ray_tracing_advanced_compilation)
 
 
 #--------------------------------------------------------------------------------------------------
