@@ -3,7 +3,7 @@
    Licensed as public domain or BSD 2-clause, whichever is more convenient for you.
    Originally from https://github.com/aras-p/markdeep-docs-style */
 body {
-    max-width: 50em;
+    max-width: 80em;
     font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
     text-align: left;
     /*margin: 1.5em;*/

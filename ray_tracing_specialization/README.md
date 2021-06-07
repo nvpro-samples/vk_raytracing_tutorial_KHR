@@ -95,14 +95,15 @@ In our example, we will have only integers for constant data. There are various 
 
 ~~~~ C
 //////////////////////////////////////////////////////////////////////////
-/// Helper to generate specialization info
+// Helper to generate specialization info
+// 
 class Specialization
 {
 public:
   void add(uint32_t constantID, int32_t value)
   {
     spec_values.push_back(value);
-    vk::SpecializationMapEntry entry;
+    VkSpecializationMapEntry entry;
     entry.constantID = constantID;
     entry.size       = sizeof(int32_t);
     entry.offset     = static_cast<uint32_t>(spec_entries.size() * sizeof(int32_t));
@@ -115,40 +116,37 @@ public:
       add(v.first, v.second);
   }
 
-  vk::SpecializationInfo* getSpecialization()
+  VkSpecializationInfo* getSpecialization()
   {
-    spec_info.setData<int32_t>(spec_values);
-    spec_info.setMapEntries(spec_entries);
+    spec_info.dataSize      = static_cast<uint32_t>(spec_values.size() * sizeof(int32_t));
+    spec_info.pData         = spec_values.data();
+    spec_info.mapEntryCount = static_cast<uint32_t>(spec_entries.size());
+    spec_info.pMapEntries   = spec_entries.data();
     return &spec_info;
   }
 
 private:
-  std::vector<int32_t>                    spec_values;
-  std::vector<vk::SpecializationMapEntry> spec_entries;
-  vk::SpecializationInfo                  spec_info;
+  std::vector<int32_t>                  spec_values;
+  std::vector<VkSpecializationMapEntry> spec_entries;
+  VkSpecializationInfo                  spec_info;
 };
 ~~~~ 
 
-In `HelloVulkan::createRtPipeline()`, 
-first move the Closest Hit shader module creation up in the function next to the other one, as follow ... 
+In `HelloVulkan::createRtPipeline()`, we will create 8 specialization of the closest hit shader.
+So the number of stages, will be 11 instead of 4.
 
-~~~~ C
-vk::ShaderModule raygenSM = nvvk::createShaderModule(
-      m_device, nvh::loadFile("spv/raytrace.rgen.spv", true, defaultSearchPaths, true));
-  vk::ShaderModule missSM = nvvk::createShaderModule(
-      m_device, nvh::loadFile("spv/raytrace.rmiss.spv", true, defaultSearchPaths, true));
+~~~~ C 
+  enum StageIndices
+  {
+    eRaygen,
+    eMiss,
+    eMiss2,
+    eClosestHit,  // <---- 8 specialization of this one
+    eShaderGroupCount = 11
+  };
+~~~~
 
-  // The second miss shader is invoked when a shadow ray misses the geometry. It
-  // simply indicates that no occlusion has been found
-  vk::ShaderModule shadowmissSM = nvvk::createShaderModule(
-      m_device, nvh::loadFile("spv/raytraceShadow.rmiss.spv", true, defaultSearchPaths, true));
-
-  vk::ShaderModule chitSM = nvvk::createShaderModule(
-      m_device, nvh::loadFile("spv/raytrace.rchit.spv", true, defaultSearchPaths, true));
-~~~~ 
-
-Thenjust after creating the shader modules, create a `Specialization` for each of the 8 on/off permutations of the 3 constants.
-
+Then create a `Specialization` for each of the 8 on/off permutations of the 3 constants.
 
 ~~~~ C
   // Specialization
@@ -162,23 +160,35 @@ Thenjust after creating the shader modules, create a `Specialization` for each o
   }
 ~~~~ 
 
-Then we will create as many HIT shader groups as we have specializations. This will give us the ability later to choose which 'specialization' we want to use.
+Now the shader group will be created 8 times, each with a different specialization.
+
+~~~~ C
+  // Hit Group - Closest Hit
+  // Create many variation of the closest hit
+  for(uint32_t s = 0; s < (uint32_t)specializations.size(); s++)
+  {
+    stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytrace.rchit.spv", true, defaultSearchPaths, true));
+    stage.stage               = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+    stage.pSpecializationInfo = specializations[s].getSpecialization();
+    stages[eClosestHit + s]   = stage;
+  }
+~~~~
+
+**Tip** : We can avoid to create 8 shader modules, but we would have to properly deal with the 
+    deletion of them at the end of the function.
+
+
+We will also modify the creation of the hit group to create as many HIT shader groups as we have specializations. This will give us the ability later to choose which 'specialization' we want to use.
 
 ~~~~ C
   // Hit Group - Closest Hit + AnyHit
-  for(size_t i = 0; i < specializations.size(); i++)
+  // Creating many Hit groups, one for each specialization
+  for(uint32_t s = 0; s < (uint32_t)specializations.size(); s++)
   {
-    vk::RayTracingShaderGroupCreateInfoKHR hg{vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup,
-                                              VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
-                                              VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
-    hg.setClosestHitShader(static_cast<uint32_t>(stages.size()));
-    vk::PipelineShaderStageCreateInfo stage;
-    stage.stage               = vk::ShaderStageFlagBits::eClosestHitKHR;
-    stage.module              = chitSM;
-    stage.pName               = "main";
-    stage.pSpecializationInfo = specializations[i].getSpecialization();
-    stages.push_back(stage);
-    m_rtShaderGroups.push_back(hg);
+    group.type             = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+    group.generalShader    = VK_SHADER_UNUSED_KHR;
+    group.closestHitShader = eClosestHit + s;  // Using variation of the closest hit
+    m_rtShaderGroups.push_back(group);
   }
 ~~~~
 

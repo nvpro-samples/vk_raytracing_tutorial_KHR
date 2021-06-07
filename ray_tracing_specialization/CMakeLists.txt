@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 3.9.6 FATAL_ERROR)
 #--------------------------------------------------------------------------------------------------
 # Project setting
 get_filename_component(PROJNAME ${CMAKE_CURRENT_SOURCE_DIR} NAME)
-SET(PROJNAME vk_${PROJNAME}_KHR)
+set(PROJNAME vk_${PROJNAME}_KHR)
 project(${PROJNAME} LANGUAGES C CXX)
 message(STATUS "-------------------------------")
 message(STATUS "Processing Project ${PROJNAME}:")
@@ -76,4 +76,3 @@ _finalize_target( ${PROJNAME} )
 
 install(FILES ${SPV_OUTPUT} CONFIGURATIONS Release DESTINATION "bin_${ARCH}/${PROJNAME}/spv")
 install(FILES ${SPV_OUTPUT} CONFIGURATIONS Debug DESTINATION "bin_${ARCH}_debug/${PROJNAME}/spv")
-

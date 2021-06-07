@@ -68,6 +68,11 @@ cd build
 cmake ..
 ~~~~~
 
+!!! Note Note
+    If you are not using Visual Studio 2019 and up, make sure to choose x64 platform. For 2019, it is the default
+    but not for previous versions.
+
+
 ## Tools Installation
 
 You need a graphics card with support for the `VK_KHR_ray_tracing_pipeline` extension.
@@ -75,9 +80,10 @@ For NVIDIA graphics cards, you need a [Vulkan driver](https://developer.nvidia.c
 released in 2021 or later.
 
 The Vulkan SDK 1.2.161 and up which can be found under https://vulkan.lunarg.com/sdk/home will work with this project.
+This version was tested with 1.2.176.1.
 
 !!! Tip Visual Assist
-    To get auto-completion, edit vulkan.hpp and change two places from:<br>
+    To get auto-completion with Vulkan CPP, edit vulkan.hpp and change two places from:<br>
     `namespace VULKAN_HPP_NAMESPACE` to `namespace vk` 
 
 # Compiling & Running 
@@ -109,12 +115,10 @@ extensions will need to be added.
 
 ```` C
 // #VKRay: Activate the ray tracing extension
-vk::PhysicalDeviceAccelerationStructureFeaturesKHR accelFeature;
-contextInfo.addDeviceExtension(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, false,
-                               &accelFeature);
-vk::PhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature;
-contextInfo.addDeviceExtension(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, false,
-                               &rtPipelineFeature);
+VkPhysicalDeviceAccelerationStructureFeaturesKHR accelFeature{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR};
+contextInfo.addDeviceExtension(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, false, &accelFeature);
+VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR};
+contextInfo.addDeviceExtension(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, false, &rtPipelineFeature);
 contextInfo.addDeviceExtension(VK_KHR_MAINTENANCE3_EXTENSION_NAME);
 contextInfo.addDeviceExtension(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
 contextInfo.addDeviceExtension(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
@@ -123,33 +127,23 @@ contextInfo.addDeviceExtension(VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
 ````
 
 Behind the scenes, the helper is selecting a physical device supporting the required `VK_KHR_*` extensions,
-then placing the `vk::PhysicalDevice*FeaturesKHR` structs on the `pNext` chain of `VkDeviceCreateInfo` before
+then placing the `VkPhysicalDevice*FeaturesKHR` structs on the `pNext` chain of `VkDeviceCreateInfo` before
 calling `vkCreateDevice`. This enables the ray tracing features and fills in the two structs with info on the
-device's ray tracing capabilities.
+device's ray tracing capabilities. If you are curious, this is done in the Vulkan context creation helper: 
+[`Context::initInstance()`](https://github.com/nvpro-samples/nvpro_core/blob/1c59039a1ab0d777c79a29b09879a2686ec286dc/nvvk/context_vk.cpp#L211).
 
 !!! NOTE Loading function pointers
     As in OpenGL, when using extensions in Vulkan, you need to manually load in function pointers for extensions, using
     `vkGetInstanceProcAddr` and `vkGetDeviceProcAddr`. The `nvvk::Context` class that this sample depends on magically does
-    this for you, for the Vulkan C API. For the Vulkan C++ API, the `nvvk::AppBase::setup` function follows the instructions
-    at <a href="https://github.com/KhronosGroup/Vulkan-Hpp#extensions--per-device-function-pointers">the vulkan.hpp Github page</a>
-    to load the C++ entry points:
-    ```` C
-        // Initialize function pointers
-    vk::DynamicLoader         dl;
-    PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr =
-        dl.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr");
-    VULKAN_HPP_DEFAULT_DISPATCHER.init(vkGetInstanceProcAddr);
-    VULKAN_HPP_DEFAULT_DISPATCHER.init(instance);
-    VULKAN_HPP_DEFAULT_DISPATCHER.init(device);
-    ````
+    this for you, for the Vulkan C API by calling `load_VK_EXTENSION_SUBSET`. 
 
 In the `HelloVulkan` class in `hello_vulkan.h`, add an initialization function and a member storing the capabilities of
 the GPU for ray tracing:
 
 ```` C
 // #VKRay
-void                                               initRayTracing();
-vk::PhysicalDeviceRayTracingPipelinePropertiesKHR  m_rtProperties;
+void                                            initRayTracing();
+VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
 ````
 
 At the end of `hello_vulkan.cpp`, add the body of `initRayTracing()`, which will query the ray tracing capabilities
@@ -167,19 +161,11 @@ needed in a later section for creating the shader binding table.
 void HelloVulkan::initRayTracing()
 {
   // Requesting ray tracing properties
-  auto properties =
-      m_physicalDevice.getProperties2<vk::PhysicalDeviceProperties2,
-                                      vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
-  m_rtProperties = properties.get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
+  VkPhysicalDeviceProperties2 prop2{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
+  prop2.pNext = &m_rtProperties;
+  vkGetPhysicalDeviceProperties2(m_physicalDevice, &prop2);
 }
 ````
-
-!!! Tip For readers unfamiliar with vulkan.hpp
-    The above code is creating a `pNext` structure chain consisting of a `VkPhysicalDeviceProperties2` followed
-    by `VkPhysicalDeviceRayTracingPipelinePropertiesKHR`, passing it to `vkGetPhysicalDeviceProperties2`,
-    then extracting the filled `VkPhysicalDeviceRayTracingPipelinePropertiesKHR` structure of the chain.
-    `auto` is a `C++11` feature for type deduction, allowing us to avoid redundantly specifying types
-    (specifically, `vk::StructureChain<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPipelineFeaturesKHR>`).
 
 ## main
 
@@ -244,12 +230,15 @@ m_rtBuilder.setup(m_device, m_alloc, m_graphicsQueueIndex);
 ````
 
 !!! Note Memory Management
-    The raytrace helper uses `"nvvk/resourceallocator_vk.hpp"` to avoid having to deal with vulkan memory management.
+    The raytrace helper uses [`"nvvk/resourceallocator_vk.hpp"`](https://github.com/nvpro-samples/nvpro_core/blob/master/nvvk/resourceallocator_vk.hpp)
+    to avoid having to deal with vulkan memory management.
     This provides the `nvvk::AccelKHR` type, which consists of a `VkAccelerationStructureKHR` paired
-    with info needed by the allocator to manage the buffer memory backing it. `"nvvk/resourceallocator_vk.hpp"` requires a macro to
-    be defined before inclusion to select its memory allocation strategy. In this tutorial, we defined `NVVK_ALLOC_DEDICATED`.
-    This selects the simple one-`VkDeviceMemory`-per-object strategy, which is easier to understand for
-    teaching purposes but not practical for production use.
+    with info needed by the allocator to manage the buffer memory backing it. The resource allocation can use different
+    memory allocation strategy (memory allocator). In this tutorial, we are using our own version 
+    [DMA](https://github.com/nvpro-samples/nvpro_core/blob/master/nvvk/memallocator_dma_vk.hpp).
+    Other memory allocators can be selected, such as the [Vulkan Memory Allocator (VMA)](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator)
+    and a dedicated memory allocator, which is the simple one-`VkDeviceMemory`-per-object strategy, 
+    which is easiest to understand for teaching purposes but not practical for production use.
 
 ## Bottom-Level Acceleration Structure
 
@@ -264,6 +253,12 @@ class:
 auto objectToVkGeometryKHR(const ObjModel& model);
 ````
 
+!!! Note Note
+    The `objectToVkGeometryKHR()` function is returning `nvvk::RaytracingBuilderKHR::BlasInput` but we are using the C++ `auto` as it is 
+    automatically deducted by the compiler.
+
+
+
 Its implementation will fill three structures that will eventually be passed to the AS builder (`vkCmdBuildAccelerationStructuresKHR`).
 
 * `VkAccelerationStructureGeometryTrianglesDataKHR`: device pointer to the buffers holding triangle vertex/index data,
@@ -274,10 +269,6 @@ Its implementation will fill three structures that will eventually be passed to 
   `VkAccelerationStructureGeometryDataKHR` (the geometry could also be instances, for the TLAS builder, or AABBs, not covered here).
 
 * `VkAccelerationStructureBuildRangeInfoKHR`: the indices within the vertex arrays to source input geometry for the BLAS.
-
-!!! Tip C++ types
-    Although the code uses C++ types, in the above C types names are used to ease searching for them online.
-    Generally, replace `vk::` with `Vk` to convert C++ type names to C names (functions names are less uniform).
 
 !!! Tip VkAccelerationStructureGeometryKHR / VkAccelerationStructureBuildRangeInfoKHR split
     A potential point of confusion is how `VkAccelerationStructureGeometryKHR` and `VkAccelerationStructureBuildRangeInfoKHR`
@@ -302,35 +293,38 @@ potential optimization. (More specifically, this disables calls to the anyhit sh
 auto HelloVulkan::objectToVkGeometryKHR(const ObjModel& model)
 {
   // BLAS builder requires raw device addresses.
-  vk::DeviceAddress vertexAddress = m_device.getBufferAddress({model.vertexBuffer.buffer});
-  vk::DeviceAddress indexAddress  = m_device.getBufferAddress({model.indexBuffer.buffer});
+  VkBufferDeviceAddressInfo info{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO};
+  info.buffer                   = model.vertexBuffer.buffer;
+  VkDeviceAddress vertexAddress = vkGetBufferDeviceAddress(m_device, &info);
+  info.buffer                   = model.indexBuffer.buffer;
+  VkDeviceAddress indexAddress  = vkGetBufferDeviceAddress(m_device, &info);
 
   uint32_t maxPrimitiveCount = model.nbIndices / 3;
 
   // Describe buffer as array of VertexObj.
-  vk::AccelerationStructureGeometryTrianglesDataKHR triangles;
-  triangles.setVertexFormat(vk::Format::eR32G32B32Sfloat); // vec3 vertex position data.
-  triangles.setVertexData(vertexAddress);
-  triangles.setVertexStride(sizeof(VertexObj));
+  VkAccelerationStructureGeometryTrianglesDataKHR triangles{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR};
+  triangles.vertexFormat             = VK_FORMAT_R32G32B32A32_SFLOAT;  // vec3 vertex position data.
+  triangles.vertexData.deviceAddress = vertexAddress;
+  triangles.vertexStride             = sizeof(VertexObj);
   // Describe index data (32-bit unsigned int)
-  triangles.setIndexType(vk::IndexType::eUint32);
-  triangles.setIndexData(indexAddress);
+  triangles.indexType               = VK_INDEX_TYPE_UINT32;
+  triangles.indexData.deviceAddress = indexAddress;
   // Indicate identity transform by setting transformData to null device pointer.
-  triangles.setTransformData({});
-  triangles.setMaxVertex(model.nbVertices);
+  //triangles.transformData = {};
+  triangles.maxVertex = model.nbVertices;
 
   // Identify the above data as containing opaque triangles.
-  vk::AccelerationStructureGeometryKHR asGeom;
-  asGeom.setGeometryType(vk::GeometryTypeKHR::eTriangles);
-  asGeom.setFlags(vk::GeometryFlagBitsKHR::eOpaque);
-  asGeom.geometry.setTriangles(triangles);
+  VkAccelerationStructureGeometryKHR asGeom{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
+  asGeom.geometryType       = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+  asGeom.flags              = VK_GEOMETRY_OPAQUE_BIT_KHR;
+  asGeom.geometry.triangles = triangles;
 
   // The entire array will be used to build the BLAS.
-  vk::AccelerationStructureBuildRangeInfoKHR offset;
-  offset.setFirstVertex(0);
-  offset.setPrimitiveCount(maxPrimitiveCount);
-  offset.setPrimitiveOffset(0);
-  offset.setTransformOffset(0);
+  VkAccelerationStructureBuildRangeInfoKHR offset;
+  offset.firstVertex     = 0;
+  offset.primitiveCount  = maxPrimitiveCount;
+  offset.primitiveOffset = 0;
+  offset.transformOffset = 0;
 
   // Our blas is made from only one geometry, but could be made of many geometries
   nvvk::RaytracingBuilderKHR::BlasInput input;
@@ -377,7 +371,7 @@ void HelloVulkan::createBottomLevelAS()
     // We could add more geometry in each BLAS, but we add only one for now
     allBlas.emplace_back(blas);
   }
-  m_rtBuilder.buildBlas(allBlas, vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace);
+  m_rtBuilder.buildBlas(allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 }
 ````
 
@@ -467,7 +461,7 @@ so we keep track of the maximum scratch memory ever needed. Later, we'll allocat
     }
 ````
 
-Behind the scenes, `m_alloc->createAllocation` is creating a buffer of the size indicated by the acceleration structure
+Behind the scenes, `m_alloc->createAcceleration` is creating a buffer of the size indicated by the acceleration structure
 size query, giving it the `VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR` and `VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT`
 usage bits (the latter is needed as the TLAS builder will need the raw address of the BLASes), and binding the acceleration structure
 to its allocated memory by filling in the `buffer` field of `VkAccelerationStructureCreateInfoKHR`. Unlike buffers and images,
@@ -674,7 +668,7 @@ invoked upon hitting the object (`VkAccelerationStructureInstanceKHR::instanceSh
 This index and the notion of hit group are tied to the definition of the ray tracing pipeline and the Shader Binding
 Table, described later in this tutorial and used to select determine which shaders are invoked at runtime. For now
 it suffices to say that we will use only one hit group for the whole scene, and hence the hit group index is always 0.
-Finally, the instance may indicate culling preferences, such as backface culling, using its `vk::GeometryInstanceFlagsKHR
+Finally, the instance may indicate culling preferences, such as backface culling, using its `VkGeometryInstanceFlagsKHR
 flags` member. In our example we decide to disable culling altogether
 for simplicity and independence on the winding of the input models.
 
@@ -696,7 +690,7 @@ void HelloVulkan::createTopLevelAS()
     rayInst.flags            = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
     tlas.emplace_back(rayInst);
   }
-  m_rtBuilder.buildTlas(tlas, vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace);
+  m_rtBuilder.buildTlas(tlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 }
 ````
 
@@ -925,10 +919,10 @@ In the header `hello_vulkan.h`, we declare the objects related to this additiona
 ```` C
   void           createRtDescriptorSet();
 
-  nvvk::DescriptorSetBindings                        m_rtDescSetLayoutBind;
-  vk::DescriptorPool                                 m_rtDescPool;
-  vk::DescriptorSetLayout                            m_rtDescSetLayout;
-  vk::DescriptorSet                                  m_rtDescSet;
+  nvvk::DescriptorSetBindings                     m_rtDescSetLayoutBind;
+  VkDescriptorPool                                m_rtDescPool;
+  VkDescriptorSetLayout                           m_rtDescSetLayout;
+  VkDescriptorSet                                 m_rtDescSet;
 ````
 
 The acceleration structure will be accessible by the Ray Generation shader, as we want to call `TraceRayEXT()` from this
@@ -942,30 +936,31 @@ RayGen shader.
 //
 void HelloVulkan::createRtDescriptorSet()
 {
-  using vkDT   = vk::DescriptorType;
-  using vkSS   = vk::ShaderStageFlagBits;
-  using vkDSLB = vk::DescriptorSetLayoutBinding;
-
-  m_rtDescSetLayoutBind.addBinding(vkDSLB(0, vkDT::eAccelerationStructureKHR, 1,
-                                          vkSS::eRaygenKHR | vkSS::eClosestHitKHR));  // TLAS
-  m_rtDescSetLayoutBind.addBinding(
-      vkDSLB(1, vkDT::eStorageImage, 1, vkSS::eRaygenKHR));  // Output image
+  m_rtDescSetLayoutBind.addBinding(0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1,
+                                   VK_SHADER_STAGE_RAYGEN_BIT_KHR);  // TLAS
+  m_rtDescSetLayoutBind.addBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1,
+                                   VK_SHADER_STAGE_RAYGEN_BIT_KHR);  // Output image
 
   m_rtDescPool      = m_rtDescSetLayoutBind.createPool(m_device);
   m_rtDescSetLayout = m_rtDescSetLayoutBind.createLayout(m_device);
-  m_rtDescSet       = m_device.allocateDescriptorSets({m_rtDescPool, 1, &m_rtDescSetLayout})[0];
 
-  vk::AccelerationStructureKHR                   tlas = m_rtBuilder.getAccelerationStructure();
-  vk::WriteDescriptorSetAccelerationStructureKHR descASInfo;
-  descASInfo.setAccelerationStructureCount(1);
-  descASInfo.setPAccelerationStructures(&tlas);
-  vk::DescriptorImageInfo imageInfo{
-      {}, m_offscreenColor.descriptor.imageView, vk::ImageLayout::eGeneral};
+  VkDescriptorSetAllocateInfo allocateInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+  allocateInfo.descriptorPool     = m_rtDescPool;
+  allocateInfo.descriptorSetCount = 1;
+  allocateInfo.pSetLayouts        = &m_rtDescSetLayout;
+  vkAllocateDescriptorSets(m_device, &allocateInfo, &m_rtDescSet);
 
-  std::vector<vk::WriteDescriptorSet> writes;
+
+  VkAccelerationStructureKHR                   tlas = m_rtBuilder.getAccelerationStructure();
+  VkWriteDescriptorSetAccelerationStructureKHR descASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
+  descASInfo.accelerationStructureCount = 1;
+  descASInfo.pAccelerationStructures    = &tlas;
+  VkDescriptorImageInfo imageInfo{{}, m_offscreenColor.descriptor.imageView, VK_IMAGE_LAYOUT_GENERAL};
+
+  std::vector<VkWriteDescriptorSet> writes;
   writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, 0, &descASInfo));
   writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, 1, &imageInfo));
-  m_device.updateDescriptorSets(static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+  vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
 ````
 
@@ -979,47 +974,44 @@ descriptor set as they semantically fit the Scene descriptor set.
 
 ```` C
 // Camera matrices (binding = 0)
-m_descSetLayoutBind.addBinding(
-    vkDS(0, vkDT::eUniformBuffer, 1, vkSS::eVertex | vkSS::eRaygenKHR));
-// Materials (binding = 1)
-m_descSetLayoutBind.addBinding(
-    vkDS(1, vkDT::eStorageBuffer, nbObj, vkSS::eVertex | vkSS::eFragment | vkSS::eClosestHitKHR));
-// Scene description (binding = 2)
-m_descSetLayoutBind.addBinding(  //
-    vkDS(2, vkDT::eStorageBuffer, 1, vkSS::eVertex | vkSS::eFragment | vkSS::eClosestHitKHR));
-// Textures (binding = 3)
-m_descSetLayoutBind.addBinding(
-    vkDS(3, vkDT::eCombinedImageSampler, nbTxt, vkSS::eFragment | vkSS::eClosestHitKHR));
-// Materials (binding = 4)
-m_descSetLayoutBind.addBinding(
-    vkDS(4, vkDT::eStorageBuffer, nbObj, vkSS::eFragment | vkSS::eClosestHitKHR));
-// Storing vertices (binding = 5)
-m_descSetLayoutBind.addBinding(  //
-    vkDS(5, vkDT::eStorageBuffer, nbObj, vkSS::eClosestHitKHR));
-// Storing indices (binding = 6)
-m_descSetLayoutBind.addBinding(  //
-    vkDS(6, vkDT::eStorageBuffer, nbObj, vkSS::eClosestHitKHR));
+  m_descSetLayoutBind.addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+  // Materials (binding = 1)
+  m_descSetLayoutBind.addBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nbObj,
+                                 VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
+  // Scene description (binding = 2)
+  m_descSetLayoutBind.addBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
+                                 VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
+  // Textures (binding = 3)
+  m_descSetLayoutBind.addBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nbTxt,
+                                 VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
+  // Materials (binding = 4)
+  m_descSetLayoutBind.addBinding(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nbObj,
+                                 VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
+  // Storing vertices (binding = 5)
+  m_descSetLayoutBind.addBinding(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nbObj, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
+  // Storing indices (binding = 6)
+  m_descSetLayoutBind.addBinding(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nbObj, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
 ````
 
 We set the actual contents of the descriptor set by adding those buffers in `updateDescriptorSet()`:
 
 ```` C
-  // All material buffers, 1 buffer per OBJ
-  std::vector<vk::DescriptorBufferInfo> dbiMat;
-  std::vector<vk::DescriptorBufferInfo> dbiMatIdx;
-  std::vector<vk::DescriptorBufferInfo> dbiVert;
-  std::vector<vk::DescriptorBufferInfo> dbiIdx;
-  for(size_t i = 0; i < m_objModel.size(); ++i)
-  {
-    dbiMat.push_back({m_objModel[i].matColorBuffer.buffer, 0, VK_WHOLE_SIZE});
-    dbiMatIdx.push_back({m_objModel[i].matIndexBuffer.buffer, 0, VK_WHOLE_SIZE});
-    dbiVert.push_back({m_objModel[i].vertexBuffer.buffer, 0, VK_WHOLE_SIZE});
-    dbiIdx.push_back({m_objModel[i].indexBuffer.buffer, 0, VK_WHOLE_SIZE});
-  }
-  writes.emplace_back(m_descSetLayoutBind.makeWriteArray(m_descSet, 1, dbiMat.data()));
-  writes.emplace_back(m_descSetLayoutBind.makeWriteArray(m_descSet, 4, dbiMatIdx.data()));
-  writes.emplace_back(m_descSetLayoutBind.makeWriteArray(m_descSet, 5, dbiVert.data()));
-  writes.emplace_back(m_descSetLayoutBind.makeWriteArray(m_descSet, 6, dbiIdx.data()));
+// All material buffers, 1 buffer per OBJ
+std::vector<VkDescriptorBufferInfo> dbiMat;
+std::vector<VkDescriptorBufferInfo> dbiMatIdx;
+std::vector<VkDescriptorBufferInfo> dbiVert;
+std::vector<VkDescriptorBufferInfo> dbiIdx;
+for(auto& m : m_objModel)
+{
+  dbiMat.push_back({m.matColorBuffer.buffer, 0, VK_WHOLE_SIZE});
+  dbiMatIdx.push_back({m.matIndexBuffer.buffer, 0, VK_WHOLE_SIZE});
+  dbiVert.push_back({m.vertexBuffer.buffer, 0, VK_WHOLE_SIZE});
+  dbiIdx.push_back({m.indexBuffer.buffer, 0, VK_WHOLE_SIZE});
+}
+writes.emplace_back(m_descSetLayoutBind.makeWriteArray(m_descSet, 1, dbiMat.data()));
+writes.emplace_back(m_descSetLayoutBind.makeWriteArray(m_descSet, 4, dbiMatIdx.data()));
+writes.emplace_back(m_descSetLayoutBind.makeWriteArray(m_descSet, 5, dbiVert.data()));
+writes.emplace_back(m_descSetLayoutBind.makeWriteArray(m_descSet, 6, dbiIdx.data()));
 ````
 
 Originally the buffers containing the vertices and indices were only used by the rasterization pipeline. 
@@ -1032,14 +1024,11 @@ and `VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT` bits.
 We update the usage of the buffers in `loadModel`:
 
 ```` C
-model.vertexBuffer =
-m_alloc.createBuffer(cmdBuf, loader.m_vertices,
-                     vkBU::eVertexBuffer | vkBU::eStorageBuffer | vkBU::eShaderDeviceAddress
-                         | vkBU::eAccelerationStructureBuildInputReadOnlyKHR);
-model.indexBuffer =
-m_alloc.createBuffer(cmdBuf, loader.m_indices,
-                     vkBU::eIndexBuffer | vkBU::eStorageBuffer | vkBU::eShaderDeviceAddress
-                         | vkBU::eAccelerationStructureBuildInputReadOnlyKHR);
+VkBufferUsageFlags rtUsage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+                           | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
+model.vertexBuffer   = m_alloc.createBuffer(cmdBuf, loader.m_vertices, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | rtUsage);
+model.indexBuffer    = m_alloc.createBuffer(cmdBuf, loader.m_indices, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | rtUsage);
+
 ````
 
 !!! Note: Array of Buffers 
@@ -1067,15 +1056,17 @@ The implementation is straightforward, just update the output image reference:
 //
 void HelloVulkan::updateRtDescriptorSet()
 {
-  using vkDT = vk::DescriptorType;
-
   // (1) Output buffer
-  vk::DescriptorImageInfo imageInfo{
-      {}, m_offscreenColor.descriptor.imageView, vk::ImageLayout::eGeneral};
-  vk::WriteDescriptorSet wds{m_rtDescSet, 1, 0, 1, vkDT::eStorageImage, &imageInfo};
-  m_device.updateDescriptorSets(wds, nullptr);
+  VkDescriptorImageInfo imageInfo{{}, m_offscreenColor.descriptor.imageView, VK_IMAGE_LAYOUT_GENERAL};
+  VkWriteDescriptorSet  wds = m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, 1, &imageInfo);
+  vkUpdateDescriptorSets(m_device, 1, &wds, 0, nullptr);
 }
 ````
+
+!!! Note Note
+    We are using [`nvvk::DescriptorSetBindings`](https://github.com/nvpro-samples/nvpro_core/tree/master/nvvk#class-nvvkdescriptorsetbindings) 
+    to help creating the descriptor sets. This removes a lot of duplacted code and potential errors. 
+
 
 We can then add the update call to the `onResize()` method to link it to the resizing event:
 
@@ -1087,8 +1078,8 @@ The resources created in this section need to be destroyed when closing the appl
 `destroyResources`:
 
 ```` C
-  m_device.destroy(m_rtDescPool);
-  m_device.destroy(m_rtDescSetLayout);
+vkDestroyDescriptorPool(m_device, m_rtDescPool, nullptr);
+vkDestroyDescriptorSetLayout(m_device, m_rtDescSetLayout, nullptr);
 ````
 
 ## main
@@ -1211,23 +1202,24 @@ In the header file, let's add the definition of the ray tracing pipeline buildin
 pipeline:
 
 ```` C
-void                                               createRtPipeline();
-std::vector<vk::RayTracingShaderGroupCreateInfoKHR> m_rtShaderGroups;
-vk::PipelineLayout                                 m_rtPipelineLayout;
-vk::Pipeline                                       m_rtPipeline;
+void                                              createRtPipeline();
+
+std::vector<VkRayTracingShaderGroupCreateInfoKHR> m_rtShaderGroups;
+VkPipelineLayout                                  m_rtPipelineLayout;
+VkPipeline                                        m_rtPipeline;
 ````
 
 The pipeline will also use push constants to store global uniform values, namely the background color and
 the light source information:
 
 ```` C
-  struct RtPushConstant
-  {
-    nvmath::vec4f clearColor;
-    nvmath::vec3f lightPosition;
-    float         lightIntensity;
-    int           lightType;
-  } m_rtPushConstants;
+struct RtPushConstant
+{
+  nvmath::vec4f clearColor;
+  nvmath::vec3f lightPosition;
+  float         lightIntensity{100.0f};
+  int           lightType{0};
+} m_rtPushConstants;
 ````
 
 Our implementation of the ray tracing pipeline generation starts by adding the ray generation and miss shader stages,
@@ -1235,13 +1227,10 @@ followed by the closest hit shader. Note that this order is arbitrary, as the ex
 the pipeline in any order. The "stages" terminology is a holdover from the rasterization pipeline; in raytracing,
 we orchestrate the order that shaders are invoked and the data flow between them ourselves.
 
-All stages are stored in an `std::vector` of `vk::PipelineShaderStageCreateInfo` objects. As mentioned, at this step,
-indices within this vector will be used as unique identifiers for the shaders. These identifiers are stored in the
-`RayTracingShaderGroupCreateInfoKHR` structure. This structure first specifies a `type`, which represents the kind of
-shader group represented in the structure. Ray generation and miss shaders are called 'general' shaders. In this case the
-type is `eGeneral`, and only the `generalShader` member of the structure is filled. The other ones are set to
-`VK_SHADER_UNUSED_KHR`. This is also the case for the callable shaders, not used in this tutorial. In our layout the ray
-generation comes first (0), followed by the miss shader (1).
+All stages are stored in an `std::vector` of `VkPipelineShaderStageCreateInfo` objects. As mentioned, at this step,
+indices within this vector will be used as unique identifiers for the shaders. The 3 stages will be using the
+same entry point "main". Then we create a `vkCreateShaderModule` from the pre-compiled shader and defined which
+stage it correspond to. 
 
 ```` C
 //--------------------------------------------------------------------------------------------------
@@ -1249,94 +1238,121 @@ generation comes first (0), followed by the miss shader (1).
 //
 void HelloVulkan::createRtPipeline()
 {
-  std::vector<std::string> paths = defaultSearchPaths;
+  enum StageIndices
+  {
+    eRaygen,
+    eMiss,
+    eClosestHit,
+    eShaderGroupCount 
+  };
 
-  vk::ShaderModule raygenSM =
-    nvvk::createShaderModule(m_device,  //
-                             nvh::loadFile("shaders/raytrace.rgen.spv", true, paths, true));
-  vk::ShaderModule missSM =
-    nvvk::createShaderModule(m_device,  //
-                             nvh::loadFile("shaders/raytrace.rmiss.spv", true, paths, true));
+  // All stages
+  std::array<VkPipelineShaderStageCreateInfo, eShaderGroupCount> stages{};
+  VkPipelineShaderStageCreateInfo              stage{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+  stage.pName = "main";  // All the same entry point
+  // Raygen
+  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytrace.rgen.spv", true, defaultSearchPaths, true));
+  stage.stage    = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+  stages[eRaygen] = stage;
+  // Miss
+  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytrace.rmiss.spv", true, defaultSearchPaths, true));
+  stage.stage  = VK_SHADER_STAGE_MISS_BIT_KHR;
+  stages[eMiss] = stage;
+  // The second miss shader is invoked when a shadow ray misses the geometry. It simply indicates that no occlusion has been found
+  stage.module =
+      nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytraceShadow.rmiss.spv", true, defaultSearchPaths, true));
+  stage.stage   = VK_SHADER_STAGE_MISS_BIT_KHR;
+  stages[eMiss2] = stage;
+  // Hit Group - Closest Hit
+  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytrace.rchit.spv", true, defaultSearchPaths, true));
+  stage.stage  = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+  stages[eClosestHit] = stage;
+```` 
 
-  std::vector<vk::PipelineShaderStageCreateInfo> stages;
+These identifiers are stored in the
+`VkRayTracingShaderGroupCreateInfoKHR` structure. This structure first specifies a `type`, which represents the kind of
+shader group represented in the structure. Ray generation and miss shaders are called 'general' shaders. In this case the
+type is `VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR`, and only the `generalShader` member of the structure is filled. The other ones are set to
+`VK_SHADER_UNUSED_KHR`. This is also the case for the callable shaders, not used in this tutorial. In our layout the ray
+generation comes first (0), followed by the miss shader (1).
+
+  ````C
+  // Shader groups
+  VkRayTracingShaderGroupCreateInfoKHR group{VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR};
+  group.anyHitShader       = VK_SHADER_UNUSED_KHR;
+  group.closestHitShader   = VK_SHADER_UNUSED_KHR;
+  group.generalShader      = VK_SHADER_UNUSED_KHR;
+  group.intersectionShader = VK_SHADER_UNUSED_KHR;
 
   // Raygen
-  vk::RayTracingShaderGroupCreateInfoKHR rg{vk::RayTracingShaderGroupTypeKHR::eGeneral,
-                                           VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
-                                           VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
-  rg.setGeneralShader(static_cast<uint32_t>(stages.size()));
-  stages.push_back({{}, vk::ShaderStageFlagBits::eRaygenKHR, raygenSM, "main"});
-  m_rtShaderGroups.push_back(rg);
+  group.type          = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+  group.generalShader = eRaygen;
+  m_rtShaderGroups.push_back(group);
+
   // Miss
-  vk::RayTracingShaderGroupCreateInfoKHR mg{vk::RayTracingShaderGroupTypeKHR::eGeneral,
-                                           VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
-                                           VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
-  mg.setGeneralShader(static_cast<uint32_t>(stages.size()));
-  stages.push_back({{}, vk::ShaderStageFlagBits::eMissKHR, missSM, "main"});
-  m_rtShaderGroups.push_back(mg);
+  group.type          = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+  group.generalShader = eMiss;
+  m_rtShaderGroups.push_back(group);
 
 ````
 
 As detailed before, intersections are managed by 3 kinds of shaders: the intersection shader computes the ray-geometry
 intersections, the any-hit shader is run for every potential intersection, and the closest hit shader is applied to the
 closest hit point along the ray. Those 3 shaders are bound into a hit group. In our case the geometry is made of
-triangles, so the `type` of the `RayTracingShaderGroupCreateInfoKHR` is `eTrianglesHitGroup`. Raytrace hardware therefore takes
-the place of the intersection shader, so, we set the `intersectionShader` member to `VK_SHADER_UNUSED_KHR`. We do not use an any-hit
+triangles, so the `type` of the `VkRayTracingShaderGroupCreateInfoKHR` is `VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR`. 
+We first reset the `generalShader` to `VK_SHADER_UNUSED_KHR`.
+Raytrace hardware therefore takes
+the place of the intersection shader, so, we leave the `intersectionShader` member to `VK_SHADER_UNUSED_KHR`. We do not use an any-hit
 shader, letting the system use a built-in pass-through shader. Therefore, we also leave the `anyHitShader` to
 `VK_SHADER_UNUSED_KHR`. The only shader we define is then the closest hit shader, by setting the `closestHitShader`
-member to the index `2` (`stages.size()-1`), since the `stages` vector already contains the ray generation and miss
+member to the index `2` (`chit`), since the `stages` vector already contains the ray generation and miss
 shaders.
 
 ```` C
-  // Hit Group - Closest Hit + AnyHit
-  vk::ShaderModule chitSM =
-      nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace.rchit.spv", true, paths, true));
-
-  vk::RayTracingShaderGroupCreateInfoKHR hg{vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup,
-                                           VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
-                                           VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
-  hg.setClosestHitShader(static_cast<uint32_t>(stages.size()));
-  stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, chitSM, "main"});
-  m_rtShaderGroups.push_back(hg);
+// closest hit shader
+group.type             = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+group.generalShader    = VK_SHADER_UNUSED_KHR;
+group.closestHitShader = eClosestHit;
+m_rtShaderGroups.push_back(group);
 ````
 
-Note that if the geometry were not triangles, we would have set the `type` to `eProceduralHitGroup`, and would have to
+Note that if the geometry were not triangles, we would have set the `type` to `VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR`, and would have to
 define an intersection shader.
 
 After creating the shader groups, we need to setup the pipeline layout that will describe how the pipeline
 will access external data:
 
 ```` C
-  vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo;
+  VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo;
 ````
 
 We first add the push constant range to allow the ray tracing shaders to access the global uniform values:  
 
 ```` C
-  // Push constant: we want to be able to update constants used by the shaders
-  vk::PushConstantRange pushConstant{vk::ShaderStageFlagBits::eRaygenKHR
-                                         | vk::ShaderStageFlagBits::eClosestHitKHR
-                                         | vk::ShaderStageFlagBits::eMissKHR,
-                                     0, sizeof(RtPushConstant)};
-  pipelineLayoutCreateInfo.setPushConstantRangeCount(1);
-  pipelineLayoutCreateInfo.setPPushConstantRanges(&pushConstant);
+// Push constant: we want to be able to update constants used by the shaders
+VkPushConstantRange pushConstant{VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
+                                 0, sizeof(RtPushConstant)};
+
+
+VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+pipelineLayoutCreateInfo.pPushConstantRanges    = &pushConstant;
 ````
 
 As described earlier, the pipeline uses two descriptor sets: `set=0` is specific to the ray tracing pipeline (TLAS and
 output image), and `set=1` is shared with the rasterization (scene data):
 
 ```` C
-  // Descriptor sets: one specific to ray tracing, and one shared with the rasterization pipeline
-  std::vector<vk::DescriptorSetLayout> rtDescSetLayouts = {m_rtDescSetLayout, m_descSetLayout};
-  pipelineLayoutCreateInfo.setSetLayoutCount(static_cast<uint32_t>(rtDescSetLayouts.size()));
-  pipelineLayoutCreateInfo.setPSetLayouts(rtDescSetLayouts.data());
+// Descriptor sets: one specific to ray tracing, and one shared with the rasterization pipeline
+std::vector<VkDescriptorSetLayout> rtDescSetLayouts = {m_rtDescSetLayout, m_descSetLayout};
+pipelineLayoutCreateInfo.setLayoutCount             = static_cast<uint32_t>(rtDescSetLayouts.size());
+pipelineLayoutCreateInfo.pSetLayouts                = rtDescSetLayouts.data();
 ````
 
 The pipeline layout information is now complete, allowing us to create the layout itself.
 
 ```` C  
-  m_rtPipelineLayout = m_device.createPipelineLayout(pipelineLayoutCreateInfo);
+vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_rtPipelineLayout);
 ````
 
 The creation of the ray tracing pipeline is different from the classical graphics pipeline. In the graphics pipeline we
@@ -1346,19 +1362,20 @@ contain an arbitrary number of stages depending on the number of active shaders 
 We first provide all the stages that will be used:
 
 ```` C
-  // Assemble the shader stages and recursion depth info into the ray tracing pipeline
-  vk::RayTracingPipelineCreateInfoKHR rayPipelineInfo;
-  rayPipelineInfo.setStageCount(static_cast<uint32_t>(stages.size()));  // Stages are shaders
-  rayPipelineInfo.setPStages(stages.data());
+// Assemble the shader stages and recursion depth info into the ray tracing pipeline
+VkRayTracingPipelineCreateInfoKHR rayPipelineInfo{VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR};
+rayPipelineInfo.stageCount = static_cast<uint32_t>(stages.size());  // Stages are shaders
+rayPipelineInfo.pStages    = stages.data();
 ````
 
 Then, we indicate how the shaders can be assembled into groups. A ray generation or miss shader is a group by
 itself, but hit groups can comprise up to 3 shaders (intersection, any hit, closest hit).
 
 ```` C
-  rayPipelineInfo.setGroupCount(
-      static_cast<uint32_t>(m_rtShaderGroups.size()));
-  rayPipelineInfo.setPGroups(m_rtShaderGroups.data());
+// In this case, m_rtShaderGroups.size() == 3: we have one raygen group,
+// one miss shader group, and one hit group.
+rayPipelineInfo.groupCount = static_cast<uint32_t>(m_rtShaderGroups.size());
+rayPipelineInfo.pGroups    = m_rtShaderGroups.data();
 ````
 
 The ray generation and closest hit shaders can trace rays, making the ray tracing a potentially recursive process. To
@@ -1368,18 +1385,17 @@ recursion at all (i.e. a hit shader calling `TraceRayEXT()`). Note that it is pr
 as low as possible, replacing it by a loop formulation instead.
 
 ```` C
-  rayPipelineInfo.setMaxPipelineRayRecursionDepth(1);  // Ray depth
-  rayPipelineInfo.setLayout(m_rtPipelineLayout);
-  m_rtPipeline = static_cast<const vk::Pipeline&>(
-    m_device.createRayTracingPipelineKHR({}, {}, rayPipelineInfo));
+rayPipelineInfo.maxPipelineRayRecursionDepth = 1;  // Ray depth
+rayPipelineInfo.layout                       = m_rtPipelineLayout;
+
+vkCreateRayTracingPipelinesKHR(m_device, {}, {}, 1, &rayPipelineInfo, nullptr, &m_rtPipeline);
 ````
 
 Once the pipeline has been created we discard the shader modules:
 
 ```` C
-  m_device.destroy(raygenSM);
-  m_device.destroy(missSM);
-  m_device.destroy(chitSM);
+  for(auto& s : stages)
+    vkDestroyShaderModule(m_device, s.module, nullptr);
 }
 ````
 
@@ -1387,8 +1403,8 @@ The pipeline layout and the pipeline itself also have to be cleaned up upon clos
 `destroyResources`:
 
 ```` C
-  m_device.destroy(m_rtPipeline);
-  m_device.destroy(m_rtPipelineLayout);
+vkDestroyPipeline(m_device, m_rtPipeline, nullptr);
+vkDestroyPipelineLayout(m_device, m_rtPipelineLayout, nullptr);
 ````
 
 ## main
@@ -1450,6 +1466,7 @@ In this function, we start by computing the size of the binding table from the n
 aligned handle size so that we can allocate the SBT buffer.
 
 ```` C
+//--------------------------------------------------------------------------------------------------
 // The Shader Binding Table (SBT)
 // - getting all shader handles and write them in a SBT buffer
 // - Besides exception, this could be always done like this
@@ -1457,12 +1474,10 @@ aligned handle size so that we can allocate the SBT buffer.
 //
 void HelloVulkan::createRtShaderBindingTable()
 {
-  auto groupCount =
-      static_cast<uint32_t>(m_rtShaderGroups.size());               // 3 shaders: raygen, miss, chit
-  uint32_t groupHandleSize = m_rtProperties.shaderGroupHandleSize;  // Size of a program identifier
+  auto     groupCount      = static_cast<uint32_t>(m_rtShaderGroups.size());  // 4 shaders: raygen, 2 miss, chit
+  uint32_t groupHandleSize = m_rtProperties.shaderGroupHandleSize;            // Size of a program identifier
   // Compute the actual size needed per SBT entry (round-up to alignment needed).
-  uint32_t groupSizeAligned =
-      nvh::align_up(groupHandleSize, m_rtProperties.shaderGroupBaseAlignment);
+  uint32_t groupSizeAligned = nvh::align_up(groupHandleSize, m_rtProperties.shaderGroupBaseAlignment);
   // Bytes needed for the SBT.
   uint32_t sbtSize = groupCount * groupSizeAligned;
 ````
@@ -1473,19 +1488,18 @@ allocate the device memory and copy the handles into the SBT. Note that SBT buff
 of SBT buffer, therefore the buffer need also the `VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT` flag.
 
 ```` C
- // Fetch all the shader handles used in the pipeline. This is opaque data,
+  // Fetch all the shader handles used in the pipeline. This is opaque data,
   // so we store it in a vector of bytes.
   std::vector<uint8_t> shaderHandleStorage(sbtSize);
-  auto result = m_device.getRayTracingShaderGroupHandlesKHR(m_rtPipeline, 0, groupCount, sbtSize,
-                                                            shaderHandleStorage.data());
-  assert(result == vk::Result::eSuccess);
+  auto                 result = vkGetRayTracingShaderGroupHandlesKHR(m_device, m_rtPipeline, 0, groupCount, sbtSize, shaderHandleStorage.data());
+
+  assert(result == VK_SUCCESS);
 
   // Allocate a buffer for storing the SBT. Give it a debug name for NSight.
-  m_rtSBTBuffer = m_alloc.createBuffer(
-      sbtSize,
-      vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eShaderDeviceAddress
-          | vk::BufferUsageFlagBits::eShaderBindingTableKHR,
-      vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
+  m_rtSBTBuffer = m_alloc.createBuffer(sbtSize,
+                                       VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+                                           | VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR,
+                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
   m_debug.setObjectName(m_rtSBTBuffer.buffer, std::string("SBT").c_str());
 
   // Map the SBT buffer and write in the handles.
@@ -1499,6 +1513,7 @@ of SBT buffer, therefore the buffer need also the `VK_BUFFER_USAGE_SHADER_DEVICE
   m_alloc.unmap(m_rtSBTBuffer);
   m_alloc.finalizeAndReleaseStaging();
 }
+
 ````
 
 As with other resources, we destroy the SBT in `destroyResources`:
@@ -1528,6 +1543,13 @@ As with other resources, we destroy the SBT in `destroyResources`:
     array used to build the pipeline. In general though, the order of the SBT need not match
     the pipeline shader stage order.
 
+!!! Tip SBTWrapper
+    To avoid potential issues in the contruction of the SBT, we have a wrapper that uses the information 
+    sent to the creation of the ray tracing pipeline to allocate the SBT. In further tutorials 
+    we might use the [`nnvk::SBTWrapper`](https://github.com/nvpro-samples/nvpro_core/tree/master/nvvk#sbtwrapper_vkhpp) 
+    instead of manually describing all steps. 
+
+
 ## main
 
 In the `main` function, we now add the construction of the Shader Binding Table:
@@ -1541,32 +1563,36 @@ In the `main` function, we now add the construction of the Shader Binding Table:
 Let's create a function that will record commands to call the ray trace shaders. First, add the declaration to the header
 
 ```` C
-void       raytrace(const vk::CommandBuffer& cmdBuf, const nvmath::vec4f& clearColor);
+void       raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor);
 ````
 
 We first bind the pipeline and its layout, and set the push constants that will be available throughout the pipeline:
 
 ```` C
+m_alloc.unmap(m_rtSBTBuffer);
+m_alloc.finalizeAndReleaseStaging();
+}
+
 //--------------------------------------------------------------------------------------------------
 // Ray Tracing the scene
 //
-void HelloVulkan::raytrace(const vk::CommandBuffer& cmdBuf, const nvmath::vec4f& clearColor)
+void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor)
 {
-  m_debug.beginLabel(cmdBuf, "Ray trace");
-  // Initializing push constant values
-  m_rtPushConstants.clearColor     = clearColor;
-  m_rtPushConstants.lightPosition  = m_pushConstant.lightPosition;
-  m_rtPushConstants.lightIntensity = m_pushConstant.lightIntensity;
-  m_rtPushConstants.lightType      = m_pushConstant.lightType;
+m_debug.beginLabel(cmdBuf, "Ray trace");
+// Initializing push constant values
+m_rtPushConstants.clearColor     = clearColor;
+m_rtPushConstants.lightPosition  = m_pushConstant.lightPosition;
+m_rtPushConstants.lightIntensity = m_pushConstant.lightIntensity;
+m_rtPushConstants.lightType      = m_pushConstant.lightType;
 
-  cmdBuf.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, m_rtPipeline);
-  cmdBuf.bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR, m_rtPipelineLayout, 0,
-                            {m_rtDescSet, m_descSet}, {});
-  cmdBuf.pushConstants<RtPushConstant>(m_rtPipelineLayout,
-                                       vk::ShaderStageFlagBits::eRaygenKHR
-                                           | vk::ShaderStageFlagBits::eClosestHitKHR
-                                           | vk::ShaderStageFlagBits::eMissKHR,
-                                       0, m_rtPushConstants);
+
+std::vector<VkDescriptorSet> descSets{m_rtDescSet, m_descSet};
+vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipeline);
+vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipelineLayout, 0,
+                        (uint32_t)descSets.size(), descSets.data(), 0, nullptr);
+vkCmdPushConstants(cmdBuf, m_rtPipelineLayout,
+                   VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
+                   0, sizeof(RtPushConstant), &m_rtPushConstants);
 ````
   
 Since the structure of the Shader Binding Table is up to the developer, we need to indicate the ray tracing pipeline how
@@ -1584,18 +1610,19 @@ The location for each array of the SBT is passed as a `VkStridedDeviceAddressReg
 * The size in bytes of the entire array
 
 ```` C  
-  // Size of a program identifier
-  uint32_t groupSize =
-      nvh::align_up(m_rtProperties.shaderGroupHandleSize, m_rtProperties.shaderGroupBaseAlignment);
-  uint32_t          groupStride = groupSize;
-  vk::DeviceAddress sbtAddress  = m_device.getBufferAddress({m_rtSBTBuffer.buffer});
+// Size of a program identifier
+uint32_t groupSize   = nvh::align_up(m_rtProperties.shaderGroupHandleSize, m_rtProperties.shaderGroupBaseAlignment);
+uint32_t groupStride = groupSize;
 
-  using Stride = vk::StridedDeviceAddressRegionKHR;
-  std::array<Stride, 4> strideAddresses{
-      Stride{sbtAddress + 0u * groupSize, groupStride, groupSize * 1},  // raygen
-      Stride{sbtAddress + 1u * groupSize, groupStride, groupSize * 1},  // miss
-      Stride{sbtAddress + 2u * groupSize, groupStride, groupSize * 1},  // hit
-      Stride{0u, 0u, 0u}};                                              // callable
+VkBufferDeviceAddressInfo info{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO};
+info.buffer                = m_rtSBTBuffer.buffer;
+VkDeviceAddress sbtAddress = vkGetBufferDeviceAddress(m_device, &info);
+
+using Stride = VkStridedDeviceAddressRegionKHR;
+std::array<Stride, 4> strideAddresses{Stride{sbtAddress + 0u * groupSize, groupStride, groupSize * 1},  // raygen
+                                      Stride{sbtAddress + 1u * groupSize, groupStride, groupSize * 1},  // miss
+                                      Stride{sbtAddress + 2u * groupSize, groupStride, groupSize * 1},  // hit
+                                      Stride{0u, 0u, 0u}};                                              // callable
 ````
 
 !!! NOTE Separate Arrays
@@ -1610,9 +1637,8 @@ three parameters are equivalent to the grid size of a compute launch, and repres
 we want to trace one ray per pixel, the grid size has the width and height of the output image, and a depth of 1.
 
 ```` C  
-  cmdBuf.traceRaysKHR(&strideAddresses[0], &strideAddresses[1], &strideAddresses[2],
-                      &strideAddresses[3],              //
-                      m_size.width, m_size.height, 1);  //
+  vkCmdTraceRaysKHR(cmdBuf, &strideAddresses[0], &strideAddresses[1], &strideAddresses[2], &strideAddresses[3],
+                    m_size.width, m_size.height, 1);
 
   m_debug.endLabel(cmdBuf);
 }
@@ -1621,6 +1647,13 @@ we want to trace one ray per pixel, the grid size has the width and height of th
 !!! TIP Raygen shader selection
     If you built a pipeline with multiple raygen shaders, the raygen shader can be selected by changing the
     device address of the first `VkStridedDeviceAddressRegionKHR` structure (change the `0u` in `sbtAddress + 0u * groupSize`).
+
+!!! TIP SBTWrapper 
+    When using the SBTWrapper, the above could be replaced by
+    ```
+    auto& regions = m_stbWrapper.getRegions();
+    vkCmdTraceRaysKHR(cmdBuf, &regions[0], &regions[1], &regions[2], &regions[3], size.width, size.height, 1);
+    ```
 
 # Let's Ray Trace
 
@@ -1647,17 +1680,17 @@ A few lines below, you can find a block containing the `helloVk.rasterize` call.
 render modes, we replace that block by
 
 ```` C
-  // Rendering Scene
-  if(useRaytracer)
-  {
-    helloVk.raytrace(cmdBuff, clearColor);
-  }
-  else
-  {
-    cmdBuff.beginRenderPass(offscreenRenderPassBeginInfo, vk::SubpassContents::eInline);
-    helloVk.rasterize(cmdBuff);
-    cmdBuff.endRenderPass();
-  }
+// Rendering Scene
+if(useRaytracer)
+{
+  helloVk.raytrace(cmdBuf, clearColor);
+}
+else
+{
+  vkCmdBeginRenderPass(cmdBuf, &offscreenRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+  helloVk.rasterize(cmdBuf);
+  vkCmdEndRenderPass(cmdBuf);
+}
 ````
 
 Note that the ray tracing behaves more like a compute shader than a graphics task, and is then outside of a render pass.
@@ -1701,8 +1734,7 @@ hostUBO.projInverse = nvmath::invert(hostUBO.proj);
 
 We also have to indicate that the UBO will be used in the raytracing shaders.
 ```` C
-  auto uboUsageStages = vk::PipelineStageFlagBits::eVertexShader
-                      | vk::PipelineStageFlagBits::eRayTracingShaderKHR;
+auto     uboUsageStages = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR;
 ````
 
 ## Ray generation (raytrace.rgen)
@@ -2126,21 +2158,33 @@ the GLSL file.
 In the body of `createRtPipeline`, we need to define the new miss shader right after the previous miss shader:
 
 ```` C
-  // The second miss shader is invoked when a shadow ray misses the geometry. It
-  // simply indicates that no occlusion has been found
-  vk::ShaderModule shadowmissSM =
-      nvvk::createShaderModule(m_device,
-                               nvh::loadFile("shaders/raytraceShadow.rmiss.spv", true, paths, true));
+enum StageIndices
+{
+  eRaygen,
+  eMiss,
+  eMiss2,
+  eClosestHit,
+  eShaderGroupCount 
+};
+```` 
 
+And create the stage
+
+```` C
+// The second miss shader is invoked when a shadow ray misses the geometry. It simply indicates that no occlusion has been found
+stage.module =
+    nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytraceShadow.rmiss.spv", true, defaultSearchPaths, true));
+stage.stage   = VK_SHADER_STAGE_MISS_BIT_KHR;
+stages[eMiss2] = stage;
 ````
 
 After pushing the miss shader `missSM`, we also push the miss shader for the shadow rays:
 
 ```` C
-  // Shadow Miss
-  mg.setGeneralShader(static_cast<uint32_t>(stages.size()));
-  stages.push_back({{}, vk::ShaderStageFlagBits::eMissKHR, shadowmissSM, "main"});
-  m_rtShaderGroups.push_back(mg);
+// Shadow Miss
+group.type          = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+group.generalShader = eMiss2;
+m_rtShaderGroups.push_back(group);
 ````
 
 The pipeline now has to allow shooting rays from the closest hit program, which requires increasing the recursion level to 2:
@@ -2150,19 +2194,14 @@ The pipeline now has to allow shooting rays from the closest hit program, which 
   // hit points of the camera rays, hence a recursion level of 2. This number should be kept as low
   // as possible for performance reasons. Even recursive ray tracing should be flattened into a loop
   // in the ray generation to avoid deep recursion.
-  rayPipelineInfo.setMaxPipelineRayRecursionDepth(2);  // Ray depth
+  rayPipelineInfo.maxPipelineRayRecursionDepth = 2;  // Ray depth
 ````
 
-At the end of the method, we destroy the shader module for the shadow miss shader:
-
-```` C
-  m_device.destroy(shadowmissSM);
-````
 
 !!! WARNING Recursion Limit
     The spec does not guarantee a recursion check at runtime. If you exceed either
     the recursion depth you reported in the raytrace pipeline create info, or the
-    physical device recursion limit, undefined behaviour results.
+    physical device recursion limit, undefined behavior results.
     
     The KHR raytracing spec lowers the minimum guaranteed recursion limit from
     31 (in the original NV spec) to the much more modest limit of 1 (i.e. no
@@ -2203,19 +2242,19 @@ This also points out that in real-world applications the SBT should be embedded 
 automatically.
 
 ```` C
-  vk::DeviceSize hitGroupOffset = 3u * progSize;  // Jump over the raygen and 2 miss shaders
+Stride{sbtAddress + 3u * groupSize, groupStride, groupSize * 1},  // hit - Jump over the raygen and 2 miss shaders
 ````
 
 ## `createRtDescriptorSet`
 
 For each resource entry in the descriptor set, we indicated which shader stage would be able to use it. Since shadow
-rays will be traced from the closest hit shader, we add `vkSS::eClosestHitKHR` to the acceleration structure binding:
+rays will be traced from the closest hit shader, we add `VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR` to the acceleration structure binding:
 
 ```` C
   // Top-level acceleration structure, usable by both the ray generation and the closest hit (to
   // shoot shadow rays)
-  m_rtDescSetLayoutBind.emplace_back(
-      vkDSLB(0, vkDT::eAccelerationStructureKHR, 1, vkSS::eRaygenKHR | vkSS::eClosestHitKHR));  // TLAS
+  m_rtDescSetLayoutBind.addBinding(0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1,
+                                   VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);  // TLAS
 ````
 
 ## `raytrace.rchit`

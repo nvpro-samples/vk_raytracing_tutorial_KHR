@@ -38,12 +38,11 @@ void ObjLoader::loadModel(const std::string& filename)
   for(const auto& material : reader.GetMaterials())
   {
     MaterialObj m;
-    m.ambient  = nvmath::vec3f(material.ambient[0], material.ambient[1], material.ambient[2]);
-    m.diffuse  = nvmath::vec3f(material.diffuse[0], material.diffuse[1], material.diffuse[2]);
-    m.specular = nvmath::vec3f(material.specular[0], material.specular[1], material.specular[2]);
-    m.emission = nvmath::vec3f(material.emission[0], material.emission[1], material.emission[2]);
-    m.transmittance = nvmath::vec3f(material.transmittance[0], material.transmittance[1],
-                                    material.transmittance[2]);
+    m.ambient       = nvmath::vec3f(material.ambient[0], material.ambient[1], material.ambient[2]);
+    m.diffuse       = nvmath::vec3f(material.diffuse[0], material.diffuse[1], material.diffuse[2]);
+    m.specular      = nvmath::vec3f(material.specular[0], material.specular[1], material.specular[2]);
+    m.emission      = nvmath::vec3f(material.emission[0], material.emission[1], material.emission[2]);
+    m.transmittance = nvmath::vec3f(material.transmittance[0], material.transmittance[1], material.transmittance[2]);
     m.dissolve      = material.dissolve;
     m.ior           = material.ior;
     m.shininess     = material.shininess;
@@ -67,8 +66,7 @@ void ObjLoader::loadModel(const std::string& filename)
   {
     m_vertices.reserve(shape.mesh.indices.size() + m_vertices.size());
     m_indices.reserve(shape.mesh.indices.size() + m_indices.size());
-    m_matIndx.insert(m_matIndx.end(), shape.mesh.material_ids.begin(),
-                     shape.mesh.material_ids.end());
+    m_matIndx.insert(m_matIndx.end(), shape.mesh.material_ids.begin(), shape.mesh.material_ids.end());
 
     for(const auto& index : shape.mesh.indices)
     {

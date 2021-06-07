@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include "nvvk/appbase_vkpp.hpp"
+#include "nvvk/appbase_vk.hpp"
 #include "nvvk/debug_util_vk.hpp"
 #include "nvvk/resourceallocator_vk.hpp"
 
@@ -56,25 +56,21 @@ using Allocator = nvvk::ResourceAllocatorDedicated;
 // - Rendering is done in an offscreen framebuffer
 // - The image of the framebuffer is displayed in post-process in a full-screen quad
 //
-class HelloVulkan : public nvvk::AppBase
+class HelloVulkan : public nvvk::AppBaseVk
 {
 public:
-  void setup(const vk::Instance&       instance,
-             const vk::Device&         device,
-             const vk::PhysicalDevice& physicalDevice,
-             uint32_t                  queueFamily) override;
+  void setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t queueFamily) override;
   void createDescriptorSetLayout();
   void createGraphicsPipeline();
   void loadModel(const std::string& filename, nvmath::mat4f transform = nvmath::mat4f(1));
   void updateDescriptorSet();
   void createUniformBuffer();
   void createSceneDescriptionBuffer();
-  void createTextureImages(const vk::CommandBuffer&        cmdBuf,
-                           const std::vector<std::string>& textures);
-  void updateUniformBuffer(const vk::CommandBuffer& cmdBuf);
+  void createTextureImages(const VkCommandBuffer& cmdBuf, const std::vector<std::string>& textures);
+  void updateUniformBuffer(const VkCommandBuffer& cmdBuf);
   void onResize(int /*w*/, int /*h*/) override;
   void destroyResources();
-  void rasterize(const vk::CommandBuffer& cmdBuff);
+  void rasterize(const VkCommandBuffer& cmdBuff);
 
   Offscreen& offscreen() { return m_offscreen; }
   Raytracer& raytracer() { return m_raytrace; }
@@ -87,12 +83,12 @@ public:
 
 
   // Graphic pipeline
-  vk::PipelineLayout          m_pipelineLayout;
-  vk::Pipeline                m_graphicsPipeline;
+  VkPipelineLayout          m_pipelineLayout;
+  VkPipeline                m_graphicsPipeline;
   nvvk::DescriptorSetBindings m_descSetLayoutBind;
-  vk::DescriptorPool          m_descPool;
-  vk::DescriptorSetLayout     m_descSetLayout;
-  vk::DescriptorSet           m_descSet;
+  VkDescriptorPool          m_descPool;
+  VkDescriptorSetLayout     m_descSetLayout;
+  VkDescriptorSet           m_descSet;
 
   int  m_maxFrames{10};
   void resetFrame();
@@ -115,7 +111,7 @@ public:
   Raytracer m_raytrace;
 
   void initRayTracing();
-  void raytrace(const vk::CommandBuffer& cmdBuf, const nvmath::vec4f& clearColor);
+  void raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor);
 
   // Implicit
   ImplInst m_implObjects;

@@ -19,11 +19,11 @@
 
 #pragma once
 
-
-#include "nvvk/appbase_vkpp.hpp"
+#include "nvvk/appbase_vk.hpp"
 #include "nvvk/debug_util_vk.hpp"
 #include "nvvk/descriptorsets_vk.hpp"
 #include "nvvk/memallocator_dma_vk.hpp"
+#include "nvvk/resourceallocator_vk.hpp"
 
 // #VKRay
 #include "nvvk/raytraceKHR_vk.hpp"
@@ -35,25 +35,21 @@
 // - Rendering is done in an offscreen framebuffer
 // - The image of the framebuffer is displayed in post-process in a full-screen quad
 //
-class HelloVulkan : public nvvk::AppBase
+class HelloVulkan : public nvvk::AppBaseVk
 {
 public:
-  void setup(const vk::Instance&       instance,
-             const vk::Device&         device,
-             const vk::PhysicalDevice& physicalDevice,
-             uint32_t                  queueFamily) override;
+  void setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t queueFamily) override;
   void createDescriptorSetLayout();
   void createGraphicsPipeline();
   void loadModel(const std::string& filename, nvmath::mat4f transform = nvmath::mat4f(1));
   void updateDescriptorSet();
   void createUniformBuffer();
   void createSceneDescriptionBuffer();
-  void createTextureImages(const vk::CommandBuffer&        cmdBuf,
-                           const std::vector<std::string>& textures);
-  void updateUniformBuffer(const vk::CommandBuffer& cmdBuf);
+  void createTextureImages(const VkCommandBuffer& cmdBuf, const std::vector<std::string>& textures);
+  void updateUniformBuffer(const VkCommandBuffer& cmdBuf);
   void onResize(int /*w*/, int /*h*/) override;
   void destroyResources();
-  void rasterize(const vk::CommandBuffer& cmdBuff);
+  void rasterize(const VkCommandBuffer& cmdBuff);
 
   // The OBJ model
   struct ObjModel
@@ -90,39 +86,41 @@ public:
   std::vector<ObjInstance> m_objInstance;
 
   // Graphic pipeline
-  vk::PipelineLayout          m_pipelineLayout;
-  vk::Pipeline                m_graphicsPipeline;
+  VkPipelineLayout            m_pipelineLayout;
+  VkPipeline                  m_graphicsPipeline;
   nvvk::DescriptorSetBindings m_descSetLayoutBind;
-  vk::DescriptorPool          m_descPool;
-  vk::DescriptorSetLayout     m_descSetLayout;
-  vk::DescriptorSet           m_descSet;
+  VkDescriptorPool            m_descPool;
+  VkDescriptorSetLayout       m_descSetLayout;
+  VkDescriptorSet             m_descSet;
 
   nvvk::Buffer               m_cameraMat;  // Device-Host of the camera matrices
   nvvk::Buffer               m_sceneDesc;  // Device buffer of the OBJ instances
   std::vector<nvvk::Texture> m_textures;   // vector of all textures of the scene
 
+
   nvvk::ResourceAllocatorDma m_alloc;  // Allocator for buffer, images, acceleration structures
   nvvk::DebugUtil            m_debug;  // Utility to name objects
+
 
   // #Post
   void createOffscreenRender();
   void createPostPipeline();
   void createPostDescriptor();
   void updatePostDescriptorSet();
-  void drawPost(vk::CommandBuffer cmdBuf);
+  void drawPost(VkCommandBuffer cmdBuf);
 
   nvvk::DescriptorSetBindings m_postDescSetLayoutBind;
-  vk::DescriptorPool          m_postDescPool;
-  vk::DescriptorSetLayout     m_postDescSetLayout;
-  vk::DescriptorSet           m_postDescSet;
-  vk::Pipeline                m_postPipeline;
-  vk::PipelineLayout          m_postPipelineLayout;
-  vk::RenderPass              m_offscreenRenderPass;
-  vk::Framebuffer             m_offscreenFramebuffer;
+  VkDescriptorPool            m_postDescPool{VK_NULL_HANDLE};
+  VkDescriptorSetLayout       m_postDescSetLayout{VK_NULL_HANDLE};
+  VkDescriptorSet             m_postDescSet{VK_NULL_HANDLE};
+  VkPipeline                  m_postPipeline{VK_NULL_HANDLE};
+  VkPipelineLayout            m_postPipelineLayout{VK_NULL_HANDLE};
+  VkRenderPass                m_offscreenRenderPass{VK_NULL_HANDLE};
+  VkFramebuffer               m_offscreenFramebuffer{VK_NULL_HANDLE};
   nvvk::Texture               m_offscreenColor;
-  vk::Format                  m_offscreenColorFormat{vk::Format::eR32G32B32A32Sfloat};
   nvvk::Texture               m_offscreenDepth;
-  vk::Format                  m_offscreenDepthFormat{vk::Format::eX8D24UnormPack32};
+  VkFormat                    m_offscreenColorFormat{VK_FORMAT_R32G32B32A32_SFLOAT};
+  VkFormat                    m_offscreenDepthFormat{VK_FORMAT_X8_D24_UNORM_PACK32};
 
   // #VKRay
   void initRayTracing();
@@ -133,26 +131,26 @@ public:
   void updateRtDescriptorSet();
   void createRtPipeline();
   void createRtShaderBindingTable();
-  void raytrace(const vk::CommandBuffer& cmdBuf, const nvmath::vec4f& clearColor);
+  void raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor);
 
 
-  vk::PhysicalDeviceRayTracingPipelinePropertiesKHR   m_rtProperties;
-  nvvk::RaytracingBuilderKHR                          m_rtBuilder;
-  nvvk::DescriptorSetBindings                         m_rtDescSetLayoutBind;
-  vk::DescriptorPool                                  m_rtDescPool;
-  vk::DescriptorSetLayout                             m_rtDescSetLayout;
-  vk::DescriptorSet                                   m_rtDescSet;
-  std::vector<vk::RayTracingShaderGroupCreateInfoKHR> m_rtShaderGroups;
-  vk::PipelineLayout                                  m_rtPipelineLayout;
-  vk::Pipeline                                        m_rtPipeline;
-  nvvk::Buffer                                        m_rtSBTBuffer;
+  VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
+  nvvk::RaytracingBuilderKHR                      m_rtBuilder;
+  nvvk::DescriptorSetBindings                     m_rtDescSetLayoutBind;
+  VkDescriptorPool                                m_rtDescPool;
+  VkDescriptorSetLayout                           m_rtDescSetLayout;
+  VkDescriptorSet                                 m_rtDescSet;
+  std::vector<VkRayTracingShaderGroupCreateInfoKHR> m_rtShaderGroups;
+  VkPipelineLayout                                  m_rtPipelineLayout;
+  VkPipeline                                        m_rtPipeline;
+  nvvk::Buffer                                      m_rtSBTBuffer;
 
   struct RtPushConstant
   {
     nvmath::vec4f clearColor;
     nvmath::vec3f lightPosition;
-    float         lightIntensity;
-    int           lightType;
+    float         lightIntensity{100.0f};
+    int           lightType{0};
   } m_rtPushConstants;
 
 

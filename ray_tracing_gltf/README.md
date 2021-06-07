@@ -128,9 +128,10 @@ attributes, we will store the offsets information of that geometry.
   // The following is used to find the primitive mesh information in the CHIT
   std::vector<RtPrimitiveLookup> primLookup;
   for(auto& primMesh : m_gltfScene.m_primMeshes)
+  {
     primLookup.push_back({primMesh.firstIndex, primMesh.vertexOffset, primMesh.materialIndex});
-  m_rtPrimLookup =
-      m_alloc.createBuffer(cmdBuf, primLookup, vk::BufferUsageFlagBits::eStorageBuffer);
+  }
+  m_rtPrimLookup = m_alloc.createBuffer(cmdBuf, primLookup, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 ~~~~
 
 
@@ -145,35 +146,45 @@ The function is similar, only the input is different.
 //
 auto HelloVulkan::primitiveToGeometry(const nvh::GltfPrimMesh& prim)
 {
-   // Building part
-  vk::DeviceAddress vertexAddress = m_device.getBufferAddress({m_vertexBuffer.buffer});
-  vk::DeviceAddress indexAddress  = m_device.getBufferAddress({m_indexBuffer.buffer});
+  // BLAS builder requires raw device addresses.
+  VkBufferDeviceAddressInfo info{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO};
+  info.buffer                   = m_vertexBuffer.buffer;
+  VkDeviceAddress vertexAddress = vkGetBufferDeviceAddress(m_device, &info);
+  info.buffer                   = m_indexBuffer.buffer;
+  VkDeviceAddress indexAddress  = vkGetBufferDeviceAddress(m_device, &info);
 
-  vk::AccelerationStructureGeometryTrianglesDataKHR triangles;
-  triangles.setVertexFormat(vk::Format::eR32G32B32Sfloat);
-  triangles.setVertexData(vertexAddress);
-  triangles.setVertexStride(sizeof(nvmath::vec3f));
-  triangles.setIndexType(vk::IndexType::eUint32);
-  triangles.setIndexData(indexAddress);
-  triangles.setTransformData({});
-  triangles.setMaxVertex(prim.vertexCount);
+  uint32_t maxPrimitiveCount = prim.indexCount / 3;
 
-  // Setting up the build info of the acceleration
-  vk::AccelerationStructureGeometryKHR asGeom;
-  asGeom.setGeometryType(vk::GeometryTypeKHR::eTriangles);
-  asGeom.setFlags(vk::GeometryFlagBitsKHR::eNoDuplicateAnyHitInvocation);  // For AnyHit
-  asGeom.geometry.setTriangles(triangles);
+  // Describe buffer as array of VertexObj.
+  VkAccelerationStructureGeometryTrianglesDataKHR triangles{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR};
+  triangles.vertexFormat             = VK_FORMAT_R32G32B32A32_SFLOAT;  // vec3 vertex position data.
+  triangles.vertexData.deviceAddress = vertexAddress;
+  triangles.vertexStride             = sizeof(nvmath::vec3f);
+  // Describe index data (32-bit unsigned int)
+  triangles.indexType               = VK_INDEX_TYPE_UINT32;
+  triangles.indexData.deviceAddress = indexAddress;
+  // Indicate identity transform by setting transformData to null device pointer.
+  //triangles.transformData = {};
+  triangles.maxVertex = prim.vertexCount;
 
-  vk::AccelerationStructureBuildRangeInfoKHR offset;
-  offset.setFirstVertex(prim.vertexOffset);
-  offset.setPrimitiveCount(prim.indexCount / 3);
-  offset.setPrimitiveOffset(prim.firstIndex * sizeof(uint32_t));
-  offset.setTransformOffset(0);
+  // Identify the above data as containing opaque triangles.
+  VkAccelerationStructureGeometryKHR asGeom{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
+  asGeom.geometryType       = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+  asGeom.flags              = VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR;  // For AnyHit
+  asGeom.geometry.triangles = triangles;
 
-  nvvk::RaytracingBuilderKHR::Blas blas;
-  blas.asGeometry.emplace_back(asGeom);
-  blas.asBuildOffsetInfo.emplace_back(offset);
-  return blas;
+  VkAccelerationStructureBuildRangeInfoKHR offset;
+  offset.firstVertex     = prim.vertexOffset;
+  offset.primitiveCount  = prim.indexCount / 3;
+  offset.primitiveOffset = prim.firstIndex * sizeof(uint32_t);
+  offset.transformOffset = 0;
+
+  // Our blas is made from only one geometry, but could be made of many geometries
+  nvvk::RaytracingBuilderKHR::BlasInput input;
+  input.asGeometry.emplace_back(asGeom);
+  input.asBuildOffsetInfo.emplace_back(offset);
+
+  return input;
 }
 ~~~~
 
@@ -207,11 +218,9 @@ each node, we will be pushing the instance Id (retrieve the matrix) and the mate
 don't have a scene graph, we could loop over all drawable nodes.
 
 ~~~~C
-  std::vector<vk::Buffer> vertexBuffers = {m_vertexBuffer.buffer, m_normalBuffer.buffer,
-                                           m_uvBuffer.buffer};
-  cmdBuf.bindVertexBuffers(0, static_cast<uint32_t>(vertexBuffers.size()), vertexBuffers.data(),
-                           offsets.data());
-  cmdBuf.bindIndexBuffer(m_indexBuffer.buffer, 0, vk::IndexType::eUint32);
+  std::vector<VkBuffer> vertexBuffers = {m_vertexBuffer.buffer, m_normalBuffer.buffer, m_uvBuffer.buffer};
+  vkCmdBindVertexBuffers(cmdBuf, 0, static_cast<uint32_t>(vertexBuffers.size()), vertexBuffers.data(), offsets.data());
+  vkCmdBindIndexBuffer(cmdBuf, m_indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 
   uint32_t idxNode = 0;
   for(auto& node : m_gltfScene.m_nodes)
@@ -220,10 +229,9 @@ don't have a scene graph, we could loop over all drawable nodes.
 
     m_pushConstant.instanceId = idxNode++;
     m_pushConstant.materialId = primitive.materialIndex;
-    cmdBuf.pushConstants<ObjPushConstant>(
-        m_pipelineLayout, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, 0,
-        m_pushConstant);
-    cmdBuf.drawIndexed(primitive.indexCount, 1, primitive.firstIndex, primitive.vertexOffset, 0);
+    vkCmdPushConstants(cmdBuf, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                       sizeof(ObjPushConstant), &m_pushConstant);
+    vkCmdDrawIndexed(cmdBuf, primitive.indexCount, 1, primitive.firstIndex, primitive.vertexOffset, 0);
   }
 ~~~~
 
@@ -234,12 +242,12 @@ In `createRtDescriptorSet()`, the only change we will add is the primitive info 
 the data when hitting a triangle. 
 
 ~~~~C
-m_rtDescSetLayoutBind.addBinding(
-      vkDSLB(2, vkDT::eStorageBuffer, 1, vkSS::eClosestHitNV | vkSS::eAnyHitNV));  // Primitive info
-....
-vk::DescriptorBufferInfo primitiveInfoDesc{m_rtPrimLookup.buffer, 0, VK_WHOLE_SIZE};
-....
-writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, 2, &primitiveInfoDesc));
+  m_rtDescSetLayoutBind.addBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
+                                   VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR);  // Primitive info
+// ...
+  VkDescriptorBufferInfo primitiveInfoDesc{m_rtPrimLookup.buffer, 0, VK_WHOLE_SIZE};
+// ...
+  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, 2, &primitiveInfoDesc));
 ~~~~
 
 

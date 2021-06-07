@@ -18,8 +18,6 @@
  */
 
 
-#include <vulkan/vulkan.hpp>
-
 #include "nvvk/debug_util_vk.hpp"
 #include "nvvk/descriptorsets_vk.hpp"
 #include "nvvk/resourceallocator_vk.hpp"
@@ -33,40 +31,36 @@
 class Offscreen
 {
 public:
-  void setup(const vk::Device&         device,
-             const vk::PhysicalDevice& physicalDevice,
-             nvvk::ResourceAllocator*  allocator,
-             uint32_t                  queueFamily);
+  void setup(const VkDevice& device, const VkPhysicalDevice& physicalDevice, nvvk::ResourceAllocator* allocator, uint32_t queueFamily);
   void destroy();
 
   void createFramebuffer(VkExtent2D& size);
-  void createPipeline(vk::RenderPass& renderPass);
+  void createPipeline(VkRenderPass& renderPass);
   void createDescriptor();
   void updateDescriptorSet();
-  void draw(vk::CommandBuffer cmdBuf, VkExtent2D& size);
+  void draw(VkCommandBuffer cmdBuf, VkExtent2D& size);
 
-  const vk::RenderPass&  renderPass() { return m_renderPass; }
-  const vk::Framebuffer& frameBuffer() { return m_framebuffer; }
-  const nvvk::Texture&   colorTexture() { return m_colorTexture; }
+  const VkRenderPass&  renderPass() { return m_renderPass; }
+  const VkFramebuffer& frameBuffer() { return m_framebuffer; }
+  const nvvk::Texture& colorTexture() { return m_colorTexture; }
 
 private:
   nvvk::DescriptorSetBindings m_dsetLayoutBinding;
-  vk::DescriptorPool          m_descPool;
-  vk::DescriptorSetLayout     m_dsetLayout;
-  vk::DescriptorSet           m_dset;
-  vk::Pipeline                m_pipeline;
-  vk::PipelineLayout          m_pipelineLayout;
-  vk::RenderPass              m_renderPass;
-  vk::Framebuffer             m_framebuffer;
+  VkDescriptorPool            m_descPool{VK_NULL_HANDLE};
+  VkDescriptorSetLayout       m_dsetLayout{VK_NULL_HANDLE};
+  VkDescriptorSet             m_dset{VK_NULL_HANDLE};
+  VkPipeline                  m_pipeline{VK_NULL_HANDLE};
+  VkPipelineLayout            m_pipelineLayout{VK_NULL_HANDLE};
+  VkRenderPass                m_renderPass{VK_NULL_HANDLE};
+  VkFramebuffer               m_framebuffer{VK_NULL_HANDLE};
 
   nvvk::Texture m_colorTexture;
-  vk::Format    m_colorFormat{vk::Format::eR32G32B32A32Sfloat};
+  VkFormat      m_colorFormat{VK_FORMAT_R32G32B32A32_SFLOAT};
   nvvk::Texture m_depthTexture;
-  vk::Format    m_depthFormat{vk::Format::eX8D24UnormPack32};
+  VkFormat      m_depthFormat{VK_FORMAT_X8_D24_UNORM_PACK32};
 
-  nvvk::ResourceAllocator* m_alloc{
-      nullptr};  // Allocator for buffer, images, acceleration structures
-  vk::Device      m_device;
-  int             m_graphicsQueueIndex{0};
-  nvvk::DebugUtil m_debug;  // Utility to name objects
+  nvvk::ResourceAllocator* m_alloc{nullptr};  // Allocator for buffer, images, acceleration structures
+  VkDevice                 m_device;
+  int                      m_graphicsQueueIndex{0};
+  nvvk::DebugUtil          m_debug;  // Utility to name objects
 };

@@ -108,25 +108,30 @@ The any hit shader will be part of the hit shader group. Currently, the hit shad
 In `createRtPipeline()`, after loading `raytrace.rchit.spv`, load `raytrace.rahit.spv`
 
 ~~~~ C++
-  vk::ShaderModule ahitSM =
-      nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace.rahit.spv", true, paths));
+  enum StageIndices
+  {
+    ...
+    eAnyHit,
+    eShaderGroupCount
+  };
+
+  // Hit Group - Any Hit
+  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytrace.rahit.spv", true, defaultSearchPaths, true));
+  stage.stage     = VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
+  stages[eAnyHit] = stage;
 ~~~~
 
-add the any hit shader to the hit group
+The Any Hit goes in the same Hit group as the Closest Hit, so we need to
+add the Any Hit stage index and push back the shader module to the stages.
 
 ~~~~ C++
-  hg.setClosestHitShader(static_cast<uint32_t>(stages.size()));
-  stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, chitSM, "main"});
-  hg.setAnyHitShader(static_cast<uint32_t>(stages.size()));
-  stages.push_back({{}, vk::ShaderStageFlagBits::eAnyHitKHR, ahitSM, "main"});
-  m_rtShaderGroups.push_back(hg);
-~~~~
-
-and at the end, delete it:
-
-~~~~ C++
-m_device.destroy(ahitSM);
+  // closest hit shader
+  // Payload 0
+  group.type             = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+  group.generalShader    = VK_SHADER_UNUSED_KHR;
+  group.closestHitShader = eClosestHit;
+  group.anyHitShader     = eAnyHit;
+  m_rtShaderGroups.push_back(group);
 ~~~~
 
 ## Give access of the buffers to the Any Hit shader
@@ -137,38 +142,37 @@ This is the case for the material and scene description buffers
 
 ~~~~ C++
   // Materials (binding = 1)
-  m_descSetLayoutBind.emplace_back(
-      vkDS(1, vkDT::eStorageBuffer, nbObj,
-           vkSS::eVertex | vkSS::eFragment | vkSS::eClosestHitKHR | vkSS::eAnyHitKHR));
+  m_descSetLayoutBind.addBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nbObj,
+                                 VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
+                                     | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR);
   // Scene description (binding = 2)
-  m_descSetLayoutBind.emplace_back(  //
-      vkDS(2, vkDT::eStorageBuffer, 1,
-           vkSS::eVertex | vkSS::eFragment | vkSS::eClosestHitKHR | vkSS::eAnyHitKHR));
+  m_descSetLayoutBind.addBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
+                                 VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
+                                     | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR);
 ~~~~
 
 and also for the vertex, index and material index buffers:
 
 ~~~~ C++
   // Materials (binding = 4)
-  m_descSetLayoutBind.emplace_back(  //
-      vkDS(4, vkDT::eStorageBuffer, nbObj,
-           vkSS::eFragment | vkSS::eClosestHitKHR | vkSS::eAnyHitKHR));
+  m_descSetLayoutBind.addBinding(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nbObj,
+                                 VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR);
   // Storing vertices (binding = 5)
-  m_descSetLayoutBind.emplace_back(  //
-      vkDS(5, vkDT::eStorageBuffer, nbObj, vkSS::eClosestHitKHR | vkSS::eAnyHitKHR));
+  m_descSetLayoutBind.addBinding(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nbObj,
+                                 VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR);
   // Storing indices (binding = 6)
-  m_descSetLayoutBind.emplace_back(  //
-      vkDS(6, vkDT::eStorageBuffer, nbObj, vkSS::eClosestHitKHR | vkSS::eAnyHitKHR));
+  m_descSetLayoutBind.addBinding(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nbObj,
+                                 VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR);
 ~~~~
 
 ## Opaque Flag
 
-In the example, when creating `VkAccelerationStructureGeometryKHR` objects, we set their flags to `vk::GeometryFlagBitsKHR::eOpaque`. However, this avoided invoking the any hit shader.
+In the example, when creating `VkAccelerationStructureGeometryKHR` objects, we set their flags to `VK_GEOMETRY_OPAQUE_BIT_KHR`. However, this avoided invoking the any hit shader.
 
-We could remove all of the flags, but another issue could happen: the any hit shader could be called multiple times for the same triangle. To have the any hit shader process only one hit per triangle, set the `eNoDuplicateAnyHitInvocation` flag:
+We could remove all of the flags, but another issue could happen: the any hit shader could be called multiple times for the same triangle. To have the any hit shader process only one hit per triangle, set the `VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR` flag:
 
 ~~~~ C++
-geometry.setFlags(vk::GeometryFlagBitsKHR::eNoDuplicateAnyHitInvocation);
+asGeom.flags = VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR;  // Avoid double hits;
 ~~~~
 
 ## Ray Generation Shader
@@ -364,8 +368,6 @@ traceRayEXT(topLevelAS,  // acceleration structure
 ~~~~
 
 
-
-
 ### Ray tracing Pipeline
 
 The final step is to add the new Hit Group. This is a change in `HelloVulkan::createRtPipeline()`. 
@@ -373,21 +375,41 @@ We need to load the new any hit shader and create a new Hit Group.
 
 Replace the `"shaders/raytrace.rahit.spv"` for `"shaders/raytrace_0.rahit.spv"`
 
+Load the new shader module.
+
+~~~~ C
+  enum StageIndices
+  {
+    eRaygen,
+    eMiss,
+    eMiss2,
+    eClosestHit,
+    eAnyHit,
+    eAnyHit2,
+    eShaderGroupCount
+  };
+
+  // Hit Group - Any Hit
+  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytrace_0.rahit.spv", true, defaultSearchPaths, true));
+  stage.stage     = VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
+  stages[eAnyHit] = stage;
+  //
+  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytrace_1.rahit.spv", true, defaultSearchPaths, true));
+  stage.stage     = VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
+  stages[eAnyHit2] = stage;
+~~~~
+
 Then, after the creating of the first Hit Group, create a new one, where only the any hit using payload 1 
 is added. We are skipping the closest hit shader in the trace call, so we can ignore it in the Hit Group.
 
 ~~~~ C 
-// Payload 1
-vk::ShaderModule ahit1SM =
-    nvvk::createShaderModule(m_device,  //
-                             nvh::loadFile("shaders/raytrace_1.rahit.spv", true, paths));
-hg.setClosestHitShader(VK_SHADER_UNUSED_NV);  // Not used by shadow (skipped)
-hg.setAnyHitShader(static_cast<uint32_t>(stages.size()));
-stages.push_back({{}, vk::ShaderStageFlagBits::eAnyHitNV, ahit1SM, "main"});
-m_rtShaderGroups.push_back(hg);
+  // Payload 1
+  group.type             = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+  group.generalShader    = VK_SHADER_UNUSED_KHR;
+  group.closestHitShader = VK_SHADER_UNUSED_KHR;
+  group.anyHitShader     = eAnyHit2;
+  m_rtShaderGroups.push_back(group);
 ~~~~ 
-
-At the end of the function, delete the shader module `ahit1SM`.
 
 
  **Note:** Re-Run

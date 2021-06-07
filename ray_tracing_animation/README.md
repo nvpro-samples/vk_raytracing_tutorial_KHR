@@ -62,17 +62,20 @@ void HelloVulkan::animationInstances(float time)
 Next, we update the buffer that describes the scene, which is used by the rasterizer to set each object's position, and also by the ray tracer to compute shading normals.
 ~~~~ C++
   // Update the buffer
-  vk::DeviceSize bufferSize = m_objInstance.size() * sizeof(ObjInstance);
-  nvvkBuffer stagingBuffer = m_alloc.createBuffer(bufferSize, vk::BufferUsageFlagBits::eTransferSrc,
-                                                  vk::MemoryPropertyFlagBits::eHostVisible);
+  VkDeviceSize bufferSize = m_objInstance.size() * sizeof(ObjInstance);
+  nvvk::Buffer stagingBuffer =
+      m_alloc.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
   // Copy data to staging buffer
   auto* gInst = m_alloc.map(stagingBuffer);
   memcpy(gInst, m_objInstance.data(), bufferSize);
   m_alloc.unmap(stagingBuffer);
   // Copy staging buffer to the Scene Description buffer
   nvvk::CommandPool genCmdBuf(m_device, m_graphicsQueueIndex);
-  vk::CommandBuffer cmdBuf = genCmdBuf.createCommandBuffer();
-  cmdBuf.copyBuffer(stagingBuffer.buffer, m_sceneDesc.buffer, vk::BufferCopy(0, 0, bufferSize));
+  VkCommandBuffer   cmdBuf = genCmdBuf.createCommandBuffer();
+
+  VkBufferCopy region{0, 0, bufferSize};
+  vkCmdCopyBuffer(cmdBuf, stagingBuffer.buffer, m_sceneDesc.buffer, 1, &region);
+
   m_debug.endLabel(cmdBuf);
   genCmdBuf.submitAndWait(cmdBuf);
   m_alloc.destroy(stagingBuffer);
@@ -115,7 +118,7 @@ std::vector<nvvk::RaytracingBuilder::Instance> m_tlas;
 
 Make sure to rename it to `m_tlas`, instead of `tlas`. 
 
-One important point is that we need to set the TLAS build flags to allow updates, by adding the`vk::BuildAccelerationStructureFlagBitsKHR::eAllowUpdate` flag. 
+One important point is that we need to set the TLAS build flags to allow updates, by adding the`VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR` flag. 
 This is absolutely needed, since otherwise the TLAS cannot be updated.
 
 ~~~~ C++
@@ -124,16 +127,17 @@ void HelloVulkan::createTopLevelAS()
   m_tlas.reserve(m_objInstance.size());
   for(uint32_t i = 0; i < static_cast<uint32_t>(m_objInstance.size()); i++)
   {
-    nvvk::RaytracingBuilder::Instance rayInst;
+    nvvk::RaytracingBuilderKHR::Instance rayInst;
     rayInst.transform        = m_objInstance[i].transform;  // Position of the instance
     rayInst.instanceCustomId = i;                           // gl_InstanceCustomIndexEXT
     rayInst.blasId           = m_objInstance[i].objIndex;
-    rayInst.hitGroupId       = m_objInstance[i].hitgroup;
-    rayInst.flags            = VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;
+    rayInst.hitGroupId       = 0;
+    rayInst.flags            = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
     m_tlas.emplace_back(rayInst);
   }
-  m_rtBuilder.buildTlas(m_tlas, vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace
-                                    | vk::BuildAccelerationStructureFlagBitsKHR::eAllowUpdate);
+
+  m_rtFlags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
+  m_rtBuilder.buildTlas(m_tlas, m_rtFlags);
 }
 ~~~~ 
 
@@ -203,11 +207,11 @@ Add all of the following members to the `HelloVulkan` class:
   void createCompPipelines();
 
   nvvk::DescriptorSetBindings m_compDescSetLayoutBind;
-  vk::DescriptorPool          m_compDescPool;
-  vk::DescriptorSetLayout     m_compDescSetLayout;
-  vk::DescriptorSet           m_compDescSet;
-  vk::Pipeline                m_compPipeline;
-  vk::PipelineLayout          m_compPipelineLayout;
+  VkDescriptorPool            m_compDescPool;
+  VkDescriptorSetLayout       m_compDescSetLayout;
+  VkDescriptorSet             m_compDescSet;
+  VkPipeline                  m_compPipeline;
+  VkPipelineLayout            m_compPipelineLayout;
 ~~~~
 
 The compute shader will work on a single `VertexObj` buffer.
@@ -215,8 +219,7 @@ The compute shader will work on a single `VertexObj` buffer.
 ~~~~ C++
 void HelloVulkan::createCompDescriptors()
 {
-  m_compDescSetLayoutBind.addBinding(vk::DescriptorSetLayoutBinding(
-      0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute));
+  m_compDescSetLayoutBind.addBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
 
   m_compDescSetLayout = m_compDescSetLayoutBind.createLayout(m_device);
   m_compDescPool      = m_compDescSetLayoutBind.createPool(m_device, 1);
@@ -227,12 +230,12 @@ void HelloVulkan::createCompDescriptors()
 `updateCompDescriptors` will set the set the descriptor to the buffer of `VertexObj` objects to which the animation will be applied.
 
 ~~~~ C++
-void HelloVulkan::updateCompDescriptors(nvvkBuffer& vertex)
+void HelloVulkan::updateCompDescriptors(nvvk::Buffer& vertex)
 {
-  std::vector<vk::WriteDescriptorSet> writes;
-  vk::DescriptorBufferInfo            dbiUnif{vertex.buffer, 0, VK_WHOLE_SIZE};
-  writes.emplace_back(m_compDescSetLayoutBind.makeWrite(m_compDescSet, 0, dbiUnif));
-  m_device.updateDescriptorSets(static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+  std::vector<VkWriteDescriptorSet> writes;
+  VkDescriptorBufferInfo            dbiUnif{vertex.buffer, 0, VK_WHOLE_SIZE};
+  writes.emplace_back(m_compDescSetLayoutBind.makeWrite(m_compDescSet, 0, &dbiUnif));
+  vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
 ~~~~
 
@@ -243,27 +246,37 @@ to set the animation time.
 void HelloVulkan::createCompPipelines()
 {
   // pushing time
-  vk::PushConstantRange push_constants = {vk::ShaderStageFlagBits::eCompute, 0, sizeof(float)};
-  vk::PipelineLayoutCreateInfo layout_info{{}, 1, &m_compDescSetLayout, 1, &push_constants};
-  m_compPipelineLayout = m_device.createPipelineLayout(layout_info);
-  vk::ComputePipelineCreateInfo computePipelineCreateInfo{{}, {}, m_compPipelineLayout};
+  VkPushConstantRange push_constants = {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float)};
+
+  VkPipelineLayoutCreateInfo createInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+  createInfo.setLayoutCount         = 1;
+  createInfo.pSetLayouts            = &m_compDescSetLayout;
+  createInfo.pushConstantRangeCount = 1;
+  createInfo.pPushConstantRanges    = &push_constants;
+  vkCreatePipelineLayout(m_device, &createInfo, nullptr, &m_compPipelineLayout);
+
+
+  VkComputePipelineCreateInfo computePipelineCreateInfo{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
+  computePipelineCreateInfo.layout = m_compPipelineLayout;
 
   computePipelineCreateInfo.stage =
-      nvvk::createShaderStageInfo(m_device,
-                                  nvh::loadFile("shaders/anim.comp.spv", true, defaultSearchPaths),
+      nvvk::createShaderStageInfo(m_device, nvh::loadFile("spv/anim.comp.spv", true, defaultSearchPaths, true),
                                   VK_SHADER_STAGE_COMPUTE_BIT);
-  m_compPipeline = m_device.createComputePipeline({}, computePipelineCreateInfo, nullptr);
-  m_device.destroy(computePipelineCreateInfo.stage.module);
+
+  vkCreateComputePipelines(m_device, {}, 1, &computePipelineCreateInfo, nullptr, &m_compPipeline);
+
+  vkDestroyShaderModule(m_device, computePipelineCreateInfo.stage.module, nullptr);
 }
 ~~~~
 
 Finally, destroy the resources in `HelloVulkan::destroyResources()`:
 
 ~~~~ C++
-  m_device.destroy(m_compDescPool);
-  m_device.destroy(m_compDescSetLayout);
-  m_device.destroy(m_compPipeline);
-  m_device.destroy(m_compPipelineLayout);
+  // #VK_compute
+  vkDestroyPipeline(m_device, m_compPipeline, nullptr);
+  vkDestroyPipelineLayout(m_device, m_compPipelineLayout, nullptr);
+  vkDestroyDescriptorPool(m_device, m_compDescPool, nullptr);
+  vkDestroyDescriptorSetLayout(m_device, m_compDescSetLayout, nullptr);
 ~~~~
 
 ### `anim.comp` 
@@ -338,14 +351,13 @@ void HelloVulkan::animationObject(float time)
   updateCompDescriptors(model.vertexBuffer);
 
   nvvk::CommandPool genCmdBuf(m_device, m_graphicsQueueIndex);
-  vk::CommandBuffer cmdBuf = genCmdBuf.createCommandBuffer();
+  VkCommandBuffer   cmdBuf = genCmdBuf.createCommandBuffer();
 
-  cmdBuf.bindPipeline(vk::PipelineBindPoint::eCompute, m_compPipeline);
-  cmdBuf.bindDescriptorSets(vk::PipelineBindPoint::eCompute, m_compPipelineLayout, 0,
-                            {m_compDescSet}, {});
-  cmdBuf.pushConstants(m_compPipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(float),
-                       &time);
-  cmdBuf.dispatch(model.nbVertices, 1, 1);
+  vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_compPipeline);
+  vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_compPipelineLayout, 0, 1, &m_compDescSet, 0, nullptr);
+  vkCmdPushConstants(cmdBuf, m_compPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float), &time);
+  vkCmdDispatch(cmdBuf, model.nbVertices, 1, 1);
+
   genCmdBuf.submitAndWait(cmdBuf);
 }
 ~~~~
@@ -450,15 +462,15 @@ void HelloVulkan::createBottomLevelAS()
 {
   // BLAS - Storing each primitive in a geometry
   m_blas.reserve(m_objModel.size());
-  for(const auto & obj : m_objModel)
+  for(const auto& obj : m_objModel)
   {
     auto blas = objectToVkGeometryKHR(obj);
 
     // We could add more geometry in each BLAS, but we add only one for now
     m_blas.push_back(blas);
   }
-  m_rtBuilder.buildBlas(m_blas, vk::BuildAccelerationStructureFlagBitsKHR::eAllowUpdate
-                                    | vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastBuild);
+  m_rtBuilder.buildBlas(m_blas, VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR
+                                    | VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR);
 }
 ~~~~
 

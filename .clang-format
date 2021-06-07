@@ -1,4 +1,4 @@
-BasedOnStyle: LLVM
+﻿BasedOnStyle: LLVM
 AccessModifierOffset: '-2'
 AlignAfterOpenBracket: Align
 AlignConsecutiveAssignments: 'true'
@@ -21,7 +21,7 @@ BreakBeforeBinaryOperators: NonAssignment
 BreakBeforeBraces: Custom
 BreakBeforeTernaryOperators: 'false'
 BreakConstructorInitializersBeforeComma: 'true'
-ColumnLimit: '100'
+ColumnLimit: '120'
 ConstructorInitializerAllOnOneLineOrOnePerLine: 'false'
 Cpp11BracedListStyle: 'true'
 IndentCaseLabels: 'true'
@@ -44,7 +44,7 @@ SpacesInSquareBrackets: 'false'
 Standard: Cpp11
 TabWidth: '2'
 UseTab: Never
-SortIncludes: 'true'
+SortIncludes: 'false'
 ReflowComments: 'false'
 BraceWrapping: {
  AfterClass: 'true'
@@ -58,7 +58,7 @@ BraceWrapping: {
  BeforeElse: 'true'
  IndentBraces: 'false'
 }
-PenaltyExcessCharacter: 9999
+PenaltyExcessCharacter: 1
 PenaltyBreakBeforeFirstCallParameter: 40
 PenaltyBreakFirstLessLess: 1
 PenaltyBreakComment: 30

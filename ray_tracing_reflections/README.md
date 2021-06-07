@@ -44,8 +44,7 @@ Vulkan ray tracing allows recursive calls to traceRayEXT, up to a limit defined 
 In `createRtPipeline()` in `hello_vulkan.cpp`, bring the maximum recursion depth up to 10, making sure not to exceed the physical device's maximum recursion limit:
 
 ~~~~ C++
-  rayPipelineInfo.setMaxPipelineRayRecursionDepth(
-      std::max(10u, m_rtProperties.maxRecursionDepth));  // Ray depth
+  rayPipelineInfo.maxPipelineRayRecursionDepth  = std::max(10u, m_rtProperties.maxRecursionDepth);  // Ray depth
 ~~~~
 
 ### `raycommon.glsl`
@@ -203,7 +202,7 @@ Since the ray generation shader now handles attenuation, we no longer need to at
 Finally, we no longer need to have a deep recursion setting in `createRtPipeline` -- just a depth of 2, one for the initial ray generation segment and another for shadow rays.
 
 ~~~~ C++
-  rayPipelineInfo.setMaxPipelineRayRecursionDepth(2);  // Ray depth
+  rayPipelineInfo.maxPipelineRayRecursionDepth = 2;  // Ray depth
 ~~~~
 
 In `raytrace.rgen`, we can now make the maximum ray depth significantly larger -- such as 100, for instance -- without causing a device lost error.

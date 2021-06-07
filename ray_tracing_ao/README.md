@@ -36,35 +36,33 @@ The following are the buffers are they can be seen in [NSight Graphics](https://
 
 ## G-Buffer
 
-The framework was already writing to G-Buffers, but was writing to a single `VK_FORMAT_R32G32B32A32_SFLOAT` buffer. In the function `HelloVulkan::createOffscreenRender()`, we will add the creation of two new buffers. One `vk::Format::eR32G32B32A32Sfloat` to store the position and normal and one `vk::Format::eR32Sfloat` for the ambient occlusion. 
+The framework was already writing to G-Buffers, but was writing to a single `VK_FORMAT_R32G32B32A32_SFLOAT` buffer. In the function `HelloVulkan::createOffscreenRender()`, we will add the creation of two new buffers. One `VK_FORMAT_R32G32B32A32_SFLOAT` to store the position and normal and one `VK_FORMAT_R32_SFLOAT` for the ambient occlusion. 
 
 ~~~~ C++
   // The G-Buffer (rgba32f) - position(xyz) / normal(w-compressed)
   {
-    auto colorCreateInfo = nvvk::makeImage2DCreateInfo(m_size, vk::Format::eR32G32B32A32Sfloat,
-                                                       vk::ImageUsageFlagBits::eColorAttachment
-                                                           | vk::ImageUsageFlagBits::eSampled
-                                                           | vk::ImageUsageFlagBits::eStorage);
+    auto colorCreateInfo = nvvk::makeImage2DCreateInfo(m_size, VK_FORMAT_R32G32B32A32_SFLOAT,
+                                                       VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT
+                                                           | VK_IMAGE_USAGE_STORAGE_BIT);
 
 
-    nvvk::Image             image  = m_alloc.createImage(colorCreateInfo);
-    vk::ImageViewCreateInfo ivInfo = nvvk::makeImageViewCreateInfo(image.image, colorCreateInfo);
-    m_gBuffer                      = m_alloc.createTexture(image, ivInfo, vk::SamplerCreateInfo());
+    nvvk::Image           image      = m_alloc.createImage(colorCreateInfo);
+    VkImageViewCreateInfo ivInfo     = nvvk::makeImageViewCreateInfo(image.image, colorCreateInfo);
+    m_gBuffer                        = m_alloc.createTexture(image, ivInfo, sampler);
     m_gBuffer.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     m_debug.setObjectName(m_gBuffer.image, "G-Buffer");
   }
 
   // The ambient occlusion result (r32)
   {
-    auto colorCreateInfo = nvvk::makeImage2DCreateInfo(m_size, vk::Format::eR32Sfloat,
-                                                       vk::ImageUsageFlagBits::eColorAttachment
-                                                           | vk::ImageUsageFlagBits::eSampled
-                                                           | vk::ImageUsageFlagBits::eStorage);
+    auto colorCreateInfo = nvvk::makeImage2DCreateInfo(m_size, VK_FORMAT_R32_SFLOAT,
+                                                       VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT
+                                                           | VK_IMAGE_USAGE_STORAGE_BIT);
 
 
-    nvvk::Image             image  = m_alloc.createImage(colorCreateInfo);
-    vk::ImageViewCreateInfo ivInfo = nvvk::makeImageViewCreateInfo(image.image, colorCreateInfo);
-    m_aoBuffer                     = m_alloc.createTexture(image, ivInfo, vk::SamplerCreateInfo());
+    nvvk::Image           image       = m_alloc.createImage(colorCreateInfo);
+    VkImageViewCreateInfo ivInfo      = nvvk::makeImageViewCreateInfo(image.image, colorCreateInfo);
+    m_aoBuffer                        = m_alloc.createTexture(image, ivInfo, sampler);
     m_aoBuffer.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     m_debug.setObjectName(m_aoBuffer.image, "aoBuffer");
   }
@@ -76,9 +74,9 @@ The render pass for the fragment shader will need two color buffers, therefore w
 
 ```
   // Creating the frame buffer for offscreen
-  std::vector<vk::ImageView> attachments = {m_offscreenColor.descriptor.imageView,
-                                            m_gBuffer.descriptor.imageView,
-                                            m_offscreenDepth.descriptor.imageView};
+  std::vector<VkImageView> attachments = {m_offscreenColor.descriptor.imageView,
+                                          m_gBuffer.descriptor.imageView,
+                                          m_offscreenDepth.descriptor.imageView};
 ```                                            
 
 ### Renderpass
@@ -86,7 +84,7 @@ The render pass for the fragment shader will need two color buffers, therefore w
 This means that the renderpass in `main()` will have to be modified as well. The clear color will need to have 3 entries (2 color + 1 depth)
 
 ```
-      vk::ClearValue clearValues[3];
+      std::array<VkClearValue, 3> clearValues{};
 ```
 
 Since the clear value will be re-used by the offscreen (3 attachments) and the post/UI (2 attachments), we will set the clear values in each section. 
@@ -94,14 +92,14 @@ Since the clear value will be re-used by the offscreen (3 attachments) and the p
 ```
       // Offscreen render pass
       {
-        clearValues[1].setColor(std::array<float, 4>{0, 0, 0, 0});
-        clearValues[2].setDepthStencil({1.0f, 0});
+        clearValues[1].color        = {{0, 0, 0, 0}};
+        clearValues[2].depthStencil = {1.0f, 0};
 ```
 
 ```
      // 2nd rendering pass: tone mapper, UI
       {
-        clearValues[1].setDepthStencil({1.0f, 0});
+        clearValues[1].depthStencil = {1.0f, 0};
 ```
 
 ### Fragment shader
@@ -138,12 +136,9 @@ The shader takes two inputs, the G-Buffer and the TLAS, and has one output, the 
 //
 void HelloVulkan::createCompDescriptors()
 {
-  m_compDescSetLayoutBind.addBinding(vk::DescriptorSetLayoutBinding(  // [in] G-Buffer
-      0, vk::DescriptorType::eStorageImage, 1, vk::ShaderStageFlagBits::eCompute));
-  m_compDescSetLayoutBind.addBinding(vk::DescriptorSetLayoutBinding(  // [out] AO
-      1, vk::DescriptorType::eStorageImage, 1, vk::ShaderStageFlagBits::eCompute));
-  m_compDescSetLayoutBind.addBinding(vk::DescriptorSetLayoutBinding(  // [in] TLAS
-      2, vk::DescriptorType::eAccelerationStructureKHR, 1, vk::ShaderStageFlagBits::eCompute));
+  m_compDescSetLayoutBind.addBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT);  // [in] G-Buffer
+  m_compDescSetLayoutBind.addBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT);  // [out] AO
+  m_compDescSetLayoutBind.addBinding(2, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1, VK_SHADER_STAGE_COMPUTE_BIT);  // [in] TLAS
 
   m_compDescSetLayout = m_compDescSetLayoutBind.createLayout(m_device);
   m_compDescPool      = m_compDescSetLayoutBind.createPool(m_device, 1);
@@ -162,15 +157,17 @@ when resizing the window and the G-Buffer and AO buffer are resized.
 //
 void HelloVulkan::updateCompDescriptors()
 {
-  std::vector<vk::WriteDescriptorSet> writes;
+  std::vector<VkWriteDescriptorSet> writes;
   writes.emplace_back(m_compDescSetLayoutBind.makeWrite(m_compDescSet, 0, &m_gBuffer.descriptor));
   writes.emplace_back(m_compDescSetLayoutBind.makeWrite(m_compDescSet, 1, &m_aoBuffer.descriptor));
 
-  vk::AccelerationStructureKHR                   tlas = m_rtBuilder.getAccelerationStructure();
-  vk::WriteDescriptorSetAccelerationStructureKHR descASInfo{1, &tlas};
+  VkAccelerationStructureKHR                   tlas = m_rtBuilder.getAccelerationStructure();
+  VkWriteDescriptorSetAccelerationStructureKHR descASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
+  descASInfo.accelerationStructureCount = 1;
+  descASInfo.pAccelerationStructures    = &tlas;
   writes.emplace_back(m_compDescSetLayoutBind.makeWrite(m_compDescSet, 2, &descASInfo));
 
-  m_device.updateDescriptorSets(static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+  vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
 ~~~~ 
 
@@ -200,40 +197,38 @@ struct AoControl
 The first thing we are doing in the `runCompute` is to call `updateFrame()` (see [jitter cam](../ray_tracing_jitter_cam)). 
 This sets the current frame index, which allows us to accumulate AO samples over time.
 
-Next, we are adding a `vk::ImageMemoryBarrier` to be sure the G-Buffer image is ready to be read from the compute shader. 
+Next, we are adding a `VkImageMemoryBarrier` to be sure the G-Buffer image is ready to be read from the compute shader. 
 
 ~~~~ C++
   // Adding a barrier to be sure the fragment has finished writing to the G-Buffer
   // before the compute shader is using the buffer
-  vk::ImageSubresourceRange range{vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1};
-  vk::ImageMemoryBarrier    imgMemBarrier;
-  imgMemBarrier.setSrcAccessMask(vk::AccessFlagBits::eShaderWrite);
-  imgMemBarrier.setDstAccessMask(vk::AccessFlagBits::eShaderRead);
-  imgMemBarrier.setImage(m_gBuffer.image);
-  imgMemBarrier.setOldLayout(vk::ImageLayout::eGeneral);
-  imgMemBarrier.setNewLayout(vk::ImageLayout::eGeneral);
-  imgMemBarrier.setSubresourceRange(range);
-  cmdBuf.pipelineBarrier(vk::PipelineStageFlagBits::eFragmentShader,
-                         vk::PipelineStageFlagBits::eComputeShader,
-                         vk::DependencyFlagBits::eDeviceGroup, {}, {}, {imgMemBarrier});
+  VkImageSubresourceRange range{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+  VkImageMemoryBarrier    imgMemBarrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+  imgMemBarrier.srcAccessMask    = VK_ACCESS_SHADER_WRITE_BIT;
+  imgMemBarrier.dstAccessMask    = VK_ACCESS_SHADER_READ_BIT;
+  imgMemBarrier.image            = m_gBuffer.image;
+  imgMemBarrier.oldLayout        = VK_IMAGE_LAYOUT_GENERAL;
+  imgMemBarrier.newLayout        = VK_IMAGE_LAYOUT_GENERAL;
+  imgMemBarrier.subresourceRange = range;
+
+  vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                       VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 0, nullptr, 1, &imgMemBarrier);
 ~~~~
 
 Folowing is the call to dispatch the compute shader 
 
 ~~~~ C++
   // Preparing for the compute shader
-  cmdBuf.bindPipeline(vk::PipelineBindPoint::eCompute, m_compPipeline);
-  cmdBuf.bindDescriptorSets(vk::PipelineBindPoint::eCompute, m_compPipelineLayout, 0,
-                            {m_compDescSet}, {});
+  vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_compPipeline);
+  vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_compPipelineLayout, 0, 1, &m_compDescSet, 0, nullptr);
+
 
   // Sending the push constant information
   aoControl.frame = m_frame;
-  cmdBuf.pushConstants(m_compPipelineLayout, vk::ShaderStageFlagBits::eCompute, 0,
-                       sizeof(AoControl), &aoControl);
+  vkCmdPushConstants(cmdBuf, m_compPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(AoControl), &aoControl);
 
   // Dispatching the shader
-  cmdBuf.dispatch((m_size.width + (GROUP_SIZE - 1)) / GROUP_SIZE,
-                  (m_size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+  vkCmdDispatch(cmdBuf, (m_size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (m_size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
 ~~~~
 
 Then we are adding a final barrier to make sure the compute shader is done 
@@ -242,13 +237,9 @@ writing the AO so that the fragment shader (post) can use it.
 ~~~~ C++
   // Adding a barrier to be sure the compute shader has finished
   // writing to the AO buffer before the post shader is using it
-  imgMemBarrier.setImage(m_aoBuffer.image);
-  imgMemBarrier.setOldLayout(vk::ImageLayout::eGeneral);
-  imgMemBarrier.setNewLayout(vk::ImageLayout::eGeneral);
-  imgMemBarrier.setSubresourceRange(range);
-  cmdBuf.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader,
-                         vk::PipelineStageFlagBits::eFragmentShader,
-                         vk::DependencyFlagBits::eDeviceGroup, {}, {}, {imgMemBarrier});
+  imgMemBarrier.image = m_aoBuffer.image;
+  vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                       VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 0, nullptr, 1, &imgMemBarrier);
 ~~~~
 
 ## Update Frame
@@ -450,9 +441,9 @@ We have also have added `AoControl aoControl;` somwhere in main() and passing th
 ~~~~ 
 // Rendering Scene
 {
-  cmdBuf.beginRenderPass(offscreenRenderPassBeginInfo, vk::SubpassContents::eInline);
+  vkCmdBeginRenderPass(cmdBuf, &offscreenRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
   helloVk.rasterize(cmdBuf);
-  cmdBuf.endRenderPass();
+  vkCmdEndRenderPass(cmdBuf);
   helloVk.runCompute(cmdBuf, aoControl);
 }
 ~~~~
@@ -463,10 +454,10 @@ The post shader will combine the result of the fragment (color) and the result o
 In `createPostDescriptor` we will need to add the descriptor 
 
 ~~~~
-m_postDescSetLayoutBind.addBinding(vkDS(1, vkDT::eCombinedImageSampler, 1, vkSS::eFragment));
+m_postDescSetLayoutBind.addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
 ~~~~
 
-And the equivalent in `updatePostDescriptorSet`
+And the equivalent in `updatePostDescriptorSet()`
 
 ~~~~
 writes.push_back(m_postDescSetLayoutBind.makeWrite(m_postDescSet, 1, &m_aoBuffer.descriptor));

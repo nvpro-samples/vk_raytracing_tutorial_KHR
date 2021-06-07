@@ -32,10 +32,7 @@ extern std::vector<std::string> defaultSearchPaths;
 // Post-processing
 //////////////////////////////////////////////////////////////////////////
 
-void Offscreen::setup(const vk::Device&         device,
-                      const vk::PhysicalDevice& physicalDevice,
-                      nvvk::ResourceAllocator*  allocator,
-                      uint32_t                  queueFamily)
+void Offscreen::setup(const VkDevice& device, const VkPhysicalDevice& physicalDevice, nvvk::ResourceAllocator* allocator, uint32_t queueFamily)
 {
   m_device             = device;
   m_alloc              = allocator;
@@ -46,14 +43,14 @@ void Offscreen::setup(const vk::Device&         device,
 
 void Offscreen::destroy()
 {
-  m_device.destroy(m_pipeline);
-  m_device.destroy(m_pipelineLayout);
-  m_device.destroy(m_descPool);
-  m_device.destroy(m_dsetLayout);
+  vkDestroyPipeline(m_device, m_pipeline, nullptr);
+  vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
+  vkDestroyDescriptorPool(m_device, m_descPool, nullptr);
+  vkDestroyDescriptorSetLayout(m_device, m_dsetLayout, nullptr);
+  vkDestroyRenderPass(m_device, m_renderPass, nullptr);
+  vkDestroyFramebuffer(m_device, m_framebuffer, nullptr);
   m_alloc->destroy(m_colorTexture);
   m_alloc->destroy(m_depthTexture);
-  m_device.destroy(m_renderPass);
-  m_device.destroy(m_framebuffer);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -66,30 +63,28 @@ void Offscreen::createFramebuffer(VkExtent2D& size)
 
   // Creating the color image
   {
-    auto colorCreateInfo = nvvk::makeImage2DCreateInfo(size, m_colorFormat,
-                                                       vk::ImageUsageFlagBits::eColorAttachment
-                                                           | vk::ImageUsageFlagBits::eSampled
-                                                           | vk::ImageUsageFlagBits::eStorage);
+    auto colorCreateInfo = nvvk::makeImage2DCreateInfo(
+        size, m_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
 
-    nvvk::Image             image  = m_alloc->createImage(colorCreateInfo);
-    vk::ImageViewCreateInfo ivInfo = nvvk::makeImageViewCreateInfo(image.image, colorCreateInfo);
-    m_colorTexture                 = m_alloc->createTexture(image, ivInfo, vk::SamplerCreateInfo());
+    nvvk::Image           image  = m_alloc->createImage(colorCreateInfo);
+    VkImageViewCreateInfo ivInfo = nvvk::makeImageViewCreateInfo(image.image, colorCreateInfo);
+
+    VkSamplerCreateInfo sampler{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+    m_colorTexture                        = m_alloc->createTexture(image, ivInfo, sampler);
     m_colorTexture.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
   }
 
 
   // Creating the depth buffer
   {
-    auto depthCreateInfo =
-        nvvk::makeImage2DCreateInfo(size, m_depthFormat,
-                                    vk::ImageUsageFlagBits::eDepthStencilAttachment);
-    nvvk::Image image = m_alloc->createImage(depthCreateInfo);
+    auto depthCreateInfo = nvvk::makeImage2DCreateInfo(size, m_depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
+    nvvk::Image image    = m_alloc->createImage(depthCreateInfo);
 
-    vk::ImageViewCreateInfo depthStencilView;
-    depthStencilView.setViewType(vk::ImageViewType::e2D);
-    depthStencilView.setFormat(m_depthFormat);
-    depthStencilView.setSubresourceRange({vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1});
-    depthStencilView.setImage(image.image);
+    VkImageViewCreateInfo depthStencilView{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+    depthStencilView.viewType         = VK_IMAGE_VIEW_TYPE_2D;
+    depthStencilView.format           = m_depthFormat;
+    depthStencilView.subresourceRange = {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1};
+    depthStencilView.image            = image.image;
 
     m_depthTexture = m_alloc->createTexture(image, depthStencilView);
   }
@@ -98,11 +93,9 @@ void Offscreen::createFramebuffer(VkExtent2D& size)
   {
     nvvk::CommandPool genCmdBuf(m_device, m_graphicsQueueIndex);
     auto              cmdBuf = genCmdBuf.createCommandBuffer();
-    nvvk::cmdBarrierImageLayout(cmdBuf, m_colorTexture.image, vk::ImageLayout::eUndefined,
-                                vk::ImageLayout::eGeneral);
-    nvvk::cmdBarrierImageLayout(cmdBuf, m_depthTexture.image, vk::ImageLayout::eUndefined,
-                                vk::ImageLayout::eDepthStencilAttachmentOptimal,
-                                vk::ImageAspectFlagBits::eDepth);
+    nvvk::cmdBarrierImageLayout(cmdBuf, m_colorTexture.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+    nvvk::cmdBarrierImageLayout(cmdBuf, m_depthTexture.image, VK_IMAGE_LAYOUT_UNDEFINED,
+                                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
 
     genCmdBuf.submitAndWait(cmdBuf);
   }
@@ -111,50 +104,46 @@ void Offscreen::createFramebuffer(VkExtent2D& size)
   if(!m_renderPass)
   {
     m_renderPass = nvvk::createRenderPass(m_device, {m_colorFormat}, m_depthFormat, 1, true, true,
-                                          vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral);
+                                          VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
   }
 
   // Creating the frame buffer for offscreen
-  std::vector<vk::ImageView> attachments = {m_colorTexture.descriptor.imageView,
-                                            m_depthTexture.descriptor.imageView};
+  std::vector<VkImageView> attachments = {m_colorTexture.descriptor.imageView, m_depthTexture.descriptor.imageView};
 
-  m_device.destroy(m_framebuffer);
-  vk::FramebufferCreateInfo info;
-  info.setRenderPass(m_renderPass);
-  info.setAttachmentCount(2);
-  info.setPAttachments(attachments.data());
-  info.setWidth(size.width);
-  info.setHeight(size.height);
-  info.setLayers(1);
-  m_framebuffer = m_device.createFramebuffer(info);
+  vkDestroyFramebuffer(m_device, m_framebuffer, nullptr);
+  VkFramebufferCreateInfo info{VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
+  info.renderPass      = m_renderPass;
+  info.attachmentCount = 2;
+  info.pAttachments    = attachments.data();
+  info.width           = size.width;
+  info.height          = size.height;
+  info.layers          = 1;
+  vkCreateFramebuffer(m_device, &info, nullptr, &m_framebuffer);
 }
 
 //--------------------------------------------------------------------------------------------------
 // The pipeline is how things are rendered, which shaders, type of primitives, depth test and more
 // The incoming render pass, is in which rendering pass it will be displayed (framebuffer)
 //
-void Offscreen::createPipeline(vk::RenderPass& renderPass)
+void Offscreen::createPipeline(VkRenderPass& renderPass)
 {
   // Push constants in the fragment shader
-  vk::PushConstantRange pushConstantRanges = {vk::ShaderStageFlagBits::eFragment, 0, sizeof(float)};
+  VkPushConstantRange pushConstantRanges = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float)};
 
   // Creating the pipeline layout
-  vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo;
-  pipelineLayoutCreateInfo.setSetLayoutCount(1);
-  pipelineLayoutCreateInfo.setPSetLayouts(&m_dsetLayout);
-  pipelineLayoutCreateInfo.setPushConstantRangeCount(1);
-  pipelineLayoutCreateInfo.setPPushConstantRanges(&pushConstantRanges);
-  m_pipelineLayout = m_device.createPipelineLayout(pipelineLayoutCreateInfo);
+  VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+  pipelineLayoutCreateInfo.setLayoutCount         = 1;
+  pipelineLayoutCreateInfo.pSetLayouts            = &m_dsetLayout;
+  pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+  pipelineLayoutCreateInfo.pPushConstantRanges    = &pushConstantRanges;
+  vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_pipelineLayout);
 
   // Pipeline: completely generic, no vertices
   nvvk::GraphicsPipelineGeneratorCombined pipelineGenerator(m_device, m_pipelineLayout, renderPass);
-  pipelineGenerator.addShader(nvh::loadFile("spv/passthrough.vert.spv", true, defaultSearchPaths,
-                                            true),
-                              vk::ShaderStageFlagBits::eVertex);
-  pipelineGenerator.addShader(nvh::loadFile("spv/post.frag.spv", true, defaultSearchPaths, true),
-                              vk::ShaderStageFlagBits::eFragment);
-  pipelineGenerator.rasterizationState.setCullMode(vk::CullModeFlagBits::eNone);
-  m_pipeline = pipelineGenerator.createPipeline();
+  pipelineGenerator.addShader(nvh::loadFile("spv/passthrough.vert.spv", true, defaultSearchPaths, true), VK_SHADER_STAGE_VERTEX_BIT);
+  pipelineGenerator.addShader(nvh::loadFile("spv/post.frag.spv", true, defaultSearchPaths, true), VK_SHADER_STAGE_FRAGMENT_BIT);
+  pipelineGenerator.rasterizationState.cullMode = VK_CULL_MODE_NONE;
+  m_pipeline                                    = pipelineGenerator.createPipeline();
   m_debug.setObjectName(m_pipeline, "post");
 }
 
@@ -164,11 +153,7 @@ void Offscreen::createPipeline(vk::RenderPass& renderPass)
 //
 void Offscreen::createDescriptor()
 {
-  using vkDS = vk::DescriptorSetLayoutBinding;
-  using vkDT = vk::DescriptorType;
-  using vkSS = vk::ShaderStageFlagBits;
-
-  m_dsetLayoutBinding.addBinding(vkDS(0, vkDT::eCombinedImageSampler, 1, vkSS::eFragment));
+  m_dsetLayoutBinding.addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
   m_dsetLayout = m_dsetLayoutBinding.createLayout(m_device);
   m_descPool   = m_dsetLayoutBinding.createPool(m_device);
   m_dset       = nvvk::allocateDescriptorSet(m_device, m_descPool, m_dsetLayout);
@@ -179,26 +164,28 @@ void Offscreen::createDescriptor()
 //
 void Offscreen::updateDescriptorSet()
 {
-  vk::WriteDescriptorSet writeDescriptorSets =
-      m_dsetLayoutBinding.makeWrite(m_dset, 0, &m_colorTexture.descriptor);
-  m_device.updateDescriptorSets(writeDescriptorSets, nullptr);
+  VkWriteDescriptorSet writeDescriptorSets = m_dsetLayoutBinding.makeWrite(m_dset, 0, &m_colorTexture.descriptor);
+  vkUpdateDescriptorSets(m_device, 1, &writeDescriptorSets, 0, nullptr);
 }
 
 //--------------------------------------------------------------------------------------------------
 // Draw a full screen quad with the attached image
 //
-void Offscreen::draw(vk::CommandBuffer cmdBuf, VkExtent2D& size)
+void Offscreen::draw(VkCommandBuffer cmdBuf, VkExtent2D& size)
 {
   m_debug.beginLabel(cmdBuf, "Post");
 
-  cmdBuf.setViewport(0, {vk::Viewport(0, 0, (float)size.width, (float)size.height, 0, 1)});
-  cmdBuf.setScissor(0, {{{0, 0}, {size.width, size.height}}});
+  VkViewport viewport{0, 0, (float)size.width, (float)size.height, 0, 1};
+  vkCmdSetViewport(cmdBuf, 0, 1, &viewport);
+  VkRect2D scissor{{0, 0}, {size.width, size.height}};
+  vkCmdSetScissor(cmdBuf, 0, 1, &scissor);
+
 
   auto aspectRatio = static_cast<float>(size.width) / static_cast<float>(size.height);
-  cmdBuf.pushConstants<float>(m_pipelineLayout, vk::ShaderStageFlagBits::eFragment, 0, aspectRatio);
-  cmdBuf.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline);
-  cmdBuf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 0, m_dset, {});
-  cmdBuf.draw(3, 1, 0, 0);
+  vkCmdPushConstants(cmdBuf, m_pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float), &aspectRatio);
+  vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
+  vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &m_dset, 0, nullptr);
+  vkCmdDraw(cmdBuf, 3, 1, 0, 0);
 
   m_debug.endLabel(cmdBuf);
 }

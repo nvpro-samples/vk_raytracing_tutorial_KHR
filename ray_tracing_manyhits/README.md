@@ -59,18 +59,31 @@ void main()
 This new shader needs to be added to the raytracing pipeline. So, in `createRtPipeline` in `hello_vulkan.cpp`, load the new closest hit shader immediately after loading the first one.
 
 ~~~~ C++
-  vk::ShaderModule chit2SM =
-      nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace2.rchit.spv", true, paths, true));
+  enum StageIndices
+  {
+    eRaygen,
+    eMiss,
+    eMiss2,
+    eClosestHit,
+    eClosestHit2,
+    eShaderGroupCount
+  };
+
+  // ...
+
+  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytrace2.rchit.spv", true, defaultSearchPaths, true));
+  stage.stage         = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+  stages[eClosestHit2] = stage;
 ~~~~
 
 Then add a new hit group group immediately after adding the first hit group:
 
 ~~~~ C++
-  // Second group
-  hg.setClosestHitShader(static_cast<uint32_t>(stages.size()));
-  stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, chit2SM, "main"});
-  m_rtShaderGroups.push_back(hg);
+  // Hit 2
+  group.type             = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+  group.generalShader    = VK_SHADER_UNUSED_KHR;
+  group.closestHitShader = eClosestHit2;
+  m_rtShaderGroups.push_back(group);
 ~~~~
 
 ### `raytrace.rgen`
@@ -200,6 +213,36 @@ In `main`, after we set which hit group an instance will use, we can add the dat
 
 ### `HelloVulkan::createRtShaderBindingTable`
 
+**NEW**
+
+The creation of the shading binding table as it was done, was using hardcoded offsets and potentially could lead to errors. 
+Instead, the new code uses the `nvvk::SBTWraper` that uses the ray tracing pipeline and the `VkRayTracingPipelineCreateInfoKHR` to 
+create the SBT information. 
+
+The wrapper will find the handles for each group and will add the 
+data `m_hitShaderRecord` to the Hit group.  
+
+```` C
+  // Find handle indices and add data
+  m_sbtWrapper.addIndices(rayPipelineInfo);
+  m_sbtWrapper.addData(SBTWrapper::eHit, 1, m_hitShaderRecord[0]);
+  m_sbtWrapper.addData(SBTWrapper::eHit, 2, m_hitShaderRecord[1]);
+  m_sbtWrapper.create(m_rtPipeline);
+````
+
+The buffer for Hit will have the following layout
+
+```
+| handle       | handle,data  | handle,data   |
+``` 
+
+The wrapper will make sure the stride covers the largest data and is aligned 
+based on the GPU properties.
+
+
+
+**OLD - for reference**
+
 Since we are no longer compacting all handles in a continuous buffer, we need to fill the SBT as described above.
 
 After retrieving the handles of all 5 groups (raygen, miss, miss shadow, hit0, and hit1)
@@ -255,16 +298,27 @@ Then write the new SBT like this, where only Hit 1 has extra data.
 Then change the call to `m_alloc.createBuffer` to create the SBT buffer from `sbtBuffer`:
 
 ~~~~ C++
-  m_rtSBTBuffer = m_alloc.createBuffer(cmdBuf, sbtBuffer, vk::BufferUsageFlagBits::eRayTracingKHR);
+  m_rtSBTBuffer = m_alloc.createBuffer(cmdBuf, sbtBuffer, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR);
 ~~~~
 
 
 ### `raytrace`
 
+**NEW**
+
+The mvvk::SBTWrapper gives use the information without having to compute the `VkStridedDeviceAddressRegionKHR`
+
+``` C
+  auto& regions = m_sbtWrapper.getRegions();
+  vkCmdTraceRaysKHR(cmdBuf, &regions[0], &regions[1], &regions[2], &regions[3], m_size.width, m_size.height, 1);
+```
+
+**OLD**
+
 Finally, since the size of the hit group is now larger than just the handle, we need to set the new value of the hit group stride in `HelloVulkan::raytrace`.
 
 ~~~~ C++
-  vk::DeviceSize hitGroupSize =
+  VkDeviceSize hitGroupSize =
       nvh::align_up(m_rtProperties.shaderGroupHandleSize + sizeof(HitRecordBuffer),
                     m_rtProperties.shaderGroupBaseAlignment);
 ~~~~
@@ -272,7 +326,7 @@ Finally, since the size of the hit group is now larger than just the handle, we 
 The stride device address will be modified like this:
 
 ~~~~ C++
-  using Stride = vk::StridedDeviceAddressRegionKHR;
+  using Stride = VkStridedDeviceAddressRegionKHR;
   std::array<Stride, 4> strideAddresses{
       Stride{sbtAddress + 0u * groupSize, groupStride, groupSize * 1},      // raygen
       Stride{sbtAddress + 1u * groupSize, groupStride, groupSize * 2},      // miss
@@ -280,7 +334,7 @@ The stride device address will be modified like this:
       Stride{0u, 0u, 0u}};                                                  // callable
 ~~~~
 
-!!! Note:
+**Note:**
     The result should now show both `wuson` models with a yellow color.
 
 ![](images/manyhits4.png)

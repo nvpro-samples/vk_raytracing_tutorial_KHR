@@ -71,25 +71,27 @@ The following implementation will create 2.000.000 spheres at random positions a
 //--------------------------------------------------------------------------------------------------
 // Creating all spheres
 //
-void HelloVulkan::createSpheres()
+void HelloVulkan::createSpheres(uint32_t nbSpheres)
 {
   std::random_device                    rd{};
   std::mt19937                          gen{rd()};
   std::normal_distribution<float>       xzd{0.f, 5.f};
-  std::normal_distribution<float>       yd{3.f, 1.f};
+  std::normal_distribution<float>       yd{6.f, 3.f};
   std::uniform_real_distribution<float> radd{.05f, .2f};
 
   // All spheres
-  Sphere s;
-  for(uint32_t i = 0; i < 2000000; i++)
+  m_spheres.resize(nbSpheres);
+  for(uint32_t i = 0; i < nbSpheres; i++)
   {
-    s.center = nvmath::vec3f(xzd(gen), yd(gen), xzd(gen));
-    s.radius = radd(gen);
-    m_spheres.emplace_back(s);
+    Sphere s;
+    s.center     = nvmath::vec3f(xzd(gen), yd(gen), xzd(gen));
+    s.radius     = radd(gen);
+    m_spheres[i] = std::move(s);
   }
 
   // Axis aligned bounding box of each sphere
   std::vector<Aabb> aabbs;
+  aabbs.reserve(nbSpheres);
   for(const auto& s : m_spheres)
   {
     Aabb aabb;
@@ -99,28 +101,28 @@ void HelloVulkan::createSpheres()
   }
 
   // Creating two materials
-  MatrialObj mat;
-  mat.diffuse = vec3f(0, 1, 1);
-  std::vector<MatrialObj> materials;
-  std::vector<int>        matIdx;
+  MaterialObj mat;
+  mat.diffuse = nvmath::vec3f(0, 1, 1);
+  std::vector<MaterialObj> materials;
+  std::vector<int>         matIdx(nbSpheres);
   materials.emplace_back(mat);
-  mat.diffuse = vec3f(1, 1, 0);
+  mat.diffuse = nvmath::vec3f(1, 1, 0);
   materials.emplace_back(mat);
 
   // Assign a material to each sphere
   for(size_t i = 0; i < m_spheres.size(); i++)
   {
-    matIdx.push_back(i % 2);
+    matIdx[i] = i % 2;
   }
 
   // Creating all buffers
-  using vkBU = vk::BufferUsageFlagBits;
+  using vkBU = VkBufferUsageFlagBits;
   nvvk::CommandPool genCmdBuf(m_device, m_graphicsQueueIndex);
   auto              cmdBuf = genCmdBuf.createCommandBuffer();
-  m_spheresBuffer          = m_alloc.createBuffer(cmdBuf, m_spheres, vkBU::eStorageBuffer);
-  m_spheresAabbBuffer      = m_alloc.createBuffer(cmdBuf, aabbs, vkBU::eShaderDeviceAddress);
-  m_spheresMatIndexBuffer  = m_alloc.createBuffer(cmdBuf, matIdx, vkBU::eStorageBuffer);
-  m_spheresMatColorBuffer  = m_alloc.createBuffer(cmdBuf, materials, vkBU::eStorageBuffer);
+  m_spheresBuffer          = m_alloc.createBuffer(cmdBuf, m_spheres, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+  m_spheresAabbBuffer      = m_alloc.createBuffer(cmdBuf, aabbs, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+  m_spheresMatIndexBuffer  = m_alloc.createBuffer(cmdBuf, matIdx, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+  m_spheresMatColorBuffer  = m_alloc.createBuffer(cmdBuf, materials, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
   genCmdBuf.submitAndWait(cmdBuf);
 
   // Debug information
@@ -148,39 +150,32 @@ What is changing compare to triangle primitive is the Aabb data (see Aabb struct
 //--------------------------------------------------------------------------------------------------
 // Returning the ray tracing geometry used for the BLAS, containing all spheres
 //
-nvvk::RaytracingBuilderKHR::Blas HelloVulkan::sphereToVkGeometryKHR()
+nvvk::RaytracingBuilderKHR::BlasInput HelloVulkan::sphereToVkGeometryKHR()
 {
-  vk::AccelerationStructureCreateGeometryTypeInfoKHR asCreate;
-  asCreate.setGeometryType(vk::GeometryTypeKHR::eAabbs);
-  asCreate.setMaxPrimitiveCount((uint32_t)m_spheres.size());  // Nb triangles
-  asCreate.setIndexType(vk::IndexType::eNoneKHR);
-  asCreate.setVertexFormat(vk::Format::eUndefined);
-  asCreate.setMaxVertexCount(0);
-  asCreate.setAllowsTransforms(VK_FALSE);  // No adding transformation matrices
+  VkBufferDeviceAddressInfo info{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO};
+  info.buffer                 = m_spheresAabbBuffer.buffer;
+  VkDeviceAddress dataAddress = vkGetBufferDeviceAddress(m_device, &info);
 
+  VkAccelerationStructureGeometryAabbsDataKHR aabbs{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_AABBS_DATA_KHR};
+  aabbs.data.deviceAddress = dataAddress;
+  aabbs.stride             = sizeof(Aabb);
 
-  vk::DeviceAddress dataAddress = m_device.getBufferAddress({m_spheresAabbBuffer.buffer});
-  vk::AccelerationStructureGeometryAabbsDataKHR aabbs;
-  aabbs.setData(dataAddress);
-  aabbs.setStride(sizeof(Aabb));
+  // Setting up the build info of the acceleration (C version, c++ gives wrong type)
+  VkAccelerationStructureGeometryKHR asGeom{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
+  asGeom.geometryType   = VK_GEOMETRY_TYPE_AABBS_KHR;
+  asGeom.flags          = VK_GEOMETRY_OPAQUE_BIT_KHR;
+  asGeom.geometry.aabbs = aabbs;
 
-  // Setting up the build info of the acceleration
-  vk::AccelerationStructureGeometryKHR asGeom;
-  asGeom.setGeometryType(asCreate.geometryType);
-  asGeom.setFlags(vk::GeometryFlagBitsKHR::eOpaque);
-  asGeom.geometry.setAabbs(aabbs);
+  VkAccelerationStructureBuildRangeInfoKHR offset{};
+  offset.firstVertex     = 0;
+  offset.primitiveCount  = (uint32_t)m_spheres.size();  // Nb aabb
+  offset.primitiveOffset = 0;
+  offset.transformOffset = 0;
 
-  vk::AccelerationStructureBuildOffsetInfoKHR offset;
-  offset.setFirstVertex(0);
-  offset.setPrimitiveCount(asCreate.maxPrimitiveCount);
-  offset.setPrimitiveOffset(0);
-  offset.setTransformOffset(0);
-
-  nvvk::RaytracingBuilderKHR::Blas blas;
-  blas.asGeometry.emplace_back(asGeom);
-  blas.asCreateGeometryInfo.emplace_back(asCreate);
-  blas.asBuildOffsetInfo.emplace_back(offset);
-  return blas;
+  nvvk::RaytracingBuilderKHR::BlasInput input;
+  input.asGeometry.emplace_back(asGeom);
+  input.asBuildOffsetInfo.emplace_back(offset);
+  return input;
 }
 ~~~~
 
@@ -212,7 +207,7 @@ The function `createBottomLevelAS()` is creating a BLAS per OBJ, the following m
 void HelloVulkan::createBottomLevelAS()
 {
   // BLAS - Storing each primitive in a geometry
-  std::vector<nvvk::RaytracingBuilderKHR::Blas> allBlas;
+  std::vector<nvvk::RaytracingBuilderKHR::BlasInput> allBlas;
   allBlas.reserve(m_objModel.size());
   for(const auto& obj : m_objModel)
   {
@@ -228,7 +223,7 @@ void HelloVulkan::createBottomLevelAS()
     allBlas.emplace_back(blas);
   }
 
-  m_rtBuilder.buildBlas(allBlas, vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace);
+  m_rtBuilder.buildBlas(allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 }
 ~~~~
 
@@ -261,19 +256,19 @@ In function `createDescriptorSetLayout()`, the addition of the material and mate
 
 ~~~~ C++
   // Materials (binding = 1)
-  m_descSetLayoutBind.emplace_back(vkDS(1, vkDT::eStorageBuffer, nbObj + 1,
-                                        vkSS::eVertex | vkSS::eFragment | vkSS::eClosestHitKHR));
+  m_descSetLayoutBind.addBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nbObj+1,
+                                 VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
   // Materials Index (binding = 4)
-  m_descSetLayoutBind.emplace_back(
-      vkDS(4, vkDT::eStorageBuffer, nbObj + 1, vkSS::eFragment | vkSS::eClosestHitKHR));
+  m_descSetLayoutBind.addBinding(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nbObj +1,
+                                 VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
 ~~~~
 
 And the new buffer holding the spheres
 
 ~~~~ C++
   // Storing spheres (binding = 7)
-  m_descSetLayoutBind.emplace_back(  //
-      vkDS(7, vkDT::eStorageBuffer, 1, vkSS::eClosestHitKHR | vkSS::eIntersectionKHR));
+  m_descSetLayoutBind.addBinding(7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
+                                 VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_INTERSECTION_BIT_KHR);
 ~~~~
 
 The function `updateDescriptorSet()` which is writing the values of the buffer need also to be modified.
@@ -281,22 +276,22 @@ The function `updateDescriptorSet()` which is writing the values of the buffer n
 At the end of the loop on all models, lets add the new material and material index.
 
 ~~~~ C++
-  for(auto& model : m_objModel)
+  for(auto& m : m_objModel)
   {
-    dbiMat.emplace_back(model.matColorBuffer.buffer, 0, VK_WHOLE_SIZE);
-    dbiMatIdx.emplace_back(model.matIndexBuffer.buffer, 0, VK_WHOLE_SIZE);
-    dbiVert.emplace_back(model.vertexBuffer.buffer, 0, VK_WHOLE_SIZE);
-    dbiIdx.emplace_back(model.indexBuffer.buffer, 0, VK_WHOLE_SIZE);
+    dbiMat.push_back({m.matColorBuffer.buffer, 0, VK_WHOLE_SIZE});
+    dbiMatIdx.push_back({m.matIndexBuffer.buffer, 0, VK_WHOLE_SIZE});
+    dbiVert.push_back({m.vertexBuffer.buffer, 0, VK_WHOLE_SIZE});
+    dbiIdx.push_back({m.indexBuffer.buffer, 0, VK_WHOLE_SIZE});
   }
-  dbiMat.emplace_back(m_spheresMatColorBuffer.buffer, 0, VK_WHOLE_SIZE);
-  dbiMatIdx.emplace_back(m_spheresMatIndexBuffer.buffer, 0, VK_WHOLE_SIZE);
+  dbiMat.push_back({m_spheresMatColorBuffer.buffer, 0, VK_WHOLE_SIZE});
+  dbiMatIdx.push_back({m_spheresMatIndexBuffer.buffer, 0, VK_WHOLE_SIZE});
 ~~~~
 
 Then write the buffer for the spheres
 
 ~~~~ C++
-  vk::DescriptorBufferInfo dbiSpheres{m_spheresBuffer.buffer, 0, VK_WHOLE_SIZE};
-  writes.emplace_back(m_descSetLayoutBind.makeWrite(m_descSet, 7, dbiSpheres));
+  VkDescriptorBufferInfo dbiSpheres{m_spheresBuffer.buffer, 0, VK_WHOLE_SIZE};
+  writes.emplace_back(m_descSetLayoutBind.makeWrite(m_descSet, 7, &dbiSpheres));
 ~~~~
 
 ## Intersection Shader
@@ -306,44 +301,33 @@ The intersection shader is added to the Hit Group `VK_RAY_TRACING_SHADER_GROUP_T
 Here is how the two hit group looks like:
 
 ~~~~ C++
-  // Hit Group0 - Closest Hit
-  vk::ShaderModule chitSM =
-      nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace.rchit.spv", true, paths));
-
+  enum StageIndices
   {
-    vk::RayTracingShaderGroupCreateInfoKHR hg{vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup,
-                                              VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
-                                              VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
-    hg.setClosestHitShader(static_cast<uint32_t>(stages.size()));
-    stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, chitSM, "main"});
-    m_rtShaderGroups.push_back(hg);
-  }
+    eRaygen,
+    eMiss,
+    eMiss2,
+    eClosestHit,
+    eClosestHit2,
+    eIntersection,
+    eShaderGroupCount
+  };
 
-  // Hit Group1 - Closest Hit + Intersection (procedural)
-  vk::ShaderModule chit2SM =
-      nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace2.rchit.spv", true, paths));
-  vk::ShaderModule rintSM =
-      nvvk::createShaderModule(m_device,  //
-                               nvh::loadFile("shaders/raytrace.rint.spv", true, paths));
-  {
-    vk::RayTracingShaderGroupCreateInfoKHR hg{vk::RayTracingShaderGroupTypeKHR::eProceduralHitGroup,
-                                              VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
-                                              VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
-    hg.setClosestHitShader(static_cast<uint32_t>(stages.size()));
-    stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, chit2SM, "main"});
-    hg.setIntersectionShader(static_cast<uint32_t>(stages.size()));
-    stages.push_back({{}, vk::ShaderStageFlagBits::eIntersectionKHR, rintSM, "main"});
-    m_rtShaderGroups.push_back(hg);
-  }
+  // Closest hit
+  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytrace2.rchit.spv", true, defaultSearchPaths, true));
+  stage.stage          = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+  stages[eClosestHit2] = stage;
+  // Intersection
+  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytrace.rint.spv", true, defaultSearchPaths, true));
+  stage.stage           = VK_SHADER_STAGE_INTERSECTION_BIT_KHR;
+  stages[eIntersection] = stage;
 ~~~~
 
-And destroy the two shaders at the end
-
 ~~~~ C++
-  m_device.destroy(chit2SM);
-  m_device.destroy(rintSM);
+  // closest hit shader + Intersection (Hit group 2)
+  group.type               = VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR;
+  group.closestHitShader   = eClosestHit2;
+  group.intersectionShader = eIntersection;
+  m_rtShaderGroups.push_back(group);
 ~~~~
 
 ### raycommon.glsl

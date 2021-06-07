@@ -25,9 +25,6 @@
 #include <array>
 #include <iostream>
 
-#include <vulkan/vulkan.hpp>
-VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
-
 #include "backends/imgui_impl_glfw.h"
 #include "imgui.h"
 
@@ -36,7 +33,6 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #include "nvh/cameramanipulator.hpp"
 #include "nvh/fileoperations.hpp"
 #include "nvpsystem.hpp"
-#include "nvvk/appbase_vkpp.hpp"
 #include "nvvk/commands_vk.hpp"
 #include "nvvk/context_vk.hpp"
 
@@ -47,6 +43,7 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
 // Default search path for shaders
 std::vector<std::string> defaultSearchPaths;
+
 
 // GLFW Callback functions
 static void onErrorCallback(int error, const char* description)
@@ -75,6 +72,7 @@ void renderUI(HelloVulkan& helloVk)
 static int const SAMPLE_WIDTH  = 1280;
 static int const SAMPLE_HEIGHT = 720;
 
+
 //--------------------------------------------------------------------------------------------------
 // Application Entry
 //
@@ -89,8 +87,7 @@ int main(int argc, char** argv)
     return 1;
   }
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-  GLFWwindow* window =
-      glfwCreateWindow(SAMPLE_WIDTH, SAMPLE_HEIGHT, PROJECT_NAME, nullptr, nullptr);
+  GLFWwindow* window = glfwCreateWindow(SAMPLE_WIDTH, SAMPLE_HEIGHT, PROJECT_NAME, nullptr, nullptr);
 
   // Setup camera
   CameraManip.setWindowSize(SAMPLE_WIDTH, SAMPLE_HEIGHT);
@@ -117,9 +114,9 @@ int main(int argc, char** argv)
   nvvk::ContextCreateInfo contextInfo(true);
   contextInfo.setVersion(1, 2);
   contextInfo.addInstanceLayer("VK_LAYER_LUNARG_monitor", true);
-  contextInfo.addInstanceExtension(VK_KHR_SURFACE_EXTENSION_NAME);
   contextInfo.addInstanceExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, true);
-#ifdef WIN32
+  contextInfo.addInstanceExtension(VK_KHR_SURFACE_EXTENSION_NAME);
+#ifdef _WIN32
   contextInfo.addInstanceExtension(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 #else
   contextInfo.addInstanceExtension(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
@@ -129,18 +126,19 @@ int main(int argc, char** argv)
   contextInfo.addDeviceExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
   contextInfo.addDeviceExtension(VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME);
   contextInfo.addDeviceExtension(VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME);
+  contextInfo.addDeviceExtension(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
+  contextInfo.addDeviceExtension(VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME);
+
   // #VKRay: Activate the ray tracing extension
   contextInfo.addDeviceExtension(VK_KHR_MAINTENANCE3_EXTENSION_NAME);
   contextInfo.addDeviceExtension(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
   contextInfo.addDeviceExtension(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
   contextInfo.addDeviceExtension(VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
   // #VKRay: Activate the ray tracing extension
-  vk::PhysicalDeviceAccelerationStructureFeaturesKHR accelFeatures;
-  contextInfo.addDeviceExtension(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, false,
-                                 &accelFeatures);
-  vk::PhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures;
+  VkPhysicalDeviceAccelerationStructureFeaturesKHR accelFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR};
+  contextInfo.addDeviceExtension(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, false, &accelFeatures);
+  VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR};
   contextInfo.addDeviceExtension(VK_KHR_RAY_QUERY_EXTENSION_NAME, false, &rayQueryFeatures);
-
 
   // Creating Vulkan base application
   nvvk::Context vkctx{};
@@ -151,16 +149,14 @@ int main(int argc, char** argv)
   // Use a compatible device
   vkctx.initDevice(compatibleDevices[0], contextInfo);
 
-
   // Create example
   HelloVulkan helloVk;
 
   // Window need to be opened to get the surface on which to draw
-  const vk::SurfaceKHR surface = helloVk.getVkSurface(vkctx.m_instance, window);
+  const VkSurfaceKHR surface = helloVk.getVkSurface(vkctx.m_instance, window);
   vkctx.setGCTQueueWithPresent(surface);
 
-  helloVk.setup(vkctx.m_instance, vkctx.m_device, vkctx.m_physicalDevice,
-                vkctx.m_queueGCT.familyIndex);
+  helloVk.setup(vkctx.m_instance, vkctx.m_device, vkctx.m_physicalDevice, vkctx.m_queueGCT.familyIndex);
   helloVk.createSwapchain(surface, SAMPLE_WIDTH, SAMPLE_HEIGHT);
   helloVk.createDepthBuffer();
   helloVk.createRenderPass();
@@ -241,8 +237,7 @@ int main(int argc, char** argv)
             helloVk.resetFrame();
         }
 
-        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
-                    1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
         ImGuiH::Control::Info("", "", "(F10) Toggle Pane", ImGuiH::Control::Flags::Disabled);
         ImGuiH::Panel::End();
       }
@@ -251,66 +246,67 @@ int main(int argc, char** argv)
       helloVk.prepareFrame();
 
       // Start command buffer of this frame
-      auto                     curFrame = helloVk.getCurFrame();
-      const vk::CommandBuffer& cmdBuf   = helloVk.getCommandBuffers()[curFrame];
+      auto                   curFrame = helloVk.getCurFrame();
+      const VkCommandBuffer& cmdBuf   = helloVk.getCommandBuffers()[curFrame];
 
-      cmdBuf.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+      VkCommandBufferBeginInfo beginInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+      beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+      vkBeginCommandBuffer(cmdBuf, &beginInfo);
 
       // Updating camera buffer
       helloVk.updateUniformBuffer(cmdBuf);
 
       // Clearing screen
-      std::array<vk::ClearValue, 3> clearValues;
-      clearValues[0].setColor(
-          std::array<float, 4>({clearColor[0], clearColor[1], clearColor[2], clearColor[3]}));
+      std::array<VkClearValue, 3> clearValues{};
+      clearValues[0].color = {{clearColor[0], clearColor[1], clearColor[2], clearColor[3]}};
 
 
       // Offscreen render pass
       {
-        clearValues[1].setColor(std::array<float, 4>{0, 0, 0, 0});
-        clearValues[2].setDepthStencil({1.0f, 0});
-        vk::RenderPassBeginInfo offscreenRenderPassBeginInfo;
-        offscreenRenderPassBeginInfo.setClearValueCount(3);
-        offscreenRenderPassBeginInfo.setPClearValues(clearValues.data());
-        offscreenRenderPassBeginInfo.setRenderPass(helloVk.m_offscreenRenderPass);
-        offscreenRenderPassBeginInfo.setFramebuffer(helloVk.m_offscreenFramebuffer);
-        offscreenRenderPassBeginInfo.setRenderArea({{}, helloVk.getSize()});
+        clearValues[1].color        = {{0, 0, 0, 0}};
+        clearValues[2].depthStencil = {1.0f, 0};
+        VkRenderPassBeginInfo offscreenRenderPassBeginInfo{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+        offscreenRenderPassBeginInfo.clearValueCount = (uint32_t)clearValues.size();
+        offscreenRenderPassBeginInfo.pClearValues    = clearValues.data();
+        offscreenRenderPassBeginInfo.renderPass      = helloVk.m_offscreenRenderPass;
+        offscreenRenderPassBeginInfo.framebuffer     = helloVk.m_offscreenFramebuffer;
+        offscreenRenderPassBeginInfo.renderArea      = {{0, 0}, helloVk.getSize()};
 
         // Rendering Scene
         {
-          cmdBuf.beginRenderPass(offscreenRenderPassBeginInfo, vk::SubpassContents::eInline);
+          vkCmdBeginRenderPass(cmdBuf, &offscreenRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
           helloVk.rasterize(cmdBuf);
-          cmdBuf.endRenderPass();
+          vkCmdEndRenderPass(cmdBuf);
           helloVk.runCompute(cmdBuf, aoControl);
         }
       }
 
       // 2nd rendering pass: tone mapper, UI
       {
-        clearValues[1].setDepthStencil({1.0f, 0});
-        vk::RenderPassBeginInfo postRenderPassBeginInfo;
-        postRenderPassBeginInfo.setClearValueCount(2);
-        postRenderPassBeginInfo.setPClearValues(clearValues.data());
-        postRenderPassBeginInfo.setRenderPass(helloVk.getRenderPass());
-        postRenderPassBeginInfo.setFramebuffer(helloVk.getFramebuffers()[curFrame]);
-        postRenderPassBeginInfo.setRenderArea({{}, helloVk.getSize()});
+        clearValues[1].depthStencil = {1.0f, 0};
+        VkRenderPassBeginInfo postRenderPassBeginInfo{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+        postRenderPassBeginInfo.clearValueCount = 2;
+        postRenderPassBeginInfo.pClearValues    = clearValues.data();
+        postRenderPassBeginInfo.renderPass      = helloVk.getRenderPass();
+        postRenderPassBeginInfo.framebuffer     = helloVk.getFramebuffers()[curFrame];
+        postRenderPassBeginInfo.renderArea      = {{0, 0}, helloVk.getSize()};
 
-        cmdBuf.beginRenderPass(postRenderPassBeginInfo, vk::SubpassContents::eInline);
         // Rendering tonemapper
+        vkCmdBeginRenderPass(cmdBuf, &postRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
         helloVk.drawPost(cmdBuf);
         // Rendering UI
         ImGui::Render();
         ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmdBuf);
-        cmdBuf.endRenderPass();
+        vkCmdEndRenderPass(cmdBuf);
       }
 
       // Submit for display
-      cmdBuf.end();
+      vkEndCommandBuffer(cmdBuf);
       helloVk.submitFrame();
     }
     catch(const std::system_error& e)
     {
-      if(e.code() == vk::Result::eErrorDeviceLost)
+      if(e.code().value() == VK_ERROR_DEVICE_LOST)
       {
 #if _WIN32
         MessageBoxA(nullptr, e.what(), "Fatal Error", MB_ICONERROR | MB_OK | MB_DEFBUTTON1);
@@ -322,10 +318,10 @@ int main(int argc, char** argv)
   }
 
   // Cleanup
-  helloVk.getDevice().waitIdle();
+  vkDeviceWaitIdle(helloVk.getDevice());
+
   helloVk.destroyResources();
   helloVk.destroy();
-
   vkctx.deinit();
 
   glfwDestroyWindow(window);

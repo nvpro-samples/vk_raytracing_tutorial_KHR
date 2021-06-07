@@ -36,7 +36,7 @@ struct MaterialObj
   float         shininess     = 0.f;
   float         ior           = 1.0f;  // index of refraction
   float         dissolve      = 1.f;   // 1 == opaque; 0 == fully transparent
-      // illumination model (see http://www.fileformat.info/format/material/)
+                                       // illumination model (see http://www.fileformat.info/format/material/)
   int illum     = 0;
   int textureID = -1;
 };

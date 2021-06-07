@@ -19,9 +19,7 @@
 
 
 #include <sstream>
-#include <vulkan/vulkan.hpp>
 
-extern std::vector<std::string> defaultSearchPaths;
 
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
@@ -44,6 +42,7 @@ extern std::vector<std::string> defaultSearchPaths;
 #include "shaders/binding.glsl"
 #include "shaders/gltf.glsl"
 
+extern std::vector<std::string> defaultSearchPaths;
 
 // Holding the camera matrices
 struct CameraMatrices
@@ -55,17 +54,15 @@ struct CameraMatrices
   nvmath::mat4f projInverse;
 };
 
+
 //--------------------------------------------------------------------------------------------------
 // Keep the handle on the device
 // Initialize the tool to do all our allocations: buffers, images
 //
-void HelloVulkan::setup(const vk::Instance&       instance,
-                        const vk::Device&         device,
-                        const vk::PhysicalDevice& physicalDevice,
-                        uint32_t                  queueFamily)
+void HelloVulkan::setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t queueFamily)
 {
-  AppBase::setup(instance, device, physicalDevice, queueFamily);
-  m_alloc.init(device, physicalDevice);
+  AppBaseVk::setup(instance, device, physicalDevice, queueFamily);
+  m_alloc.init(instance, device, physicalDevice);
   m_debug.setup(m_device);
   m_offscreenDepthFormat = nvvk::findDepthFormat(physicalDevice);
 }
@@ -73,46 +70,46 @@ void HelloVulkan::setup(const vk::Instance&       instance,
 //--------------------------------------------------------------------------------------------------
 // Called at each frame to update the camera matrix
 //
-void HelloVulkan::updateUniformBuffer(const vk::CommandBuffer& cmdBuf)
+void HelloVulkan::updateUniformBuffer(const VkCommandBuffer& cmdBuf)
 {
   // Prepare new UBO contents on host.
   const float    aspectRatio = m_size.width / static_cast<float>(m_size.height);
   CameraMatrices hostUBO     = {};
   hostUBO.view               = CameraManip.getMatrix();
-  hostUBO.proj = nvmath::perspectiveVK(CameraManip.getFov(), aspectRatio, 0.1f, 1000.0f);
+  hostUBO.proj               = nvmath::perspectiveVK(CameraManip.getFov(), aspectRatio, 0.1f, 1000.0f);
   // hostUBO.proj[1][1] *= -1;  // Inverting Y for Vulkan (not needed with perspectiveVK).
   hostUBO.viewInverse = nvmath::invert(hostUBO.view);
   // #VKRay
   hostUBO.projInverse = nvmath::invert(hostUBO.proj);
 
   // UBO on the device, and what stages access it.
-  vk::Buffer deviceUBO = m_cameraMat.buffer;
-  auto       uboUsageStages =
-      vk::PipelineStageFlagBits::eVertexShader | vk::PipelineStageFlagBits::eRayTracingShaderKHR;
+  VkBuffer deviceUBO      = m_cameraMat.buffer;
+  auto     uboUsageStages = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR;
 
   // Ensure that the modified UBO is not visible to previous frames.
-  vk::BufferMemoryBarrier beforeBarrier;
-  beforeBarrier.setSrcAccessMask(vk::AccessFlagBits::eShaderRead);
-  beforeBarrier.setDstAccessMask(vk::AccessFlagBits::eTransferWrite);
-  beforeBarrier.setBuffer(deviceUBO);
-  beforeBarrier.setOffset(0);
-  beforeBarrier.setSize(sizeof hostUBO);
-  cmdBuf.pipelineBarrier(uboUsageStages, vk::PipelineStageFlagBits::eTransfer,
-                         vk::DependencyFlagBits::eDeviceGroup, {}, {beforeBarrier}, {});
+  VkBufferMemoryBarrier beforeBarrier{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
+  beforeBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+  beforeBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  beforeBarrier.buffer        = deviceUBO;
+  beforeBarrier.offset        = 0;
+  beforeBarrier.size          = sizeof(hostUBO);
+  vkCmdPipelineBarrier(cmdBuf, uboUsageStages, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 0,
+                       nullptr, 1, &beforeBarrier, 0, nullptr);
+
 
   // Schedule the host-to-device upload. (hostUBO is copied into the cmd
   // buffer so it is okay to deallocate when the function returns).
-  cmdBuf.updateBuffer<CameraMatrices>(m_cameraMat.buffer, 0, hostUBO);
+  vkCmdUpdateBuffer(cmdBuf, m_cameraMat.buffer, 0, sizeof(CameraMatrices), &hostUBO);
 
   // Making sure the updated UBO will be visible.
-  vk::BufferMemoryBarrier afterBarrier;
-  afterBarrier.setSrcAccessMask(vk::AccessFlagBits::eTransferWrite);
-  afterBarrier.setDstAccessMask(vk::AccessFlagBits::eShaderRead);
-  afterBarrier.setBuffer(deviceUBO);
-  afterBarrier.setOffset(0);
-  afterBarrier.setSize(sizeof hostUBO);
-  cmdBuf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, uboUsageStages,
-                         vk::DependencyFlagBits::eDeviceGroup, {}, {afterBarrier}, {});
+  VkBufferMemoryBarrier afterBarrier{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
+  afterBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  afterBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+  afterBarrier.buffer        = deviceUBO;
+  afterBarrier.offset        = 0;
+  afterBarrier.size          = sizeof(hostUBO);
+  vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_TRANSFER_BIT, uboUsageStages, VK_DEPENDENCY_DEVICE_GROUP_BIT, 0,
+                       nullptr, 1, &afterBarrier, 0, nullptr);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -120,27 +117,20 @@ void HelloVulkan::updateUniformBuffer(const vk::CommandBuffer& cmdBuf)
 //
 void HelloVulkan::createDescriptorSetLayout()
 {
-  using vkDS = vk::DescriptorSetLayoutBinding;
-  using vkDT = vk::DescriptorType;
-  using vkSS = vk::ShaderStageFlagBits;
-
   auto& bind = m_descSetLayoutBind;
   // Camera matrices (binding = 0)
-  bind.addBinding(vkDS(B_CAMERA, vkDT::eUniformBuffer, 1, vkSS::eVertex | vkSS::eRaygenKHR));
-  bind.addBinding(
-      vkDS(B_VERTICES, vkDT::eStorageBuffer, 1, vkSS::eClosestHitKHR | vkSS::eAnyHitKHR));
-  bind.addBinding(
-      vkDS(B_INDICES, vkDT::eStorageBuffer, 1, vkSS::eClosestHitKHR | vkSS::eAnyHitKHR));
-  bind.addBinding(vkDS(B_NORMALS, vkDT::eStorageBuffer, 1, vkSS::eClosestHitKHR));
-  bind.addBinding(vkDS(B_TEXCOORDS, vkDT::eStorageBuffer, 1, vkSS::eClosestHitKHR));
-  bind.addBinding(vkDS(B_MATERIALS, vkDT::eStorageBuffer, 1,
-                       vkSS::eFragment | vkSS::eClosestHitKHR | vkSS::eAnyHitKHR));
-  bind.addBinding(vkDS(B_MATRICES, vkDT::eStorageBuffer, 1,
-                       vkSS::eVertex | vkSS::eClosestHitKHR | vkSS::eAnyHitKHR));
+  bind.addBinding(B_CAMERA, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+  bind.addBinding(B_VERTICES, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR);
+  bind.addBinding(B_INDICES, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR);
+  bind.addBinding(B_NORMALS, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
+  bind.addBinding(B_TEXCOORDS, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
+  bind.addBinding(B_MATERIALS, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
+                  VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR);
+  bind.addBinding(B_MATRICES, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
+                  VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR);
   auto nbTextures = static_cast<uint32_t>(m_textures.size());
-  bind.addBinding(vkDS(B_TEXTURES, vkDT::eCombinedImageSampler, nbTextures,
-                       vkSS::eFragment | vkSS::eClosestHitKHR | vkSS::eAnyHitKHR));
-
+  bind.addBinding(B_TEXTURES, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nbTextures,
+                  VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR);
 
   m_descSetLayout = m_descSetLayoutBind.createLayout(m_device);
   m_descPool      = m_descSetLayoutBind.createPool(m_device, 1);
@@ -152,16 +142,16 @@ void HelloVulkan::createDescriptorSetLayout()
 //
 void HelloVulkan::updateDescriptorSet()
 {
-  std::vector<vk::WriteDescriptorSet> writes;
+  std::vector<VkWriteDescriptorSet> writes;
 
   // Camera matrices and scene description
-  vk::DescriptorBufferInfo dbiUnif{m_cameraMat.buffer, 0, VK_WHOLE_SIZE};
-  vk::DescriptorBufferInfo vertexDesc{m_vertexBuffer.buffer, 0, VK_WHOLE_SIZE};
-  vk::DescriptorBufferInfo indexDesc{m_indexBuffer.buffer, 0, VK_WHOLE_SIZE};
-  vk::DescriptorBufferInfo normalDesc{m_normalBuffer.buffer, 0, VK_WHOLE_SIZE};
-  vk::DescriptorBufferInfo uvDesc{m_uvBuffer.buffer, 0, VK_WHOLE_SIZE};
-  vk::DescriptorBufferInfo materialDesc{m_materialBuffer.buffer, 0, VK_WHOLE_SIZE};
-  vk::DescriptorBufferInfo matrixDesc{m_matrixBuffer.buffer, 0, VK_WHOLE_SIZE};
+  VkDescriptorBufferInfo dbiUnif{m_cameraMat.buffer, 0, VK_WHOLE_SIZE};
+  VkDescriptorBufferInfo vertexDesc{m_vertexBuffer.buffer, 0, VK_WHOLE_SIZE};
+  VkDescriptorBufferInfo indexDesc{m_indexBuffer.buffer, 0, VK_WHOLE_SIZE};
+  VkDescriptorBufferInfo normalDesc{m_normalBuffer.buffer, 0, VK_WHOLE_SIZE};
+  VkDescriptorBufferInfo uvDesc{m_uvBuffer.buffer, 0, VK_WHOLE_SIZE};
+  VkDescriptorBufferInfo materialDesc{m_materialBuffer.buffer, 0, VK_WHOLE_SIZE};
+  VkDescriptorBufferInfo matrixDesc{m_matrixBuffer.buffer, 0, VK_WHOLE_SIZE};
 
   writes.emplace_back(m_descSetLayoutBind.makeWrite(m_descSet, B_CAMERA, &dbiUnif));
   writes.emplace_back(m_descSetLayoutBind.makeWrite(m_descSet, B_VERTICES, &vertexDesc));
@@ -172,46 +162,43 @@ void HelloVulkan::updateDescriptorSet()
   writes.emplace_back(m_descSetLayoutBind.makeWrite(m_descSet, B_MATRICES, &matrixDesc));
 
   // All texture samplers
-  std::vector<vk::DescriptorImageInfo> diit;
+  std::vector<VkDescriptorImageInfo> diit;
   for(auto& texture : m_textures)
     diit.emplace_back(texture.descriptor);
   writes.emplace_back(m_descSetLayoutBind.makeWriteArray(m_descSet, B_TEXTURES, diit.data()));
 
   // Writing the information
-  m_device.updateDescriptorSets(static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+  vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
+
 
 //--------------------------------------------------------------------------------------------------
 // Creating the pipeline layout
 //
 void HelloVulkan::createGraphicsPipeline()
 {
-  using vkSS = vk::ShaderStageFlagBits;
-
-  vk::PushConstantRange pushConstantRanges = {vkSS::eVertex | vkSS::eFragment, 0,
-                                              sizeof(ObjPushConstant)};
+  VkPushConstantRange pushConstantRanges = {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(ObjPushConstant)};
 
   // Creating the Pipeline Layout
-  vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo;
-  vk::DescriptorSetLayout      descSetLayout(m_descSetLayout);
-  pipelineLayoutCreateInfo.setSetLayoutCount(1);
-  pipelineLayoutCreateInfo.setPSetLayouts(&descSetLayout);
-  pipelineLayoutCreateInfo.setPushConstantRangeCount(1);
-  pipelineLayoutCreateInfo.setPPushConstantRanges(&pushConstantRanges);
-  m_pipelineLayout = m_device.createPipelineLayout(pipelineLayoutCreateInfo);
+  VkPipelineLayoutCreateInfo createInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+  createInfo.setLayoutCount         = 1;
+  createInfo.pSetLayouts            = &m_descSetLayout;
+  createInfo.pushConstantRangeCount = 1;
+  createInfo.pPushConstantRanges    = &pushConstantRanges;
+  vkCreatePipelineLayout(m_device, &createInfo, nullptr, &m_pipelineLayout);
+
 
   // Creating the Pipeline
   std::vector<std::string>                paths = defaultSearchPaths;
   nvvk::GraphicsPipelineGeneratorCombined gpb(m_device, m_pipelineLayout, m_offscreenRenderPass);
   gpb.depthStencilState.depthTestEnable = true;
-  gpb.addShader(nvh::loadFile("spv/vert_shader.vert.spv", true, paths, true), vkSS::eVertex);
-  gpb.addShader(nvh::loadFile("spv/frag_shader.frag.spv", true, paths, true), vkSS::eFragment);
-  gpb.addBindingDescriptions(
-      {{0, sizeof(nvmath::vec3)}, {1, sizeof(nvmath::vec3)}, {2, sizeof(nvmath::vec2)}});
+  gpb.addShader(nvh::loadFile("spv/vert_shader.vert.spv", true, paths, true), VK_SHADER_STAGE_VERTEX_BIT);
+  gpb.addShader(nvh::loadFile("spv/frag_shader.frag.spv", true, paths, true), VK_SHADER_STAGE_FRAGMENT_BIT);
+  gpb.addBindingDescriptions({{0, sizeof(nvmath::vec3)}, {1, sizeof(nvmath::vec3)}, {2, sizeof(nvmath::vec2)}});
   gpb.addAttributeDescriptions({
-      {0, 0, vk::Format::eR32G32B32Sfloat, 0},  // Position
-      {1, 1, vk::Format::eR32G32B32Sfloat, 0},  // Normal
-      {2, 2, vk::Format::eR32G32Sfloat, 0},     // Texcoord0
+      {0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0},  // Position
+      {1, 1, VK_FORMAT_R32G32B32_SFLOAT, 0},  // Normal
+      {2, 2, VK_FORMAT_R32G32_SFLOAT, 0},     // Texcoord0
   });
   m_graphicsPipeline = gpb.createPipeline();
   m_debug.setObjectName(m_graphicsPipeline, "Graphics");
@@ -222,7 +209,7 @@ void HelloVulkan::createGraphicsPipeline()
 //
 void HelloVulkan::loadScene(const std::string& filename)
 {
-  using vkBU = vk::BufferUsageFlagBits;
+  using vkBU = VkBufferUsageFlagBits;
   tinygltf::Model    tmodel;
   tinygltf::TinyGLTF tcontext;
   std::string        warn, error;
@@ -237,34 +224,30 @@ void HelloVulkan::loadScene(const std::string& filename)
 
 
   m_gltfScene.importMaterials(tmodel);
-  m_gltfScene.importDrawableNodes(tmodel,
-                                  nvh::GltfAttributes::Normal | nvh::GltfAttributes::Texcoord_0);
+  m_gltfScene.importDrawableNodes(tmodel, nvh::GltfAttributes::Normal | nvh::GltfAttributes::Texcoord_0);
 
   // Create the buffers on Device and copy vertices, indices and materials
   nvvk::CommandPool cmdBufGet(m_device, m_graphicsQueueIndex);
-  vk::CommandBuffer cmdBuf = cmdBufGet.createCommandBuffer();
+  VkCommandBuffer   cmdBuf = cmdBufGet.createCommandBuffer();
 
-  m_vertexBuffer =
-      m_alloc.createBuffer(cmdBuf, m_gltfScene.m_positions,
-                           vkBU::eVertexBuffer | vkBU::eStorageBuffer | vkBU::eShaderDeviceAddress
-                               | vkBU::eAccelerationStructureBuildInputReadOnlyKHR);
-  m_indexBuffer =
-      m_alloc.createBuffer(cmdBuf, m_gltfScene.m_indices,
-                           vkBU::eIndexBuffer | vkBU::eStorageBuffer | vkBU::eShaderDeviceAddress
-                               | vkBU::eAccelerationStructureBuildInputReadOnlyKHR);
+  m_vertexBuffer = m_alloc.createBuffer(cmdBuf, m_gltfScene.m_positions,
+                                        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+                                            | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
+  m_indexBuffer  = m_alloc.createBuffer(cmdBuf, m_gltfScene.m_indices,
+                                       VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+                                           | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
   m_normalBuffer = m_alloc.createBuffer(cmdBuf, m_gltfScene.m_normals,
-                                        vkBU::eVertexBuffer | vkBU::eStorageBuffer);
+                                        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
   m_uvBuffer     = m_alloc.createBuffer(cmdBuf, m_gltfScene.m_texcoords0,
-                                    vkBU::eVertexBuffer | vkBU::eStorageBuffer);
+                                    VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
   // Copying all materials, only the elements we need
   std::vector<GltfShadeMaterial> shadeMaterials;
   for(auto& m : m_gltfScene.m_materials)
   {
-    shadeMaterials.emplace_back(
-        GltfShadeMaterial{m.baseColorFactor, m.baseColorTexture, m.emissiveFactor});
+    shadeMaterials.emplace_back(GltfShadeMaterial{m.baseColorFactor, m.baseColorTexture, m.emissiveFactor});
   }
-  m_materialBuffer = m_alloc.createBuffer(cmdBuf, shadeMaterials, vkBU::eStorageBuffer);
+  m_materialBuffer = m_alloc.createBuffer(cmdBuf, shadeMaterials, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
   // Instance Matrices used by rasterizer
   std::vector<nvmath::mat4f> nodeMatrices;
@@ -272,7 +255,7 @@ void HelloVulkan::loadScene(const std::string& filename)
   {
     nodeMatrices.emplace_back(node.worldMatrix);
   }
-  m_matrixBuffer = m_alloc.createBuffer(cmdBuf, nodeMatrices, vkBU::eStorageBuffer);
+  m_matrixBuffer = m_alloc.createBuffer(cmdBuf, nodeMatrices, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
   // The following is used to find the primitive mesh information in the CHIT
   std::vector<RtPrimitiveLookup> primLookup;
@@ -280,8 +263,7 @@ void HelloVulkan::loadScene(const std::string& filename)
   {
     primLookup.push_back({primMesh.firstIndex, primMesh.vertexOffset, primMesh.materialIndex});
   }
-  m_rtPrimLookup =
-      m_alloc.createBuffer(cmdBuf, primLookup, vk::BufferUsageFlagBits::eStorageBuffer);
+  m_rtPrimLookup = m_alloc.createBuffer(cmdBuf, primLookup, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
 
   // Creates all textures found
@@ -304,32 +286,31 @@ void HelloVulkan::loadScene(const std::string& filename)
 //
 void HelloVulkan::createUniformBuffer()
 {
-  using vkBU = vk::BufferUsageFlagBits;
-  using vkMP = vk::MemoryPropertyFlagBits;
-
-  m_cameraMat = m_alloc.createBuffer(sizeof(CameraMatrices),
-                                     vkBU::eUniformBuffer | vkBU::eTransferDst, vkMP::eDeviceLocal);
+  m_cameraMat = m_alloc.createBuffer(sizeof(CameraMatrices), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
   m_debug.setObjectName(m_cameraMat.buffer, "cameraMat");
 }
 
 //--------------------------------------------------------------------------------------------------
 // Creating all textures and samplers
 //
-void HelloVulkan::createTextureImages(const vk::CommandBuffer& cmdBuf, tinygltf::Model& gltfModel)
+void HelloVulkan::createTextureImages(const VkCommandBuffer& cmdBuf, tinygltf::Model& gltfModel)
 {
-  using vkIU = vk::ImageUsageFlagBits;
+  VkSamplerCreateInfo samplerCreateInfo{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+  samplerCreateInfo.minFilter  = VK_FILTER_LINEAR;
+  samplerCreateInfo.magFilter  = VK_FILTER_LINEAR;
+  samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+  samplerCreateInfo.maxLod     = FLT_MAX;
 
-  vk::SamplerCreateInfo samplerCreateInfo{
-      {}, vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear};
-  samplerCreateInfo.setMaxLod(FLT_MAX);
-  vk::Format format = vk::Format::eR8G8B8A8Srgb;
+  VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
 
   auto addDefaultTexture = [this]() {
     // Make dummy image(1,1), needed as we cannot have an empty array
     nvvk::ScopeCommandBuffer cmdBuf(m_device, m_graphicsQueueIndex);
     std::array<uint8_t, 4>   white = {255, 255, 255, 255};
-    m_textures.emplace_back(m_alloc.createTexture(
-        cmdBuf, 4, white.data(), nvvk::makeImage2DCreateInfo(vk::Extent2D{1, 1}), {}));
+
+    VkSamplerCreateInfo sampler{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+    m_textures.emplace_back(m_alloc.createTexture(cmdBuf, 4, white.data(), nvvk::makeImage2DCreateInfo(VkExtent2D{1, 1}), sampler));
     m_debug.setObjectName(m_textures.back().image, "dummy");
   };
 
@@ -345,7 +326,7 @@ void HelloVulkan::createTextureImages(const vk::CommandBuffer& cmdBuf, tinygltf:
     auto&        gltfimage  = gltfModel.images[i];
     void*        buffer     = &gltfimage.image[0];
     VkDeviceSize bufferSize = gltfimage.image.size();
-    auto         imgSize    = vk::Extent2D(gltfimage.width, gltfimage.height);
+    auto         imgSize    = VkExtent2D{(uint32_t)gltfimage.width, (uint32_t)gltfimage.height};
 
     if(bufferSize == 0 || gltfimage.width == -1 || gltfimage.height == -1)
     {
@@ -353,12 +334,11 @@ void HelloVulkan::createTextureImages(const vk::CommandBuffer& cmdBuf, tinygltf:
       continue;
     }
 
-    vk::ImageCreateInfo imageCreateInfo =
-        nvvk::makeImage2DCreateInfo(imgSize, format, vkIU::eSampled, true);
+    VkImageCreateInfo imageCreateInfo = nvvk::makeImage2DCreateInfo(imgSize, format, VK_IMAGE_USAGE_SAMPLED_BIT, true);
 
     nvvk::Image image = m_alloc.createImage(cmdBuf, bufferSize, buffer, imageCreateInfo);
     nvvk::cmdGenerateMipmaps(cmdBuf, image.image, format, imgSize, imageCreateInfo.mipLevels);
-    vk::ImageViewCreateInfo ivInfo = nvvk::makeImageViewCreateInfo(image.image, imageCreateInfo);
+    VkImageViewCreateInfo ivInfo = nvvk::makeImageViewCreateInfo(image.image, imageCreateInfo);
     m_textures.emplace_back(m_alloc.createTexture(image, ivInfo, samplerCreateInfo));
 
     m_debug.setObjectName(m_textures[i].image, std::string("Txt" + std::to_string(i)).c_str());
@@ -370,10 +350,11 @@ void HelloVulkan::createTextureImages(const vk::CommandBuffer& cmdBuf, tinygltf:
 //
 void HelloVulkan::destroyResources()
 {
-  m_device.destroy(m_graphicsPipeline);
-  m_device.destroy(m_pipelineLayout);
-  m_device.destroy(m_descPool);
-  m_device.destroy(m_descSetLayout);
+  vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
+  vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
+  vkDestroyDescriptorPool(m_device, m_descPool, nullptr);
+  vkDestroyDescriptorSetLayout(m_device, m_descSetLayout, nullptr);
+
   m_alloc.destroy(m_cameraMat);
 
   m_alloc.destroy(m_vertexBuffer);
@@ -390,22 +371,23 @@ void HelloVulkan::destroyResources()
   }
 
   //#Post
-  m_device.destroy(m_postPipeline);
-  m_device.destroy(m_postPipelineLayout);
-  m_device.destroy(m_postDescPool);
-  m_device.destroy(m_postDescSetLayout);
   m_alloc.destroy(m_offscreenColor);
   m_alloc.destroy(m_offscreenDepth);
-  m_device.destroy(m_offscreenRenderPass);
-  m_device.destroy(m_offscreenFramebuffer);
+  vkDestroyPipeline(m_device, m_postPipeline, nullptr);
+  vkDestroyPipelineLayout(m_device, m_postPipelineLayout, nullptr);
+  vkDestroyDescriptorPool(m_device, m_postDescPool, nullptr);
+  vkDestroyDescriptorSetLayout(m_device, m_postDescSetLayout, nullptr);
+  vkDestroyRenderPass(m_device, m_offscreenRenderPass, nullptr);
+  vkDestroyFramebuffer(m_device, m_offscreenFramebuffer, nullptr);
 
   // #VKRay
   m_rtBuilder.destroy();
   m_sbtWrapper.destroy();
-  m_device.destroy(m_rtDescPool);
-  m_device.destroy(m_rtDescSetLayout);
-  m_device.destroy(m_rtPipeline);
-  m_device.destroy(m_rtPipelineLayout);
+  vkDestroyPipeline(m_device, m_rtPipeline, nullptr);
+  vkDestroyPipelineLayout(m_device, m_rtPipelineLayout, nullptr);
+  vkDestroyDescriptorPool(m_device, m_rtDescPool, nullptr);
+  vkDestroyDescriptorSetLayout(m_device, m_rtDescSetLayout, nullptr);
+
 
   m_alloc.deinit();
 }
@@ -413,26 +395,24 @@ void HelloVulkan::destroyResources()
 //--------------------------------------------------------------------------------------------------
 // Drawing the scene in raster mode
 //
-void HelloVulkan::rasterize(const vk::CommandBuffer& cmdBuf)
+void HelloVulkan::rasterize(const VkCommandBuffer& cmdBuf)
 {
-  using vkPBP = vk::PipelineBindPoint;
+  using vkPBP = VkPipelineBindPoint;
 
-  std::vector<vk::DeviceSize> offsets = {0, 0, 0};
+  std::vector<VkDeviceSize> offsets = {0, 0, 0};
 
   m_debug.beginLabel(cmdBuf, "Rasterize");
 
   // Dynamic Viewport
-  cmdBuf.setViewport(0, {vk::Viewport(0, 0, (float)m_size.width, (float)m_size.height, 0, 1)});
-  cmdBuf.setScissor(0, {{{0, 0}, {m_size.width, m_size.height}}});
+  setViewport(cmdBuf);
 
   // Drawing all triangles
-  cmdBuf.bindPipeline(vkPBP::eGraphics, m_graphicsPipeline);
-  cmdBuf.bindDescriptorSets(vkPBP::eGraphics, m_pipelineLayout, 0, {m_descSet}, {});
-  std::vector<vk::Buffer> vertexBuffers = {m_vertexBuffer.buffer, m_normalBuffer.buffer,
-                                           m_uvBuffer.buffer};
-  cmdBuf.bindVertexBuffers(0, static_cast<uint32_t>(vertexBuffers.size()), vertexBuffers.data(),
-                           offsets.data());
-  cmdBuf.bindIndexBuffer(m_indexBuffer.buffer, 0, vk::IndexType::eUint32);
+  vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+  vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &m_descSet, 0, nullptr);
+
+  std::vector<VkBuffer> vertexBuffers = {m_vertexBuffer.buffer, m_normalBuffer.buffer, m_uvBuffer.buffer};
+  vkCmdBindVertexBuffers(cmdBuf, 0, static_cast<uint32_t>(vertexBuffers.size()), vertexBuffers.data(), offsets.data());
+  vkCmdBindIndexBuffer(cmdBuf, m_indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 
   uint32_t idxNode = 0;
   for(auto& node : m_gltfScene.m_nodes)
@@ -441,10 +421,9 @@ void HelloVulkan::rasterize(const vk::CommandBuffer& cmdBuf)
 
     m_pushConstant.instanceId = idxNode++;
     m_pushConstant.materialId = primitive.materialIndex;
-    cmdBuf.pushConstants<ObjPushConstant>(
-        m_pipelineLayout, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, 0,
-        m_pushConstant);
-    cmdBuf.drawIndexed(primitive.indexCount, 1, primitive.firstIndex, primitive.vertexOffset, 0);
+    vkCmdPushConstants(cmdBuf, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                       sizeof(ObjPushConstant), &m_pushConstant);
+    vkCmdDrawIndexed(cmdBuf, primitive.indexCount, 1, primitive.firstIndex, primitive.vertexOffset, 0);
   }
 
   m_debug.endLabel(cmdBuf);
@@ -461,9 +440,11 @@ void HelloVulkan::onResize(int /*w*/, int /*h*/)
   resetFrame();
 }
 
+
 //////////////////////////////////////////////////////////////////////////
 // Post-processing
 //////////////////////////////////////////////////////////////////////////
+
 
 //--------------------------------------------------------------------------------------------------
 // Creating an offscreen frame buffer and the associated render pass
@@ -476,29 +457,28 @@ void HelloVulkan::createOffscreenRender()
   // Creating the color image
   {
     auto colorCreateInfo = nvvk::makeImage2DCreateInfo(m_size, m_offscreenColorFormat,
-                                                       vk::ImageUsageFlagBits::eColorAttachment
-                                                           | vk::ImageUsageFlagBits::eSampled
-                                                           | vk::ImageUsageFlagBits::eStorage);
+                                                       VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT
+                                                           | VK_IMAGE_USAGE_STORAGE_BIT);
 
 
-    nvvk::Image             image  = m_alloc.createImage(colorCreateInfo);
-    vk::ImageViewCreateInfo ivInfo = nvvk::makeImageViewCreateInfo(image.image, colorCreateInfo);
-    m_offscreenColor               = m_alloc.createTexture(image, ivInfo, vk::SamplerCreateInfo());
+    nvvk::Image           image  = m_alloc.createImage(colorCreateInfo);
+    VkImageViewCreateInfo ivInfo = nvvk::makeImageViewCreateInfo(image.image, colorCreateInfo);
+    VkSamplerCreateInfo   sampler{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+    m_offscreenColor                        = m_alloc.createTexture(image, ivInfo, sampler);
     m_offscreenColor.descriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
   }
 
   // Creating the depth buffer
-  auto depthCreateInfo =
-      nvvk::makeImage2DCreateInfo(m_size, m_offscreenDepthFormat,
-                                  vk::ImageUsageFlagBits::eDepthStencilAttachment);
+  auto depthCreateInfo = nvvk::makeImage2DCreateInfo(m_size, m_offscreenDepthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
   {
     nvvk::Image image = m_alloc.createImage(depthCreateInfo);
 
-    vk::ImageViewCreateInfo depthStencilView;
-    depthStencilView.setViewType(vk::ImageViewType::e2D);
-    depthStencilView.setFormat(m_offscreenDepthFormat);
-    depthStencilView.setSubresourceRange({vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1});
-    depthStencilView.setImage(image.image);
+
+    VkImageViewCreateInfo depthStencilView{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+    depthStencilView.viewType         = VK_IMAGE_VIEW_TYPE_2D;
+    depthStencilView.format           = m_offscreenDepthFormat;
+    depthStencilView.subresourceRange = {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1};
+    depthStencilView.image            = image.image;
 
     m_offscreenDepth = m_alloc.createTexture(image, depthStencilView);
   }
@@ -507,11 +487,9 @@ void HelloVulkan::createOffscreenRender()
   {
     nvvk::CommandPool genCmdBuf(m_device, m_graphicsQueueIndex);
     auto              cmdBuf = genCmdBuf.createCommandBuffer();
-    nvvk::cmdBarrierImageLayout(cmdBuf, m_offscreenColor.image, vk::ImageLayout::eUndefined,
-                                vk::ImageLayout::eGeneral);
-    nvvk::cmdBarrierImageLayout(cmdBuf, m_offscreenDepth.image, vk::ImageLayout::eUndefined,
-                                vk::ImageLayout::eDepthStencilAttachmentOptimal,
-                                vk::ImageAspectFlagBits::eDepth);
+    nvvk::cmdBarrierImageLayout(cmdBuf, m_offscreenColor.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+    nvvk::cmdBarrierImageLayout(cmdBuf, m_offscreenDepth.image, VK_IMAGE_LAYOUT_UNDEFINED,
+                                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
 
     genCmdBuf.submitAndWait(cmdBuf);
   }
@@ -519,24 +497,23 @@ void HelloVulkan::createOffscreenRender()
   // Creating a renderpass for the offscreen
   if(!m_offscreenRenderPass)
   {
-    m_offscreenRenderPass =
-        nvvk::createRenderPass(m_device, {m_offscreenColorFormat}, m_offscreenDepthFormat, 1, true,
-                               true, vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral);
+    m_offscreenRenderPass = nvvk::createRenderPass(m_device, {m_offscreenColorFormat}, m_offscreenDepthFormat, 1, true,
+                                                   true, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
   }
 
-  // Creating the frame buffer for offscreen
-  std::vector<vk::ImageView> attachments = {m_offscreenColor.descriptor.imageView,
-                                            m_offscreenDepth.descriptor.imageView};
 
-  m_device.destroy(m_offscreenFramebuffer);
-  vk::FramebufferCreateInfo info;
-  info.setRenderPass(m_offscreenRenderPass);
-  info.setAttachmentCount(2);
-  info.setPAttachments(attachments.data());
-  info.setWidth(m_size.width);
-  info.setHeight(m_size.height);
-  info.setLayers(1);
-  m_offscreenFramebuffer = m_device.createFramebuffer(info);
+  // Creating the frame buffer for offscreen
+  std::vector<VkImageView> attachments = {m_offscreenColor.descriptor.imageView, m_offscreenDepth.descriptor.imageView};
+
+  vkDestroyFramebuffer(m_device, m_offscreenFramebuffer, nullptr);
+  VkFramebufferCreateInfo info{VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
+  info.renderPass      = m_offscreenRenderPass;
+  info.attachmentCount = 2;
+  info.pAttachments    = attachments.data();
+  info.width           = m_size.width;
+  info.height          = m_size.height;
+  info.layers          = 1;
+  vkCreateFramebuffer(m_device, &info, nullptr, &m_offscreenFramebuffer);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -545,26 +522,23 @@ void HelloVulkan::createOffscreenRender()
 void HelloVulkan::createPostPipeline()
 {
   // Push constants in the fragment shader
-  vk::PushConstantRange pushConstantRanges = {vk::ShaderStageFlagBits::eFragment, 0, sizeof(float)};
+  VkPushConstantRange pushConstantRanges = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float)};
 
   // Creating the pipeline layout
-  vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo;
-  pipelineLayoutCreateInfo.setSetLayoutCount(1);
-  pipelineLayoutCreateInfo.setPSetLayouts(&m_postDescSetLayout);
-  pipelineLayoutCreateInfo.setPushConstantRangeCount(1);
-  pipelineLayoutCreateInfo.setPPushConstantRanges(&pushConstantRanges);
-  m_postPipelineLayout = m_device.createPipelineLayout(pipelineLayoutCreateInfo);
+  VkPipelineLayoutCreateInfo createInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+  createInfo.setLayoutCount         = 1;
+  createInfo.pSetLayouts            = &m_postDescSetLayout;
+  createInfo.pushConstantRangeCount = 1;
+  createInfo.pPushConstantRanges    = &pushConstantRanges;
+  vkCreatePipelineLayout(m_device, &createInfo, nullptr, &m_postPipelineLayout);
+
 
   // Pipeline: completely generic, no vertices
-  nvvk::GraphicsPipelineGeneratorCombined pipelineGenerator(m_device, m_postPipelineLayout,
-                                                            m_renderPass);
-  pipelineGenerator.addShader(nvh::loadFile("spv/passthrough.vert.spv", true, defaultSearchPaths,
-                                            true),
-                              vk::ShaderStageFlagBits::eVertex);
-  pipelineGenerator.addShader(nvh::loadFile("spv/post.frag.spv", true, defaultSearchPaths, true),
-                              vk::ShaderStageFlagBits::eFragment);
-  pipelineGenerator.rasterizationState.setCullMode(vk::CullModeFlagBits::eNone);
-  m_postPipeline = pipelineGenerator.createPipeline();
+  nvvk::GraphicsPipelineGeneratorCombined pipelineGenerator(m_device, m_postPipelineLayout, m_renderPass);
+  pipelineGenerator.addShader(nvh::loadFile("spv/passthrough.vert.spv", true, defaultSearchPaths, true), VK_SHADER_STAGE_VERTEX_BIT);
+  pipelineGenerator.addShader(nvh::loadFile("spv/post.frag.spv", true, defaultSearchPaths, true), VK_SHADER_STAGE_FRAGMENT_BIT);
+  pipelineGenerator.rasterizationState.cullMode = VK_CULL_MODE_NONE;
+  m_postPipeline                                = pipelineGenerator.createPipeline();
   m_debug.setObjectName(m_postPipeline, "post");
 }
 
@@ -574,43 +548,36 @@ void HelloVulkan::createPostPipeline()
 //
 void HelloVulkan::createPostDescriptor()
 {
-  using vkDS = vk::DescriptorSetLayoutBinding;
-  using vkDT = vk::DescriptorType;
-  using vkSS = vk::ShaderStageFlagBits;
-
-  m_postDescSetLayoutBind.addBinding(vkDS(0, vkDT::eCombinedImageSampler, 1, vkSS::eFragment));
+  m_postDescSetLayoutBind.addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
   m_postDescSetLayout = m_postDescSetLayoutBind.createLayout(m_device);
   m_postDescPool      = m_postDescSetLayoutBind.createPool(m_device);
   m_postDescSet       = nvvk::allocateDescriptorSet(m_device, m_postDescPool, m_postDescSetLayout);
 }
+
 
 //--------------------------------------------------------------------------------------------------
 // Update the output
 //
 void HelloVulkan::updatePostDescriptorSet()
 {
-  vk::WriteDescriptorSet writeDescriptorSets =
-      m_postDescSetLayoutBind.makeWrite(m_postDescSet, 0, &m_offscreenColor.descriptor);
-  m_device.updateDescriptorSets(writeDescriptorSets, nullptr);
+  VkWriteDescriptorSet writeDescriptorSets = m_postDescSetLayoutBind.makeWrite(m_postDescSet, 0, &m_offscreenColor.descriptor);
+  vkUpdateDescriptorSets(m_device, 1, &writeDescriptorSets, 0, nullptr);
 }
 
 //--------------------------------------------------------------------------------------------------
 // Draw a full screen quad with the attached image
 //
-void HelloVulkan::drawPost(vk::CommandBuffer cmdBuf)
+void HelloVulkan::drawPost(VkCommandBuffer cmdBuf)
 {
   m_debug.beginLabel(cmdBuf, "Post");
 
-  cmdBuf.setViewport(0, {vk::Viewport(0, 0, (float)m_size.width, (float)m_size.height, 0, 1)});
-  cmdBuf.setScissor(0, {{{0, 0}, {m_size.width, m_size.height}}});
+  setViewport(cmdBuf);
 
   auto aspectRatio = static_cast<float>(m_size.width) / static_cast<float>(m_size.height);
-  cmdBuf.pushConstants<float>(m_postPipelineLayout, vk::ShaderStageFlagBits::eFragment, 0,
-                              aspectRatio);
-  cmdBuf.bindPipeline(vk::PipelineBindPoint::eGraphics, m_postPipeline);
-  cmdBuf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_postPipelineLayout, 0,
-                            m_postDescSet, {});
-  cmdBuf.draw(3, 1, 0, 0);
+  vkCmdPushConstants(cmdBuf, m_postPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float), &aspectRatio);
+  vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, m_postPipeline);
+  vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, m_postPipelineLayout, 0, 1, &m_postDescSet, 0, nullptr);
+  vkCmdDraw(cmdBuf, 3, 1, 0, 0);
 
   m_debug.endLabel(cmdBuf);
 }
@@ -625,10 +592,10 @@ void HelloVulkan::drawPost(vk::CommandBuffer cmdBuf)
 void HelloVulkan::initRayTracing()
 {
   // Requesting ray tracing properties
-  auto properties =
-      m_physicalDevice.getProperties2<vk::PhysicalDeviceProperties2,
-                                      vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
-  m_rtProperties = properties.get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
+  VkPhysicalDeviceProperties2 prop2{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
+  prop2.pNext = &m_rtProperties;
+  vkGetPhysicalDeviceProperties2(m_physicalDevice, &prop2);
+
   m_rtBuilder.setup(m_device, &m_alloc, m_graphicsQueueIndex);
   m_sbtWrapper.setup(m_device, m_graphicsQueueIndex, &m_alloc, m_rtProperties);
 }
@@ -638,34 +605,44 @@ void HelloVulkan::initRayTracing()
 //
 auto HelloVulkan::primitiveToGeometry(const nvh::GltfPrimMesh& prim)
 {
-  // Building part
-  vk::DeviceAddress vertexAddress = m_device.getBufferAddress({m_vertexBuffer.buffer});
-  vk::DeviceAddress indexAddress  = m_device.getBufferAddress({m_indexBuffer.buffer});
+  // BLAS builder requires raw device addresses.
+  VkBufferDeviceAddressInfo info{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO};
+  info.buffer                   = m_vertexBuffer.buffer;
+  VkDeviceAddress vertexAddress = vkGetBufferDeviceAddress(m_device, &info);
+  info.buffer                   = m_indexBuffer.buffer;
+  VkDeviceAddress indexAddress  = vkGetBufferDeviceAddress(m_device, &info);
 
-  vk::AccelerationStructureGeometryTrianglesDataKHR triangles;
-  triangles.setVertexFormat(vk::Format::eR32G32B32Sfloat);
-  triangles.setVertexData(vertexAddress);
-  triangles.setVertexStride(sizeof(nvmath::vec3f));
-  triangles.setIndexType(vk::IndexType::eUint32);
-  triangles.setIndexData(indexAddress);
-  triangles.setTransformData({});
-  triangles.setMaxVertex(prim.vertexCount);
+  uint32_t maxPrimitiveCount = prim.indexCount / 3;
 
-  // Setting up the build info of the acceleration
-  vk::AccelerationStructureGeometryKHR asGeom;
-  asGeom.setGeometryType(vk::GeometryTypeKHR::eTriangles);
-  asGeom.setFlags(vk::GeometryFlagBitsKHR::eNoDuplicateAnyHitInvocation);  // For AnyHit
-  asGeom.geometry.setTriangles(triangles);
+  // Describe buffer as array of VertexObj.
+  VkAccelerationStructureGeometryTrianglesDataKHR triangles{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR};
+  triangles.vertexFormat             = VK_FORMAT_R32G32B32A32_SFLOAT;  // vec3 vertex position data.
+  triangles.vertexData.deviceAddress = vertexAddress;
+  triangles.vertexStride             = sizeof(nvmath::vec3f);
+  // Describe index data (32-bit unsigned int)
+  triangles.indexType               = VK_INDEX_TYPE_UINT32;
+  triangles.indexData.deviceAddress = indexAddress;
+  // Indicate identity transform by setting transformData to null device pointer.
+  //triangles.transformData = {};
+  triangles.maxVertex = prim.vertexCount;
 
-  vk::AccelerationStructureBuildRangeInfoKHR offset;
-  offset.setFirstVertex(prim.vertexOffset);
-  offset.setPrimitiveCount(prim.indexCount / 3);
-  offset.setPrimitiveOffset(prim.firstIndex * sizeof(uint32_t));
-  offset.setTransformOffset(0);
+  // Identify the above data as containing opaque triangles.
+  VkAccelerationStructureGeometryKHR asGeom{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
+  asGeom.geometryType       = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+  asGeom.flags              = VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR;  // For AnyHit
+  asGeom.geometry.triangles = triangles;
 
+  VkAccelerationStructureBuildRangeInfoKHR offset;
+  offset.firstVertex     = prim.vertexOffset;
+  offset.primitiveCount  = prim.indexCount / 3;
+  offset.primitiveOffset = prim.firstIndex * sizeof(uint32_t);
+  offset.transformOffset = 0;
+
+  // Our blas is made from only one geometry, but could be made of many geometries
   nvvk::RaytracingBuilderKHR::BlasInput input;
   input.asGeometry.emplace_back(asGeom);
   input.asBuildOffsetInfo.emplace_back(offset);
+
   return input;
 }
 
@@ -682,7 +659,7 @@ void HelloVulkan::createBottomLevelAS()
     auto geo = primitiveToGeometry(primMesh);
     allBlas.push_back({geo});
   }
-  m_rtBuilder.buildBlas(allBlas, vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace);
+  m_rtBuilder.buildBlas(allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 }
 
 void HelloVulkan::createTopLevelAS()
@@ -699,7 +676,7 @@ void HelloVulkan::createTopLevelAS()
     rayInst.hitGroupId       = 0;  // We will use the same hit group for all objects
     tlas.emplace_back(rayInst);
   }
-  m_rtBuilder.buildTlas(tlas, vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace);
+  m_rtBuilder.buildTlas(tlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -707,34 +684,37 @@ void HelloVulkan::createTopLevelAS()
 //
 void HelloVulkan::createRtDescriptorSet()
 {
-  using vkDT   = vk::DescriptorType;
-  using vkSS   = vk::ShaderStageFlagBits;
-  using vkDSLB = vk::DescriptorSetLayoutBinding;
-
-  m_rtDescSetLayoutBind.addBinding(vkDSLB(0, vkDT::eAccelerationStructureKHR, 1,
-                                          vkSS::eRaygenKHR | vkSS::eClosestHitKHR));  // TLAS
-  m_rtDescSetLayoutBind.addBinding(
-      vkDSLB(1, vkDT::eStorageImage, 1, vkSS::eRaygenKHR));  // Output image
-  m_rtDescSetLayoutBind.addBinding(vkDSLB(
-      2, vkDT::eStorageBuffer, 1, vkSS::eClosestHitKHR | vkSS::eAnyHitKHR));  // Primitive info
+  // Top-level acceleration structure, usable by both the ray generation and the closest hit (to
+  // shoot shadow rays)
+  m_rtDescSetLayoutBind.addBinding(0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1,
+                                   VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);  // TLAS
+  m_rtDescSetLayoutBind.addBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1,
+                                   VK_SHADER_STAGE_RAYGEN_BIT_KHR);  // Output image
+  m_rtDescSetLayoutBind.addBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
+                                   VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR);  // Primitive info
 
   m_rtDescPool      = m_rtDescSetLayoutBind.createPool(m_device);
   m_rtDescSetLayout = m_rtDescSetLayoutBind.createLayout(m_device);
-  m_rtDescSet       = m_device.allocateDescriptorSets({m_rtDescPool, 1, &m_rtDescSetLayout})[0];
 
-  vk::AccelerationStructureKHR                   tlas = m_rtBuilder.getAccelerationStructure();
-  vk::WriteDescriptorSetAccelerationStructureKHR descASInfo;
-  descASInfo.setAccelerationStructureCount(1);
-  descASInfo.setPAccelerationStructures(&tlas);
-  vk::DescriptorImageInfo imageInfo{
-      {}, m_offscreenColor.descriptor.imageView, vk::ImageLayout::eGeneral};
-  vk::DescriptorBufferInfo primitiveInfoDesc{m_rtPrimLookup.buffer, 0, VK_WHOLE_SIZE};
+  VkDescriptorSetAllocateInfo allocateInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+  allocateInfo.descriptorPool     = m_rtDescPool;
+  allocateInfo.descriptorSetCount = 1;
+  allocateInfo.pSetLayouts        = &m_rtDescSetLayout;
+  vkAllocateDescriptorSets(m_device, &allocateInfo, &m_rtDescSet);
 
-  std::vector<vk::WriteDescriptorSet> writes;
+
+  VkAccelerationStructureKHR                   tlas = m_rtBuilder.getAccelerationStructure();
+  VkWriteDescriptorSetAccelerationStructureKHR descASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
+  descASInfo.accelerationStructureCount = 1;
+  descASInfo.pAccelerationStructures    = &tlas;
+  VkDescriptorImageInfo  imageInfo{{}, m_offscreenColor.descriptor.imageView, VK_IMAGE_LAYOUT_GENERAL};
+  VkDescriptorBufferInfo primitiveInfoDesc{m_rtPrimLookup.buffer, 0, VK_WHOLE_SIZE};
+
+  std::vector<VkWriteDescriptorSet> writes;
   writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, 0, &descASInfo));
   writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, 1, &imageInfo));
   writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, 2, &primitiveInfoDesc));
-  m_device.updateDescriptorSets(static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+  vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
 
 
@@ -744,13 +724,10 @@ void HelloVulkan::createRtDescriptorSet()
 //
 void HelloVulkan::updateRtDescriptorSet()
 {
-  using vkDT = vk::DescriptorType;
-
   // (1) Output buffer
-  vk::DescriptorImageInfo imageInfo{
-      {}, m_offscreenColor.descriptor.imageView, vk::ImageLayout::eGeneral};
-  vk::WriteDescriptorSet wds{m_rtDescSet, 1, 0, 1, vkDT::eStorageImage, &imageInfo};
-  m_device.updateDescriptorSets(wds, nullptr);
+  VkDescriptorImageInfo imageInfo{{}, m_offscreenColor.descriptor.imageView, VK_IMAGE_LAYOUT_GENERAL};
+  VkWriteDescriptorSet  wds = m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, 1, &imageInfo);
+  vkUpdateDescriptorSets(m_device, 1, &wds, 0, nullptr);
 }
 
 
@@ -759,97 +736,116 @@ void HelloVulkan::updateRtDescriptorSet()
 //
 void HelloVulkan::createRtPipeline()
 {
-  vk::ShaderModule raygenSM = nvvk::createShaderModule(
-      m_device, nvh::loadFile("spv/pathtrace.rgen.spv", true, defaultSearchPaths, true));
-  vk::ShaderModule missSM = nvvk::createShaderModule(
-      m_device, nvh::loadFile("spv/pathtrace.rmiss.spv", true, defaultSearchPaths, true));
+  enum StageIndices
+  {
+    eRaygen,
+    eMiss,
+    eMiss2,
+    eClosestHit,
+    eShaderGroupCount
+  };
 
-  // The second miss shader is invoked when a shadow ray misses the geometry. It
-  // simply indicates that no occlusion has been found
-  vk::ShaderModule shadowmissSM = nvvk::createShaderModule(
-      m_device, nvh::loadFile("spv/raytraceShadow.rmiss.spv", true, defaultSearchPaths, true));
+  // All stages
+  std::array<VkPipelineShaderStageCreateInfo, eShaderGroupCount> stages{};
+  VkPipelineShaderStageCreateInfo stage{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+  stage.pName = "main";  // All the same entry point
+  // Raygen
+  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/pathtrace.rgen.spv", true, defaultSearchPaths, true));
+  stage.stage     = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+  stages[eRaygen] = stage;
+  // Miss
+  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/pathtrace.rmiss.spv", true, defaultSearchPaths, true));
+  stage.stage   = VK_SHADER_STAGE_MISS_BIT_KHR;
+  stages[eMiss] = stage;
+  // The second miss shader is invoked when a shadow ray misses the geometry. It simply indicates that no occlusion has been found
+  stage.module =
+      nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytraceShadow.rmiss.spv", true, defaultSearchPaths, true));
+  stage.stage    = VK_SHADER_STAGE_MISS_BIT_KHR;
+  stages[eMiss2] = stage;
+  // Hit Group - Closest Hit
+  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/pathtrace.rchit.spv", true, defaultSearchPaths, true));
+  stage.stage         = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+  stages[eClosestHit] = stage;
 
 
-  std::vector<vk::PipelineShaderStageCreateInfo> stages;
+  // Shader groups
+  VkRayTracingShaderGroupCreateInfoKHR group{VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR};
+  group.anyHitShader       = VK_SHADER_UNUSED_KHR;
+  group.closestHitShader   = VK_SHADER_UNUSED_KHR;
+  group.generalShader      = VK_SHADER_UNUSED_KHR;
+  group.intersectionShader = VK_SHADER_UNUSED_KHR;
 
   // Raygen
-  vk::RayTracingShaderGroupCreateInfoKHR rg{vk::RayTracingShaderGroupTypeKHR::eGeneral,
-                                            VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
-                                            VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
-  rg.setGeneralShader(static_cast<uint32_t>(stages.size()));
-  stages.push_back({{}, vk::ShaderStageFlagBits::eRaygenKHR, raygenSM, "main"});
-  m_rtShaderGroups.push_back(rg);
+  group.type          = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+  group.generalShader = eRaygen;
+  m_rtShaderGroups.push_back(group);
+
   // Miss
-  vk::RayTracingShaderGroupCreateInfoKHR mg{vk::RayTracingShaderGroupTypeKHR::eGeneral,
-                                            VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
-                                            VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
-  mg.setGeneralShader(static_cast<uint32_t>(stages.size()));
-  stages.push_back({{}, vk::ShaderStageFlagBits::eMissKHR, missSM, "main"});
-  m_rtShaderGroups.push_back(mg);
+  group.type          = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+  group.generalShader = eMiss;
+  m_rtShaderGroups.push_back(group);
+
   // Shadow Miss
-  mg.setGeneralShader(static_cast<uint32_t>(stages.size()));
-  stages.push_back({{}, vk::ShaderStageFlagBits::eMissKHR, shadowmissSM, "main"});
-  m_rtShaderGroups.push_back(mg);
+  group.type          = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+  group.generalShader = eMiss2;
+  m_rtShaderGroups.push_back(group);
 
-  // Hit Group - Closest Hit + AnyHit
-  vk::ShaderModule chitSM = nvvk::createShaderModule(
-      m_device, nvh::loadFile("spv/pathtrace.rchit.spv", true, defaultSearchPaths, true));
+  // closest hit shader
+  group.type             = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+  group.generalShader    = VK_SHADER_UNUSED_KHR;
+  group.closestHitShader = eClosestHit;
+  m_rtShaderGroups.push_back(group);
 
-  vk::RayTracingShaderGroupCreateInfoKHR hg{vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup,
-                                            VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR,
-                                            VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR};
-  hg.setClosestHitShader(static_cast<uint32_t>(stages.size()));
-  stages.push_back({{}, vk::ShaderStageFlagBits::eClosestHitKHR, chitSM, "main"});
-  m_rtShaderGroups.push_back(hg);
-
-  vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo;
 
   // Push constant: we want to be able to update constants used by the shaders
-  vk::PushConstantRange pushConstant{vk::ShaderStageFlagBits::eRaygenKHR
-                                         | vk::ShaderStageFlagBits::eClosestHitKHR
-                                         | vk::ShaderStageFlagBits::eMissKHR,
-                                     0, sizeof(RtPushConstant)};
-  pipelineLayoutCreateInfo.setPushConstantRangeCount(1);
-  pipelineLayoutCreateInfo.setPPushConstantRanges(&pushConstant);
+  VkPushConstantRange pushConstant{VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
+                                   0, sizeof(RtPushConstant)};
+
+
+  VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+  pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+  pipelineLayoutCreateInfo.pPushConstantRanges    = &pushConstant;
 
   // Descriptor sets: one specific to ray tracing, and one shared with the rasterization pipeline
-  std::vector<vk::DescriptorSetLayout> rtDescSetLayouts = {m_rtDescSetLayout, m_descSetLayout};
-  pipelineLayoutCreateInfo.setSetLayoutCount(static_cast<uint32_t>(rtDescSetLayouts.size()));
-  pipelineLayoutCreateInfo.setPSetLayouts(rtDescSetLayouts.data());
+  std::vector<VkDescriptorSetLayout> rtDescSetLayouts = {m_rtDescSetLayout, m_descSetLayout};
+  pipelineLayoutCreateInfo.setLayoutCount             = static_cast<uint32_t>(rtDescSetLayouts.size());
+  pipelineLayoutCreateInfo.pSetLayouts                = rtDescSetLayouts.data();
 
-  m_rtPipelineLayout = m_device.createPipelineLayout(pipelineLayoutCreateInfo);
+  vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_rtPipelineLayout);
+
 
   // Assemble the shader stages and recursion depth info into the ray tracing pipeline
+  VkRayTracingPipelineCreateInfoKHR rayPipelineInfo{VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR};
+  rayPipelineInfo.stageCount = static_cast<uint32_t>(stages.size());  // Stages are shaders
+  rayPipelineInfo.pStages    = stages.data();
 
-  vk::RayTracingPipelineCreateInfoKHR rayPipelineInfo;
-  rayPipelineInfo.setStageCount(static_cast<uint32_t>(stages.size()));  // Stages are shaders
-  rayPipelineInfo.setPStages(stages.data());
+  // In this case, m_rtShaderGroups.size() == 4: we have one raygen group,
+  // two miss shader groups, and one hit group.
+  rayPipelineInfo.groupCount = static_cast<uint32_t>(m_rtShaderGroups.size());
+  rayPipelineInfo.pGroups    = m_rtShaderGroups.data();
 
-  rayPipelineInfo.setGroupCount(static_cast<uint32_t>(
-      m_rtShaderGroups.size()));  // 1-raygen, n-miss, n-(hit[+anyhit+intersect])
-  rayPipelineInfo.setPGroups(m_rtShaderGroups.data());
+  // The ray tracing process can shoot rays from the camera, and a shadow ray can be shot from the
+  // hit points of the camera rays, hence a recursion level of 2. This number should be kept as low
+  // as possible for performance reasons. Even recursive ray tracing should be flattened into a loop
+  // in the ray generation to avoid deep recursion.
+  rayPipelineInfo.maxPipelineRayRecursionDepth = 2;  // Ray depth
+  rayPipelineInfo.layout                       = m_rtPipelineLayout;
 
-  rayPipelineInfo.setMaxPipelineRayRecursionDepth(2);  // Ray depth
-  rayPipelineInfo.setLayout(m_rtPipelineLayout);
-
-  m_rtPipeline = m_device.createRayTracingPipelineKHR({}, {}, rayPipelineInfo).value;
-
+  vkCreateRayTracingPipelinesKHR(m_device, {}, {}, 1, &rayPipelineInfo, nullptr, &m_rtPipeline);
 
 
   // Creating the SBT
   m_sbtWrapper.create(m_rtPipeline, rayPipelineInfo);
 
 
-  m_device.destroy(raygenSM);
-  m_device.destroy(missSM);
-  m_device.destroy(shadowmissSM);
-  m_device.destroy(chitSM);
+  for(auto& s : stages)
+    vkDestroyShaderModule(m_device, s.module, nullptr);
 }
 
 //--------------------------------------------------------------------------------------------------
 // Ray Tracing the scene
 //
-void HelloVulkan::raytrace(const vk::CommandBuffer& cmdBuf, const nvmath::vec4f& clearColor)
+void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor)
 {
   updateFrame();
 
@@ -860,19 +856,18 @@ void HelloVulkan::raytrace(const vk::CommandBuffer& cmdBuf, const nvmath::vec4f&
   m_rtPushConstants.lightIntensity = m_pushConstant.lightIntensity;
   m_rtPushConstants.lightType      = m_pushConstant.lightType;
 
-  cmdBuf.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, m_rtPipeline);
-  cmdBuf.bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR, m_rtPipelineLayout, 0,
-                            {m_rtDescSet, m_descSet}, {});
-  cmdBuf.pushConstants<RtPushConstant>(m_rtPipelineLayout,
-                                       vk::ShaderStageFlagBits::eRaygenKHR
-                                           | vk::ShaderStageFlagBits::eClosestHitKHR
-                                           | vk::ShaderStageFlagBits::eMissKHR,
-                                       0, m_rtPushConstants);
+
+  std::vector<VkDescriptorSet> descSets{m_rtDescSet, m_descSet};
+  vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipeline);
+  vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipelineLayout, 0,
+                          (uint32_t)descSets.size(), descSets.data(), 0, nullptr);
+  vkCmdPushConstants(cmdBuf, m_rtPipelineLayout,
+                     VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
+                     0, sizeof(RtPushConstant), &m_rtPushConstants);
 
 
-  auto regions = m_sbtWrapper.getRegions();
-  cmdBuf.traceRaysKHR(regions[0], regions[1], regions[2], regions[3],  //
-                      m_size.width, m_size.height, 1);
+  auto& regions = m_sbtWrapper.getRegions();
+  vkCmdTraceRaysKHR(cmdBuf, &regions[0], &regions[1], &regions[2], &regions[3], m_size.width, m_size.height, 1);
 
 
   m_debug.endLabel(cmdBuf);

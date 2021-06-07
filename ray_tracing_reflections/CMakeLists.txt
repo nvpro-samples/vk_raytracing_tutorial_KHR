@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 3.9.6 FATAL_ERROR)
 #--------------------------------------------------------------------------------------------------
 # Project setting
 get_filename_component(PROJNAME ${CMAKE_CURRENT_SOURCE_DIR} NAME)
-SET(PROJNAME vk_${PROJNAME}_KHR)
+set(PROJNAME vk_${PROJNAME}_KHR)
 project(${PROJNAME} LANGUAGES C CXX)
 message(STATUS "-------------------------------")
 message(STATUS "Processing Project ${PROJNAME}:")
@@ -29,7 +29,6 @@ list(APPEND COMMON_SOURCE_FILES ${EXTRA_COMMON})
 include_directories(${TUTO_KHR_DIR}/common)
 
 
-
 #--------------------------------------------------------------------------------------------------
 # GLSL to SPIR-V custom build
 compile_glsl_directory(
@@ -37,7 +36,6 @@ compile_glsl_directory(
 	DST "${CMAKE_CURRENT_SOURCE_DIR}/spv" 
 	VULKAN_TARGET "vulkan1.2"
 	)
-
 
 
 #--------------------------------------------------------------------------------------------------

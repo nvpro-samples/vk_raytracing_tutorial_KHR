@@ -26,14 +26,14 @@ First, let's remove all extra code
 Remove most functions and members to keep only what is need to create the acceleration structure:
 
 ~~~~ C++
-// #VKRay
-void                             initRayTracing();
-nvvk::RaytracingBuilderKHR::Blas objectToVkGeometryKHR(const ObjModel& model);
-void                             createBottomLevelAS();
-void                             createTopLevelAS();
+  // #VKRay
+  void initRayTracing();
+  auto objectToVkGeometryKHR(const ObjModel& model);
+  void createBottomLevelAS();
+  void createTopLevelAS();
 
-vk::PhysicalDeviceRayTracingPropertiesKHR m_rtProperties;
-nvvk::RaytracingBuilderKHR                m_rtBuilder;
+  VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
+  nvvk::RaytracingBuilderKHR                      m_rtBuilder;
 ~~~~ 
 
 ### hello_vulkan (source)
@@ -58,11 +58,11 @@ m_descSetLayoutBind.emplace_back(  //
 In `HelloVulkan::updateDescriptorSet`, write the value to the descriptor set.
 
 ~~~~ C++
-  vk::AccelerationStructureKHR                   tlas = m_rtBuilder.getAccelerationStructure();
-  vk::WriteDescriptorSetAccelerationStructureKHR descASInfo;
-  descASInfo.setAccelerationStructureCount(1);
-  descASInfo.setPAccelerationStructures(&tlas);
-  writes.emplace_back(m_descSetLayoutBind.makeWrite(m_descSet, 7, descASInfo));
+  VkAccelerationStructureKHR                   tlas = m_rtBuilder.getAccelerationStructure();
+  VkWriteDescriptorSetAccelerationStructureKHR descASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
+  descASInfo.accelerationStructureCount = 1;
+  descASInfo.pAccelerationStructures    = &tlas;
+  writes.emplace_back(m_descSetLayoutBind.makeWrite(m_descSet, 7, &descASInfo));
 ~~~~ 
 
 
