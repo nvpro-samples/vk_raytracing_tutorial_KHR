@@ -41,9 +41,7 @@ Then replace the calls to `helloVk.loadModel` in `main()` by
 
   for(int n = 0; n < 2000; ++n)
   {
-    HelloVulkan::ObjInstance inst;
-    inst.objIndex       = n % 2;
-    inst.txtOffset      = 0;
+    HelloVulkan::ObjInstance inst = helloVk.m_objInstance[n % 2];;
     float         scale = fabsf(disn(gen));
     nvmath::mat4f mat =
         nvmath::translation_mat4(nvmath::vec3f{dis(gen), 2.0f + dis(gen), dis(gen)});

@@ -110,24 +110,19 @@ int main(int argc, char** argv)
       std::string(PROJECT_NAME),
   };
 
+  // Vulkan required extensions
+  assert(glfwVulkanSupported() == 1);
+  uint32_t count{0};
+  auto     reqExtensions = glfwGetRequiredInstanceExtensions(&count);
+
   // Requesting Vulkan extensions and layers
   nvvk::ContextCreateInfo contextInfo;
-  contextInfo.setVersion(1, 2);
-  contextInfo.addInstanceLayer("VK_LAYER_LUNARG_monitor", true);
-  contextInfo.addInstanceExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, true);
-  contextInfo.addInstanceExtension(VK_KHR_SURFACE_EXTENSION_NAME);
-#ifdef _WIN32
-  contextInfo.addInstanceExtension(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-#else
-  contextInfo.addInstanceExtension(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
-  contextInfo.addInstanceExtension(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
-#endif
-  contextInfo.addInstanceExtension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
-  contextInfo.addDeviceExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-  contextInfo.addDeviceExtension(VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME);
-  contextInfo.addDeviceExtension(VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME);
-  contextInfo.addDeviceExtension(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
-  contextInfo.addDeviceExtension(VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME);
+  contextInfo.setVersion(1, 2);                       // Using Vulkan 1.2
+  for(uint32_t ext_id = 0; ext_id < count; ext_id++)  // Adding required extensions (surface, win32, linux, ..)
+    contextInfo.addInstanceExtension(reqExtensions[ext_id]);
+  contextInfo.addInstanceLayer("VK_LAYER_LUNARG_monitor", true);              // FPS in titlebar
+  contextInfo.addInstanceExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, true);  // Allow debug names
+  contextInfo.addDeviceExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);            // Enabling ability to present rendering
 
   // Creating Vulkan base application
   nvvk::Context vkctx{};

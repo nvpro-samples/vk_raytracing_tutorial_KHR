@@ -171,7 +171,7 @@ void Offscreen::updateDescriptorSet()
 //--------------------------------------------------------------------------------------------------
 // Draw a full screen quad with the attached image
 //
-void Offscreen::draw(VkCommandBuffer cmdBuf, VkExtent2D& size)
+void Offscreen::draw(VkCommandBuffer cmdBuf, const VkExtent2D& size)
 {
   m_debug.beginLabel(cmdBuf, "Post");
 

@@ -39,12 +39,17 @@ struct WaveFrontMaterial
   int   textureId;
 };
 
-struct sceneDesc
+struct SceneDesc
 {
-  int  objId;
-  int  txtOffset;
   mat4 transfo;
   mat4 transfoIT;
+  int  objId;
+  int  txtOffset;
+
+  uint64_t vertexAddress;
+  uint64_t indexAddress;
+  uint64_t materialAddress;
+  uint64_t materialIndexAddress;
 };
 
 

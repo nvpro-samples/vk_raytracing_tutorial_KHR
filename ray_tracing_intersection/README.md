@@ -130,6 +130,13 @@ void HelloVulkan::createSpheres(uint32_t nbSpheres)
   m_debug.setObjectName(m_spheresAabbBuffer.buffer, "spheresAabb");
   m_debug.setObjectName(m_spheresMatColorBuffer.buffer, "spheresMat");
   m_debug.setObjectName(m_spheresMatIndexBuffer.buffer, "spheresMatIdx");
+
+  // Adding an extra instance to get access to the material buffers
+  ObjInstance instance{};
+  instance.objIndex        = static_cast<uint32_t>(m_objModel.size());
+  instance.materials       = nvvk::getBufferDeviceAddress(m_device, m_spheresMatColorBuffer.buffer);
+  instance.materialIndices = nvvk::getBufferDeviceAddress(m_device, m_spheresMatIndexBuffer.buffer);
+  m_objInstance.emplace_back(instance);
 }
 ~~~~
 
@@ -152,9 +159,7 @@ What is changing compare to triangle primitive is the Aabb data (see Aabb struct
 //
 nvvk::RaytracingBuilderKHR::BlasInput HelloVulkan::sphereToVkGeometryKHR()
 {
-  VkBufferDeviceAddressInfo info{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO};
-  info.buffer                 = m_spheresAabbBuffer.buffer;
-  VkDeviceAddress dataAddress = vkGetBufferDeviceAddress(m_device, &info);
+  VkDeviceAddress dataAddress = nvvk::getBufferDeviceAddress(m_device, m_spheresAabbBuffer.buffer);  
 
   VkAccelerationStructureGeometryAabbsDataKHR aabbs{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_AABBS_DATA_KHR};
   aabbs.data.deviceAddress = dataAddress;
@@ -233,14 +238,26 @@ Similarly in `createTopLevelAS()`, the top level acceleration structure will nee
 
 The hitGroupId will be set to 1 instead of 0. We need to add a new hit group for the implicit primitives, since we will need to compute attributes like the  normal, since they are not provide like with triangle primitives.
 
-Just before building the TLAS, we need to add the following
+Because we have added an extra instance when creating the implicit objects, there is one element less to loop for. Therefore the loop will now look like this:
+
+~~~~ C++
+  auto nbObj = static_cast<uint32_t>(m_objInstance.size()) - 1;
+  tlas.reserve(nbObj);
+  for(uint32_t i = 0; i < nbObj; i++)
+  {
+      ...
+  }
+~~~~
+
+
+Just after the loop and before building the TLAS, we need to add the following.
 
 ~~~~ C++
   // Add the blas containing all spheres
   {
     nvvk::RaytracingBuilder::Instance rayInst;
-    rayInst.transform        = m_objInstance[0].transform;          // Position of the instance
-    rayInst.instanceCustomId = static_cast<uint32_t>(tlas.size());  // gl_InstanceCustomIndexEXT
+    rayInst.transform        = m_objInstance[0].transform;  // Position of the instance
+    rayInst.instanceCustomId = nbObj;                       // gl_InstanceCustomIndexEXT
     rayInst.blasId           = static_cast<uint32_t>(m_objModel.size());
     rayInst.hitGroupId       = 1;  // We will use the same hit group for all objects
     rayInst.flags            = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
@@ -248,50 +265,26 @@ Just before building the TLAS, we need to add the following
   }
 ~~~~
 
+The `instanceCustomId` will give us the last element of m_objInstance, and in the shader will will be able to access the materials 
+assigned to the implicit objects.
+
 ## Descriptors
 
-To access the newly created buffers holding all the spheres and materials, some changes are required to the descriptors.
-
-In function `createDescriptorSetLayout()`, the addition of the material and material index need to be instructed.
-
-~~~~ C++
-  // Materials (binding = 1)
-  m_descSetLayoutBind.addBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nbObj+1,
-                                 VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
-  // Materials Index (binding = 4)
-  m_descSetLayoutBind.addBinding(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nbObj +1,
-                                 VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
-~~~~
-
-And the new buffer holding the spheres
+To access the newly created buffers holding all the spheres, some changes are required to the descriptors.
+The descriptor need to add an binding to the implicit object buffer.
 
 ~~~~ C++
-  // Storing spheres (binding = 7)
-  m_descSetLayoutBind.addBinding(7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
+  // Storing spheres (binding = 3)
+  m_descSetLayoutBind.addBinding(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
                                  VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_INTERSECTION_BIT_KHR);
 ~~~~
 
 The function `updateDescriptorSet()` which is writing the values of the buffer need also to be modified.
-
-At the end of the loop on all models, lets add the new material and material index.
-
-~~~~ C++
-  for(auto& m : m_objModel)
-  {
-    dbiMat.push_back({m.matColorBuffer.buffer, 0, VK_WHOLE_SIZE});
-    dbiMatIdx.push_back({m.matIndexBuffer.buffer, 0, VK_WHOLE_SIZE});
-    dbiVert.push_back({m.vertexBuffer.buffer, 0, VK_WHOLE_SIZE});
-    dbiIdx.push_back({m.indexBuffer.buffer, 0, VK_WHOLE_SIZE});
-  }
-  dbiMat.push_back({m_spheresMatColorBuffer.buffer, 0, VK_WHOLE_SIZE});
-  dbiMatIdx.push_back({m_spheresMatIndexBuffer.buffer, 0, VK_WHOLE_SIZE});
-~~~~
-
-Then write the buffer for the spheres
+Then write the buffer for the spheres after the array of textures
 
 ~~~~ C++
   VkDescriptorBufferInfo dbiSpheres{m_spheresBuffer.buffer, 0, VK_WHOLE_SIZE};
-  writes.emplace_back(m_descSetLayoutBind.makeWrite(m_descSet, 7, &dbiSpheres));
+  writes.emplace_back(m_descSetLayoutBind.makeWrite(m_descSet, 3, &dbiSpheres));
 ~~~~
 
 ## Intersection Shader
@@ -365,6 +358,8 @@ We first declare the extensions and include common files.
 #extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_EXT_scalar_block_layout : enable
 #extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_buffer_reference2 : require
 #include "raycommon.glsl"
 #include "wavefront.glsl"
 ~~~~
@@ -373,11 +368,10 @@ We first declare the extensions and include common files.
 The following is the topology of all spheres, which we will be able to retrieve using `gl_PrimitiveID`.
 
 ~~~~ C++
-layout(binding = 7, set = 1, scalar) buffer allSpheres_
+layout(binding = 3, set = 1, scalar) buffer allSpheres_
 {
-  Sphere i[];
-}
-allSpheres;
+  Sphere allSpheres[];
+};
 ~~~~
 
 We will implement two intersetion method against the incoming ray.

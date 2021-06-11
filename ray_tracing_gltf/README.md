@@ -65,7 +65,23 @@ But instead, we will use this following structure to retrieve the information of
   nvvk::Buffer   m_materialBuffer;
   nvvk::Buffer   m_matrixBuffer;
   nvvk::Buffer   m_rtPrimLookup;
+  nvvk::Buffer   m_sceneDesc;
 ~~~~
+
+And a structure to retrieve all buffers of the scene
+
+~~~~ C++
+  struct SceneDescription
+  {
+    uint64_t vertexAddress;
+    uint64_t normalAddress;
+    uint64_t uvAddress;
+    uint64_t indexAddress;
+    uint64_t materialAddress;
+    uint64_t matrixAddress;
+    uint64_t rtPrimAddress;
+  };
+  ~~~~
 
 ## Loading glTF scene
 
@@ -98,27 +114,50 @@ Then we will flatten the scene graph and grab the information we will need using
 The next part is to allocate the buffers to hold the information, such as the positions, normals, texture coordinates, etc.
 
 ~~~~C
-  m_vertexBuffer =
-      m_alloc.createBuffer(cmdBuf, m_gltfScene.m_positions,
-                           vkBU::eVertexBuffer | vkBU::eStorageBuffer | vkBU::eShaderDeviceAddress);
-  m_indexBuffer =
-      m_alloc.createBuffer(cmdBuf, m_gltfScene.m_indices,
-                           vkBU::eIndexBuffer | vkBU::eStorageBuffer | vkBU::eShaderDeviceAddress);
-  m_normalBuffer   = m_alloc.createBuffer(cmdBuf, m_gltfScene.m_normals,
-                                        vkBU::eVertexBuffer | vkBU::eStorageBuffer);
-  m_uvBuffer       = m_alloc.createBuffer(cmdBuf, m_gltfScene.m_texcoords0,
-                                    vkBU::eVertexBuffer | vkBU::eStorageBuffer);
-  m_materialBuffer = m_alloc.createBuffer(cmdBuf, m_gltfScene.m_materials, vkBU::eStorageBuffer);
+  // Create the buffers on Device and copy vertices, indices and materials
+  nvvk::CommandPool cmdBufGet(m_device, m_graphicsQueueIndex);
+  VkCommandBuffer   cmdBuf = cmdBufGet.createCommandBuffer();
+
+  m_vertexBuffer = m_alloc.createBuffer(cmdBuf, m_gltfScene.m_positions,
+                                        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+                                            | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
+  m_indexBuffer  = m_alloc.createBuffer(cmdBuf, m_gltfScene.m_indices,
+                                       VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+                                           | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
+  m_normalBuffer = m_alloc.createBuffer(cmdBuf, m_gltfScene.m_normals,
+                                        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+                                            | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+  m_uvBuffer     = m_alloc.createBuffer(cmdBuf, m_gltfScene.m_texcoords0,
+                                    VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+                                        | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 ~~~~
+
+We are making a simple material, extracting only a few members from the glTF material.
+
+~~~~ C++
+  // Copying all materials, only the elements we need
+  std::vector<GltfShadeMaterial> shadeMaterials;
+  for(auto& m : m_gltfScene.m_materials)
+  {
+    shadeMaterials.emplace_back(GltfShadeMaterial{m.baseColorFactor, m.emissiveFactor, m.baseColorTexture});
+  }
+  m_materialBuffer = m_alloc.createBuffer(cmdBuf, shadeMaterials,
+                                          VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+~~~~
+
 
 We could use `push_constant` to set the matrix of the node, but instead, we will push the index of the 
 node to draw and fetch the matrix from a buffer.
 
 ~~~~C
+  // Instance Matrices used by rasterizer
   std::vector<nvmath::mat4f> nodeMatrices;
   for(auto& node : m_gltfScene.m_nodes)
+  {
     nodeMatrices.emplace_back(node.worldMatrix);
-  m_matrixBuffer = m_alloc.createBuffer(cmdBuf, nodeMatrices, vkBU::eStorageBuffer);
+  }
+  m_matrixBuffer = m_alloc.createBuffer(cmdBuf, nodeMatrices,
+                                        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 ~~~~
 
 To find the positions of the triangle hit in the closest hit shader, as well as the other 
@@ -131,9 +170,47 @@ attributes, we will store the offsets information of that geometry.
   {
     primLookup.push_back({primMesh.firstIndex, primMesh.vertexOffset, primMesh.materialIndex});
   }
-  m_rtPrimLookup = m_alloc.createBuffer(cmdBuf, primLookup, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+  m_rtPrimLookup =
+      m_alloc.createBuffer(cmdBuf, primLookup, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 ~~~~
 
+Finally, we are creating a buffer holding the address of all buffers
+
+~~~~ C++
+  SceneDescription sceneDesc;
+  sceneDesc.vertexAddress   = nvvk::getBufferDeviceAddress(m_device, m_vertexBuffer.buffer);
+  sceneDesc.indexAddress    = nvvk::getBufferDeviceAddress(m_device, m_indexBuffer.buffer);
+  sceneDesc.normalAddress   = nvvk::getBufferDeviceAddress(m_device, m_normalBuffer.buffer);
+  sceneDesc.uvAddress       = nvvk::getBufferDeviceAddress(m_device, m_uvBuffer.buffer);
+  sceneDesc.materialAddress = nvvk::getBufferDeviceAddress(m_device, m_materialBuffer.buffer);
+  sceneDesc.matrixAddress   = nvvk::getBufferDeviceAddress(m_device, m_matrixBuffer.buffer);
+  sceneDesc.rtPrimAddress   = nvvk::getBufferDeviceAddress(m_device, m_rtPrimLookup.buffer);
+  m_sceneDesc               = m_alloc.createBuffer(cmdBuf, sizeof(SceneDescription), &sceneDesc,
+                                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+~~~~
+
+Before closing the function, we will create textures (none in default scene) and submitting the command buffer.
+The finalize and releasing staging is waiting for the copy of all data to the GPU.
+
+~~~~ C
+  // Creates all textures found
+  createTextureImages(cmdBuf, tmodel);
+  cmdBufGet.submitAndWait(cmdBuf);
+  m_alloc.finalizeAndReleaseStaging();
+
+
+  NAME_VK(m_vertexBuffer.buffer);
+  NAME_VK(m_indexBuffer.buffer);
+  NAME_VK(m_normalBuffer.buffer);
+  NAME_VK(m_uvBuffer.buffer);
+  NAME_VK(m_materialBuffer.buffer);
+  NAME_VK(m_matrixBuffer.buffer);
+  NAME_VK(m_rtPrimLookup.buffer);
+  NAME_VK(m_sceneDesc.buffer);
+}
+~~~~ 
+
+**NOTE**: the macro `NAME_VK` is a convenience to name Vulkan object to easily identify them in Nsight Graphics and to know where it was created. 
 
 ## Converting geometry to BLAS
 
@@ -147,11 +224,8 @@ The function is similar, only the input is different.
 auto HelloVulkan::primitiveToGeometry(const nvh::GltfPrimMesh& prim)
 {
   // BLAS builder requires raw device addresses.
-  VkBufferDeviceAddressInfo info{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO};
-  info.buffer                   = m_vertexBuffer.buffer;
-  VkDeviceAddress vertexAddress = vkGetBufferDeviceAddress(m_device, &info);
-  info.buffer                   = m_indexBuffer.buffer;
-  VkDeviceAddress indexAddress  = vkGetBufferDeviceAddress(m_device, &info);
+  VkDeviceAddress vertexAddress = nvvk::getBufferDeviceAddress(m_device, m_vertexBuffer.buffer);
+  VkDeviceAddress indexAddress  = nvvk::getBufferDeviceAddress(m_device, m_indexBuffer.buffer);
 
   uint32_t maxPrimitiveCount = prim.indexCount / 3;
 

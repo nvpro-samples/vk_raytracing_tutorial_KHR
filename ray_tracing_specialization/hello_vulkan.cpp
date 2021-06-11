@@ -36,6 +36,7 @@
 #include "nvvk/pipeline_vk.hpp"
 #include "nvvk/renderpasses_vk.hpp"
 #include "nvvk/shaders_vk.hpp"
+#include "nvvk/buffers_vk.hpp"
 
 extern std::vector<std::string> defaultSearchPaths;
 
@@ -114,26 +115,15 @@ void HelloVulkan::updateUniformBuffer(const VkCommandBuffer& cmdBuf)
 void HelloVulkan::createDescriptorSetLayout()
 {
   auto nbTxt = static_cast<uint32_t>(m_textures.size());
-  auto nbObj = static_cast<uint32_t>(m_objModel.size());
 
   // Camera matrices (binding = 0)
   m_descSetLayoutBind.addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR);
-  // Materials (binding = 1)
-  m_descSetLayoutBind.addBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nbObj,
+  // Scene description (binding = 1)
+  m_descSetLayoutBind.addBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
                                  VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
-  // Scene description (binding = 2)
-  m_descSetLayoutBind.addBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
-                                 VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
-  // Textures (binding = 3)
-  m_descSetLayoutBind.addBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nbTxt,
+  // Textures (binding = 2)
+  m_descSetLayoutBind.addBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nbTxt,
                                  VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
-  // Materials (binding = 4)
-  m_descSetLayoutBind.addBinding(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nbObj,
-                                 VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
-  // Storing vertices (binding = 5)
-  m_descSetLayoutBind.addBinding(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nbObj, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
-  // Storing indices (binding = 6)
-  m_descSetLayoutBind.addBinding(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nbObj, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
 
 
   m_descSetLayout = m_descSetLayoutBind.createLayout(m_device);
@@ -151,25 +141,9 @@ void HelloVulkan::updateDescriptorSet()
   // Camera matrices and scene description
   VkDescriptorBufferInfo dbiUnif{m_cameraMat.buffer, 0, VK_WHOLE_SIZE};
   writes.emplace_back(m_descSetLayoutBind.makeWrite(m_descSet, 0, &dbiUnif));
-  VkDescriptorBufferInfo dbiSceneDesc{m_sceneDesc.buffer, 0, VK_WHOLE_SIZE};
-  writes.emplace_back(m_descSetLayoutBind.makeWrite(m_descSet, 2, &dbiSceneDesc));
 
-  // All material buffers, 1 buffer per OBJ
-  std::vector<VkDescriptorBufferInfo> dbiMat;
-  std::vector<VkDescriptorBufferInfo> dbiMatIdx;
-  std::vector<VkDescriptorBufferInfo> dbiVert;
-  std::vector<VkDescriptorBufferInfo> dbiIdx;
-  for(auto& m : m_objModel)
-  {
-    dbiMat.push_back({m.matColorBuffer.buffer, 0, VK_WHOLE_SIZE});
-    dbiMatIdx.push_back({m.matIndexBuffer.buffer, 0, VK_WHOLE_SIZE});
-    dbiVert.push_back({m.vertexBuffer.buffer, 0, VK_WHOLE_SIZE});
-    dbiIdx.push_back({m.indexBuffer.buffer, 0, VK_WHOLE_SIZE});
-  }
-  writes.emplace_back(m_descSetLayoutBind.makeWriteArray(m_descSet, 1, dbiMat.data()));
-  writes.emplace_back(m_descSetLayoutBind.makeWriteArray(m_descSet, 4, dbiMatIdx.data()));
-  writes.emplace_back(m_descSetLayoutBind.makeWriteArray(m_descSet, 5, dbiVert.data()));
-  writes.emplace_back(m_descSetLayoutBind.makeWriteArray(m_descSet, 6, dbiIdx.data()));
+  VkDescriptorBufferInfo dbiSceneDesc{m_sceneDesc.buffer, 0, VK_WHOLE_SIZE};
+  writes.emplace_back(m_descSetLayoutBind.makeWrite(m_descSet, 1, &dbiSceneDesc));
 
   // All texture samplers
   std::vector<VkDescriptorImageInfo> diit;
@@ -177,7 +151,7 @@ void HelloVulkan::updateDescriptorSet()
   {
     diit.emplace_back(texture.descriptor);
   }
-  writes.emplace_back(m_descSetLayoutBind.makeWriteArray(m_descSet, 3, diit.data()));
+  writes.emplace_back(m_descSetLayoutBind.makeWriteArray(m_descSet, 2, diit.data()));
 
   // Writing the information
   vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
@@ -235,35 +209,41 @@ void HelloVulkan::loadModel(const std::string& filename, nvmath::mat4f transform
     m.specular = nvmath::pow(m.specular, 2.2f);
   }
 
-  ObjInstance instance;
-  instance.objIndex    = static_cast<uint32_t>(m_objModel.size());
-  instance.transform   = transform;
-  instance.transformIT = nvmath::transpose(nvmath::invert(transform));
-  instance.txtOffset   = static_cast<uint32_t>(m_textures.size());
-
   ObjModel model;
   model.nbIndices  = static_cast<uint32_t>(loader.m_indices.size());
   model.nbVertices = static_cast<uint32_t>(loader.m_vertices.size());
 
   // Create the buffers on Device and copy vertices, indices and materials
   nvvk::CommandPool  cmdBufGet(m_device, m_graphicsQueueIndex);
-  VkCommandBuffer    cmdBuf  = cmdBufGet.createCommandBuffer();
-  VkBufferUsageFlags rtUsage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
-                               | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
-  model.vertexBuffer   = m_alloc.createBuffer(cmdBuf, loader.m_vertices, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | rtUsage);
-  model.indexBuffer    = m_alloc.createBuffer(cmdBuf, loader.m_indices, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | rtUsage);
-  model.matColorBuffer = m_alloc.createBuffer(cmdBuf, loader.m_materials, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-  model.matIndexBuffer = m_alloc.createBuffer(cmdBuf, loader.m_matIndx, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+  VkCommandBuffer    cmdBuf          = cmdBufGet.createCommandBuffer();
+  VkBufferUsageFlags flag            = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+  VkBufferUsageFlags rayTracingFlags =  // used also for building acceleration structures
+      flag | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+  model.vertexBuffer = m_alloc.createBuffer(cmdBuf, loader.m_vertices, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | rayTracingFlags);
+  model.indexBuffer = m_alloc.createBuffer(cmdBuf, loader.m_indices, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | rayTracingFlags);
+  model.matColorBuffer = m_alloc.createBuffer(cmdBuf, loader.m_materials, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | flag);
+  model.matIndexBuffer = m_alloc.createBuffer(cmdBuf, loader.m_matIndx, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | flag);
   // Creates all textures found
+  uint32_t txtOffset = static_cast<uint32_t>(m_textures.size());
   createTextureImages(cmdBuf, loader.m_textures);
   cmdBufGet.submitAndWait(cmdBuf);
   m_alloc.finalizeAndReleaseStaging();
 
-  std::string objNb = std::to_string(instance.objIndex);
+  std::string objNb = std::to_string(m_objModel.size());
   m_debug.setObjectName(model.vertexBuffer.buffer, (std::string("vertex_" + objNb).c_str()));
   m_debug.setObjectName(model.indexBuffer.buffer, (std::string("index_" + objNb).c_str()));
   m_debug.setObjectName(model.matColorBuffer.buffer, (std::string("mat_" + objNb).c_str()));
   m_debug.setObjectName(model.matIndexBuffer.buffer, (std::string("matIdx_" + objNb).c_str()));
+
+  ObjInstance instance;
+  instance.objIndex        = static_cast<uint32_t>(m_objModel.size());
+  instance.transform       = transform;
+  instance.transformIT     = nvmath::transpose(nvmath::invert(transform));
+  instance.txtOffset       = txtOffset;
+  instance.vertices        = nvvk::getBufferDeviceAddress(m_device, model.vertexBuffer.buffer);
+  instance.indices         = nvvk::getBufferDeviceAddress(m_device, model.indexBuffer.buffer);
+  instance.materials       = nvvk::getBufferDeviceAddress(m_device, model.matColorBuffer.buffer);
+  instance.materialIndices = nvvk::getBufferDeviceAddress(m_device, model.matIndexBuffer.buffer);
 
   m_objModel.emplace_back(model);
   m_objInstance.emplace_back(instance);
@@ -627,11 +607,8 @@ void HelloVulkan::initRayTracing()
 auto HelloVulkan::objectToVkGeometryKHR(const ObjModel& model)
 {
   // BLAS builder requires raw device addresses.
-  VkBufferDeviceAddressInfo info{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO};
-  info.buffer                   = model.vertexBuffer.buffer;
-  VkDeviceAddress vertexAddress = vkGetBufferDeviceAddress(m_device, &info);
-  info.buffer                   = model.indexBuffer.buffer;
-  VkDeviceAddress indexAddress  = vkGetBufferDeviceAddress(m_device, &info);
+  VkDeviceAddress vertexAddress = nvvk::getBufferDeviceAddress(m_device, model.vertexBuffer.buffer);
+  VkDeviceAddress indexAddress  = nvvk::getBufferDeviceAddress(m_device, model.indexBuffer.buffer);
 
   uint32_t maxPrimitiveCount = model.nbIndices / 3;
 

@@ -16,9 +16,9 @@
  * SPDX-FileCopyrightText: Copyright (c) 2019-2021 NVIDIA CORPORATION
  * SPDX-License-Identifier: Apache-2.0
  */
- 
+
 #version 450
-layout (location = 0) out vec2 outUV;
+layout(location = 0) out vec2 outUV;
 
 
 out gl_PerVertex
@@ -29,6 +29,6 @@ out gl_PerVertex
 
 void main()
 {
-  outUV = vec2((gl_VertexIndex << 1) & 2, gl_VertexIndex & 2);
+  outUV       = vec2((gl_VertexIndex << 1) & 2, gl_VertexIndex & 2);
   gl_Position = vec4(outUV * 2.0f - 1.0f, 1.0f, 1.0f);
 }

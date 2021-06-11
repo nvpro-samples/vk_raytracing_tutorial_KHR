@@ -21,7 +21,12 @@ Using monolithic pipeline definitions all stages are compiled for each pipeline,
 Pipeline libraries are `VkPipeline` objects that cannot be bound directly. Instead, they can be compiled once and linked into as many pipelines as necessary. The Shader Binding Table of the resulting pipeline references the shader groups of the library as if they had been appended to the groups and stages in the main `VkRayTracingPipelineCreateInfo`
 ![](images/library.png)
 
- We start by adding a new member in the `HelloVulkan` class:
+We start by adding the device extension in main() 
+~~~~ C
+  contextInfo.addDeviceExtension(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
+~~~~
+
+Following by adding a new member in the `HelloVulkan` class:
 ~~~~ C
   // Ray tracing shader library
   VkPipeline                                        m_rtShaderLibrary;

@@ -76,10 +76,14 @@ public:
   // Instance of the OBJ
   struct ObjInstance
   {
-    uint32_t      objIndex{0};     // Reference to the `m_objModel`
-    uint32_t      txtOffset{0};    // Offset in `m_textures`
-    nvmath::mat4f transform{1};    // Position of the instance
-    nvmath::mat4f transformIT{1};  // Inverse transpose
+    nvmath::mat4f   transform{1};    // Position of the instance
+    nvmath::mat4f   transformIT{1};  // Inverse transpose
+    uint32_t        objIndex{0};     // Reference to the `m_objModel`
+    uint32_t        txtOffset{0};    // Offset in `m_textures`
+    VkDeviceAddress vertices;
+    VkDeviceAddress indices;
+    VkDeviceAddress materials;
+    VkDeviceAddress materialIndices;
   };
 
   // Information pushed at each draw call
@@ -132,9 +136,10 @@ public:
   VkDescriptorSetLayout       m_descSetLayout;
   VkDescriptorSet             m_descSet;
 
-  nvvk::Buffer               m_cameraMat;  // Device-Host of the camera matrices
-  nvvk::Buffer               m_sceneDesc;  // Device buffer of the OBJ instances
-  std::vector<nvvk::Texture> m_textures;   // vector of all textures of the scene
+  nvvk::Buffer m_cameraMat;  // Device-Host of the camera matrices
+  nvvk::Buffer m_sceneDesc;  // Device buffer of the OBJ instances
+
+  std::vector<nvvk::Texture> m_textures;  // vector of all textures of the scene
 
 
   nvvk::ResourceAllocatorDma m_alloc;  // Allocator for buffer, images, acceleration structures

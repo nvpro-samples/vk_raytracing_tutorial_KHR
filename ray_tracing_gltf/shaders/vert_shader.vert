@@ -16,16 +16,21 @@
  * SPDX-FileCopyrightText: Copyright (c) 2019-2021 NVIDIA CORPORATION
  * SPDX-License-Identifier: Apache-2.0
  */
- 
+
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_scalar_block_layout : enable
 #extension GL_GOOGLE_include_directive : enable
 
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_buffer_reference2 : require
+
 #include "binding.glsl"
+#include "gltf.glsl"
 
 // clang-format off
-layout( set = 0, binding = B_MATRICES) readonly buffer _Matrix { mat4 matrices[]; };
+layout(buffer_reference, scalar) buffer  Matrices { mat4 m[]; };
+layout( set = 0, binding = B_SCENEDESC ) readonly buffer SceneDesc_ { SceneDesc sceneDesc; };
 // clang-format on
 
 layout(binding = 0) uniform UniformBufferObject
@@ -42,7 +47,7 @@ layout(push_constant) uniform shaderInformation
   uint  instanceId;
   float lightIntensity;
   int   lightType;
-  int materialId;
+  int   materialId;
 }
 pushC;
 
@@ -65,7 +70,9 @@ out gl_PerVertex
 
 void main()
 {
-  mat4 objMatrix   = matrices[pushC.instanceId];
+  Matrices matrices  = Matrices(sceneDesc.matrixAddress);
+  mat4     objMatrix = matrices.m[pushC.instanceId];
+
   mat4 objMatrixIT = transpose(inverse(objMatrix));
 
   vec3 origin = vec3(ubo.viewI * vec4(0, 0, 0, 1));

@@ -16,7 +16,7 @@
  * SPDX-FileCopyrightText: Copyright (c) 2019-2021 NVIDIA CORPORATION
  * SPDX-License-Identifier: Apache-2.0
  */
- 
+
 #version 460
 #extension GL_EXT_ray_tracing : require
 

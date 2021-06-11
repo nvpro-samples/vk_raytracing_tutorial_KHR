@@ -18,7 +18,6 @@
  */
 
 
-
 //-
 // This utility compresses a normal(x,y,z) to a uint and decompresses it
 
@@ -119,8 +118,7 @@ void ComputeDefaultBasis(const vec3 normal, out vec3 x, out vec3 y)
   // ZAP's default coordinate system for compatibility
   vec3        z  = normal;
   const float yz = -z.y * z.z;
-  y              = normalize(((abs(z.z) > 0.99999f) ? vec3(-z.x * z.y, 1.0f - z.y * z.y, yz) :
-                                         vec3(-z.x * z.z, yz, 1.0f - z.z * z.z)));
+  y = normalize(((abs(z.z) > 0.99999f) ? vec3(-z.x * z.y, 1.0f - z.y * z.y, yz) : vec3(-z.x * z.z, yz, 1.0f - z.z * z.z)));
 
   x = cross(y, z);
 }

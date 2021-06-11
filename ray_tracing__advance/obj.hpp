@@ -34,10 +34,14 @@ struct ObjModel
 // Instance of the OBJ
 struct ObjInstance
 {
-  uint32_t      objIndex{0};     // Reference to the `m_objModel`
-  uint32_t      txtOffset{0};    // Offset in `m_textures`
-  nvmath::mat4f transform{1};    // Position of the instance
-  nvmath::mat4f transformIT{1};  // Inverse transpose
+  nvmath::mat4f   transform{1};    // Position of the instance
+  nvmath::mat4f   transformIT{1};  // Inverse transpose
+  uint32_t        objIndex{0};     // Reference to the `m_objModel`
+  uint32_t        txtOffset{0};    // Offset in `m_textures`
+  VkDeviceAddress vertices;
+  VkDeviceAddress indices;
+  VkDeviceAddress materials;
+  VkDeviceAddress materialIndices;
 };
 
 // Information pushed at each draw call

@@ -75,6 +75,7 @@ public:
   Offscreen& offscreen() { return m_offscreen; }
   Raytracer& raytracer() { return m_raytrace; }
 
+
   ObjPushConstants m_pushConstants;
 
   // Array of objects and instances in the scene
@@ -83,20 +84,21 @@ public:
 
 
   // Graphic pipeline
-  VkPipelineLayout          m_pipelineLayout;
-  VkPipeline                m_graphicsPipeline;
+  VkPipelineLayout            m_pipelineLayout;
+  VkPipeline                  m_graphicsPipeline;
   nvvk::DescriptorSetBindings m_descSetLayoutBind;
-  VkDescriptorPool          m_descPool;
-  VkDescriptorSetLayout     m_descSetLayout;
-  VkDescriptorSet           m_descSet;
+  VkDescriptorPool            m_descPool;
+  VkDescriptorSetLayout       m_descSetLayout;
+  VkDescriptorSet             m_descSet;
 
   int  m_maxFrames{10};
   void resetFrame();
   void updateFrame();
 
-  nvvk::Buffer               m_cameraMat;  // Device-Host of the camera matrices
-  nvvk::Buffer               m_sceneDesc;  // Device buffer of the OBJ instances
-  std::vector<nvvk::Texture> m_textures;   // vector of all textures of the scene
+  nvvk::Buffer m_cameraMat;  // Device-Host of the camera matrices
+  nvvk::Buffer m_sceneDesc;  // Device buffer of the OBJ instances
+
+  std::vector<nvvk::Texture> m_textures;  // vector of all textures of the scene
 
   nvvk::DebugUtil m_debug;  // Utility to name objects
 

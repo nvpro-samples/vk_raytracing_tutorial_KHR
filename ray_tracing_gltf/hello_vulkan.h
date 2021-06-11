@@ -61,6 +61,16 @@ public:
     int      materialIndex;
   };
 
+  struct SceneDescription
+  {
+    uint64_t vertexAddress;
+    uint64_t normalAddress;
+    uint64_t uvAddress;
+    uint64_t indexAddress;
+    uint64_t materialAddress;
+    uint64_t matrixAddress;
+    uint64_t rtPrimAddress;
+  };
 
   nvh::GltfScene m_gltfScene;
   nvvk::Buffer   m_vertexBuffer;
@@ -70,6 +80,7 @@ public:
   nvvk::Buffer   m_materialBuffer;
   nvvk::Buffer   m_matrixBuffer;
   nvvk::Buffer   m_rtPrimLookup;
+  nvvk::Buffer   m_sceneDesc;
 
   // Information pushed at each draw call
   struct ObjPushConstant

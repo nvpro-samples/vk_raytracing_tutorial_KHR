@@ -38,7 +38,7 @@ public:
   void createPipeline(VkRenderPass& renderPass);
   void createDescriptor();
   void updateDescriptorSet();
-  void draw(VkCommandBuffer cmdBuf, VkExtent2D& size);
+  void draw(VkCommandBuffer cmdBuf, const VkExtent2D& size);
 
   const VkRenderPass&  renderPass() { return m_renderPass; }
   const VkFramebuffer& frameBuffer() { return m_framebuffer; }

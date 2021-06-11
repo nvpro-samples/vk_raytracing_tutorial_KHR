@@ -35,6 +35,7 @@ compile_glsl_directory(
 	SRC "${CMAKE_CURRENT_SOURCE_DIR}/shaders" 
 	DST "${CMAKE_CURRENT_SOURCE_DIR}/spv" 
 	VULKAN_TARGET "vulkan1.2"
+	DEPENDENCY ${VULKAN_BUILD_DEPENDENCIES}
 	)
 
 
@@ -52,7 +53,8 @@ target_sources(${PROJNAME} PUBLIC ${GLSL_SOURCES} ${GLSL_HEADERS})
 source_group("Common"       FILES ${COMMON_SOURCE_FILES} ${PACKAGE_SOURCE_FILES})
 source_group("Sources"      FILES ${SOURCE_FILES})
 source_group("Headers"      FILES ${HEADER_FILES})
-source_group("Shader_Files" FILES ${GLSL_SOURCES} ${GLSL_HEADERS})
+source_group("Shader Sources"  FILES ${GLSL_SOURCES})
+source_group("Shader Headers"  FILES ${GLSL_HEADERS})
 
 
 #--------------------------------------------------------------------------------------------------

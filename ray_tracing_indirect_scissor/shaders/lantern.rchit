@@ -16,7 +16,7 @@
  * SPDX-FileCopyrightText: Copyright (c) 2019-2021 NVIDIA CORPORATION
  * SPDX-License-Identifier: Apache-2.0
  */
- 
+
 #version 460
 #extension GL_EXT_ray_tracing : require
 #extension GL_EXT_nonuniform_qualifier : enable
@@ -37,6 +37,6 @@ void main()
 {
   // Just look up this lantern's color. Self-illuminating, so no lighting calculations.
   LanternIndirectEntry lantern = lanterns.lanterns[nonuniformEXT(gl_InstanceCustomIndexEXT)];
-  prd.hitValue = vec3(lantern.red, lantern.green, lantern.blue);
-  prd.additiveBlending = false;
+  prd.hitValue                 = vec3(lantern.red, lantern.green, lantern.blue);
+  prd.additiveBlending         = false;
 }

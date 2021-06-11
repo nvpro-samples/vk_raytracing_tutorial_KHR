@@ -34,18 +34,20 @@ This shader starts like `raytrace.chit`, but uses less information.
 #extension GL_EXT_scalar_block_layout : enable
 #extension GL_GOOGLE_include_directive : enable
 
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_buffer_reference2 : require
+
 #include "random.glsl"
 #include "raycommon.glsl"
 #include "wavefront.glsl"
 
 // clang-format off
 layout(location = 0) rayPayloadInEXT hitPayload prd;
-
-layout(binding = 2, set = 1, scalar) buffer ScnDesc { sceneDesc i[]; } scnDesc;
-layout(binding = 4, set = 1)  buffer MatIndexColorBuffer { int i[]; } matIndex[];
-layout(binding = 5, set = 1, scalar) buffer Vertices { Vertex v[]; } vertices[];
-layout(binding = 6, set = 1) buffer Indices { uint i[]; } indices[];
-layout(binding = 1, set = 1, scalar) buffer MatColorBufferObject { WaveFrontMaterial m[]; } materials[];
+layout(buffer_reference, scalar) buffer Vertices {Vertex v[]; }; // Positions of an object
+layout(buffer_reference, scalar) buffer Indices {uint i[]; }; // Triangle indices
+layout(buffer_reference, scalar) buffer Materials {WaveFrontMaterial m[]; }; // Array of all materials on an object
+layout(buffer_reference, scalar) buffer MatIndices {int i[]; }; // Material ID for each triangle
+layout(binding = 1, set = 1, scalar) buffer SceneDesc_ { SceneDesc i[]; } sceneDesc;
 // clang-format on
 ~~~~ 
 
@@ -59,16 +61,14 @@ opaque, we simply return, which means that the hit will be accepted.
 ~~~~ C++
 void main()
 {
-  // Object of this instance
-  uint objId = scnDesc.i[gl_InstanceCustomIndexEXT].objId;
-  // Indices of the triangle
-  uint ind = indices[nonuniformEXT(objId)].i[3 * gl_PrimitiveID + 0];
-  // Vertex of the triangle
-  Vertex v0 = vertices[nonuniformEXT(objId)].v[ind.x];
+  // Object data
+  SceneDesc  objResource = sceneDesc.i[gl_InstanceCustomIndexEXT];
+  MatIndices matIndices  = MatIndices(objResource.materialIndexAddress);
+  Materials  materials   = Materials(objResource.materialAddress);
 
   // Material of the object
-  int               matIdx = matIndex[nonuniformEXT(objId)].i[gl_PrimitiveID];
-  WaveFrontMaterial mat    = materials[nonuniformEXT(objId)].m[matIdx];
+  int               matIdx = matIndices.i[gl_PrimitiveID];
+  WaveFrontMaterial mat    = materials.m[matIdx];
 
   if (mat.illum != 4)
     return;
@@ -136,33 +136,13 @@ add the Any Hit stage index and push back the shader module to the stages.
 
 ## Give access of the buffers to the Any Hit shader
 
-In `createDescriptorSetLayout()`, we need to allow the Any Hit shader to access some buffers.
-
-This is the case for the material and scene description buffers
+In `createDescriptorSetLayout()`, we need to allow the Any Hit shader to access the scene description buffer
 
 ~~~~ C++
-  // Materials (binding = 1)
-  m_descSetLayoutBind.addBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nbObj,
+  // Scene description (binding = 1)
+  m_descSetLayoutBind.addBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
                                  VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
                                      | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR);
-  // Scene description (binding = 2)
-  m_descSetLayoutBind.addBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
-                                 VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
-                                     | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR);
-~~~~
-
-and also for the vertex, index and material index buffers:
-
-~~~~ C++
-  // Materials (binding = 4)
-  m_descSetLayoutBind.addBinding(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nbObj,
-                                 VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR);
-  // Storing vertices (binding = 5)
-  m_descSetLayoutBind.addBinding(5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nbObj,
-                                 VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR);
-  // Storing indices (binding = 6)
-  m_descSetLayoutBind.addBinding(6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nbObj,
-                                 VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR);
 ~~~~
 
 ## Opaque Flag

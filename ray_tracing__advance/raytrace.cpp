@@ -157,12 +157,15 @@ void Raytracer::createBottomLevelAS(std::vector<ObjModel>& models, ImplInst& imp
 void Raytracer::createTopLevelAS(std::vector<ObjInstance>& instances, ImplInst& implicitObj)
 {
   std::vector<nvvk::RaytracingBuilderKHR::Instance> tlas;
+
+
+  auto nbObj = static_cast<uint32_t>(instances.size()) - 1;  // minus the implicit (for material)
   tlas.reserve(instances.size());
-  for(int i = 0; i < static_cast<int>(instances.size()); i++)
+  for(uint32_t i = 0; i < nbObj; i++)
   {
     nvvk::RaytracingBuilderKHR::Instance rayInst;
     rayInst.transform        = instances[i].transform;  // Position of the instance
-    rayInst.instanceCustomId = i;                       // gl_InstanceCustomIndexEXT
+    rayInst.instanceCustomId = instances[i].objIndex;   // gl_InstanceCustomIndexEXT
     rayInst.blasId           = instances[i].objIndex;
     rayInst.hitGroupId       = 0;  // We will use the same hit group for all objects
     rayInst.flags            = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
@@ -173,8 +176,8 @@ void Raytracer::createTopLevelAS(std::vector<ObjInstance>& instances, ImplInst& 
   if(!implicitObj.objImpl.empty())
   {
     nvvk::RaytracingBuilderKHR::Instance rayInst;
-    rayInst.transform        = implicitObj.transform;                      // Position of the instance
-    rayInst.instanceCustomId = static_cast<uint32_t>(implicitObj.blasId);  // Same for material index
+    rayInst.transform        = implicitObj.transform;  // Position of the instance
+    rayInst.instanceCustomId = nbObj;                  // Same for material index
     rayInst.blasId           = static_cast<uint32_t>(implicitObj.blasId);
     rayInst.hitGroupId       = 1;  // We will use the same hit group for all objects (the second one)
     rayInst.flags            = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;

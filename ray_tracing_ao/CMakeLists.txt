@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 3.9.6 FATAL_ERROR)
 #--------------------------------------------------------------------------------------------------
 # Project setting
 get_filename_component(PROJNAME ${CMAKE_CURRENT_SOURCE_DIR} NAME)
-SET(PROJNAME vk_${PROJNAME}_KHR)
+set(PROJNAME vk_${PROJNAME}_KHR)
 project(${PROJNAME} LANGUAGES C CXX)
 message(STATUS "-------------------------------")
 message(STATUS "Processing Project ${PROJNAME}:")
@@ -53,8 +53,8 @@ target_sources(${PROJNAME} PUBLIC ${GLSL_SOURCES} ${GLSL_HEADERS})
 source_group("Common"       FILES ${COMMON_SOURCE_FILES} ${PACKAGE_SOURCE_FILES})
 source_group("Sources"      FILES ${SOURCE_FILES})
 source_group("Headers"      FILES ${HEADER_FILES})
-source_group("Shaders Src"  FILES ${GLSL_SOURCES})
-source_group("Shaders Hdr"  FILES ${GLSL_HEADERS})
+source_group("Shader Sources"  FILES ${GLSL_SOURCES})
+source_group("Shader Headers"  FILES ${GLSL_HEADERS})
 
 
 #--------------------------------------------------------------------------------------------------

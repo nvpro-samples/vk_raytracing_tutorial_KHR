@@ -107,13 +107,17 @@ uint32_t  hitgroup{0};     // Hit group of the instance
 This change also needs to be reflected in the `sceneDesc` structure in `wavefront.glsl`:
 
 ~~~~ C++
-struct sceneDesc
+struct SceneDesc
 {
-  int  objId;
-  int  txtOffset;
-  mat4 transfo;
-  mat4 transfoIT;
-  int  hitGroup;
+  mat4     transfo;
+  mat4     transfoIT;
+  int      objId;
+  int      txtOffset;
+  uint64_t vertexAddress;
+  uint64_t indexAddress;
+  uint64_t materialAddress;
+  uint64_t materialIndexAddress;
+  int      hitGroup;
 };
 ~~~~
 

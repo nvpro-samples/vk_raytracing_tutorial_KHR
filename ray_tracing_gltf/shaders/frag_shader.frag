@@ -16,12 +16,15 @@
  * SPDX-FileCopyrightText: Copyright (c) 2019-2021 NVIDIA CORPORATION
  * SPDX-License-Identifier: Apache-2.0
  */
- 
+
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_scalar_block_layout : enable
+
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_buffer_reference2 : require
 
 #include "binding.glsl"
 #include "gltf.glsl"
@@ -39,7 +42,6 @@ pushC;
 
 // clang-format off
 // Incoming 
-//layout(location = 0) flat in int matIndex;
 layout(location = 1) in vec2 fragTexCoord;
 layout(location = 2) in vec3 fragNormal;
 layout(location = 3) in vec3 viewDir;
@@ -47,16 +49,19 @@ layout(location = 4) in vec3 worldPos;
 // Outgoing
 layout(location = 0) out vec4 outColor;
 // Buffers
-layout(set = 0, binding = B_MATERIALS) buffer _GltfMaterial { GltfShadeMaterial materials[]; };
-layout(set = 0, binding = B_TEXTURES) uniform sampler2D[] textureSamplers;
 
+layout(buffer_reference, scalar) buffer  Matrices { mat4 m[]; };
+layout(buffer_reference, scalar) buffer  GltfMaterial { GltfShadeMaterial m[]; };
+layout(set = 0, binding = B_SCENEDESC ) readonly buffer SceneDesc_ { SceneDesc sceneDesc; } ;
+layout(set = 0, binding = B_TEXTURES) uniform sampler2D[] textureSamplers;
 // clang-format on
 
 
 void main()
 {
   // Material of the object
-  GltfShadeMaterial mat = materials[nonuniformEXT(pushC.matetrialId)];
+  GltfMaterial      gltfMat = GltfMaterial(sceneDesc.materialAddress);
+  GltfShadeMaterial mat     = gltfMat.m[pushC.matetrialId];
 
   vec3 N = normalize(fragNormal);
 

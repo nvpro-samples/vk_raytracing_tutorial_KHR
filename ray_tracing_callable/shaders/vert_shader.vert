@@ -16,16 +16,18 @@
  * SPDX-FileCopyrightText: Copyright (c) 2019-2021 NVIDIA CORPORATION
  * SPDX-License-Identifier: Apache-2.0
  */
- 
+
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_scalar_block_layout : enable
 #extension GL_GOOGLE_include_directive : enable
 
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+
 #include "wavefront.glsl"
 
 // clang-format off
-layout(binding = 2, set = 0, scalar) buffer ScnDesc { sceneDesc i[]; } scnDesc;
+layout(binding = 1, scalar) buffer SceneDesc_ { SceneDesc i[]; } sceneDesc;
 // clang-format on
 
 layout(binding = 0) uniform UniformBufferObject
@@ -68,8 +70,8 @@ out gl_PerVertex
 
 void main()
 {
-  mat4 objMatrix   = scnDesc.i[pushC.instanceId].transfo;
-  mat4 objMatrixIT = scnDesc.i[pushC.instanceId].transfoIT;
+  mat4 objMatrix   = sceneDesc.i[pushC.instanceId].transfo;
+  mat4 objMatrixIT = sceneDesc.i[pushC.instanceId].transfoIT;
 
   vec3 origin = vec3(ubo.viewI * vec4(0, 0, 0, 1));
 

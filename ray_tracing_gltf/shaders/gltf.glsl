@@ -20,8 +20,8 @@
 struct GltfShadeMaterial
 {
   vec4 pbrBaseColorFactor;
-  int  pbrBaseColorTexture;
   vec3 emissiveFactor;
+  int  pbrBaseColorTexture;
 };
 
 #ifndef __cplusplus
@@ -30,6 +30,17 @@ struct PrimMeshInfo
   uint indexOffset;
   uint vertexOffset;
   int  materialIndex;
+};
+
+struct SceneDesc
+{
+  uint64_t vertexAddress;
+  uint64_t normalAddress;
+  uint64_t uvAddress;
+  uint64_t indexAddress;
+  uint64_t materialAddress;
+  uint64_t matrixAddress;
+  uint64_t rtPrimAddress;
 };
 
 

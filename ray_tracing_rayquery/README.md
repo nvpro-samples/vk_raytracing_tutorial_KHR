@@ -50,9 +50,8 @@ You can safely remove all raytrace.* shaders
 In `HelloVulkan::createDescriptorSetLayout`, add the acceleration structure to the description layout to have access to the acceleration structure directly in the fragment shader.
 
 ~~~~ C++
-// The top level acceleration structure
-m_descSetLayoutBind.emplace_back(  //
-    vkDS(7, vkDT::eAccelerationStructureKHR, 1, vkSS::eFragment));
+  // The top level acceleration structure
+  m_descSetLayoutBind.addBinding(3, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
 ~~~~ 
 
 In `HelloVulkan::updateDescriptorSet`, write the value to the descriptor set.
@@ -62,7 +61,7 @@ In `HelloVulkan::updateDescriptorSet`, write the value to the descriptor set.
   VkWriteDescriptorSetAccelerationStructureKHR descASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
   descASInfo.accelerationStructureCount = 1;
   descASInfo.pAccelerationStructures    = &tlas;
-  writes.emplace_back(m_descSetLayoutBind.makeWrite(m_descSet, 7, &descASInfo));
+  writes.emplace_back(m_descSetLayoutBind.makeWrite(m_descSet, 3, &descASInfo));
 ~~~~ 
 
 
@@ -86,7 +85,7 @@ Then we need to add new extensions
 We have to add the layout to access the top level acceleration structure.
 
 ~~~~ C++
-layout(binding = 7, set = 0) uniform accelerationStructureEXT topLevelAS;
+layout(binding = 3, set = 0) uniform accelerationStructureEXT topLevelAS;
 ~~~~
 
 

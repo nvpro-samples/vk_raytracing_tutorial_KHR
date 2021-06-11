@@ -16,7 +16,7 @@
  * SPDX-FileCopyrightText: Copyright (c) 2019-2021 NVIDIA CORPORATION
  * SPDX-License-Identifier: Apache-2.0
  */
- 
+
 #version 460
 #extension GL_EXT_ray_tracing : require
 #extension GL_GOOGLE_include_directive : enable
@@ -36,23 +36,27 @@ layout(binding = 0, set = 1) uniform CameraProperties
 }
 cam;
 
-layout(binding = 2, set = 0) buffer LanternArray { LanternIndirectEntry lanterns[]; } lanterns;
+layout(binding = 2, set = 0) buffer LanternArray
+{
+  LanternIndirectEntry lanterns[];
+}
+lanterns;
 
 void main()
 {
   // Global light pass is a full screen rectangle (lower corner 0,0), but
   // lantern passes are only run within rectangles that may be offset.
   ivec2 pixelOffset = ivec2(0);
-  if (pushC.lanternPassNumber >= 0)
+  if(pushC.lanternPassNumber >= 0)
   {
     pixelOffset.x = lanterns.lanterns[pushC.lanternPassNumber].offsetX;
     pixelOffset.y = lanterns.lanterns[pushC.lanternPassNumber].offsetY;
   }
 
   const ivec2 pixelIntCoord = ivec2(gl_LaunchIDEXT.xy) + pixelOffset;
-  const vec2 pixelCenter = vec2(pixelIntCoord) + vec2(0.5);
-  const vec2 inUV        = pixelCenter / vec2(pushC.screenX, pushC.screenY);
-  vec2       d           = inUV * 2.0 - 1.0;
+  const vec2  pixelCenter   = vec2(pixelIntCoord) + vec2(0.5);
+  const vec2  inUV          = pixelCenter / vec2(pushC.screenX, pushC.screenY);
+  vec2        d             = inUV * 2.0 - 1.0;
 
   vec4 origin    = cam.viewInverse * vec4(0, 0, 0, 1);
   vec4 target    = cam.projInverse * vec4(d.x, d.y, 1, 1);
@@ -83,7 +87,8 @@ void main()
   // Either add to or replace output image color based on prd.additiveBlending.
   // Global pass always replaces color as it is the first pass.
   vec3 oldColor = vec3(0);
-  if (prd.additiveBlending && pushC.lanternPassNumber >= 0) {
+  if(prd.additiveBlending && pushC.lanternPassNumber >= 0)
+  {
     oldColor = imageLoad(image, pixelIntCoord).rgb;
   }
   imageStore(image, pixelIntCoord, vec4(prd.hitValue + oldColor, 1.0));

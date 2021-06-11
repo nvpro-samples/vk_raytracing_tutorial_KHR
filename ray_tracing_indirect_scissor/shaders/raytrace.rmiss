@@ -16,7 +16,7 @@
  * SPDX-FileCopyrightText: Copyright (c) 2019-2021 NVIDIA CORPORATION
  * SPDX-License-Identifier: Apache-2.0
  */
- 
+
 #version 460
 #extension GL_EXT_ray_tracing : require
 #extension GL_GOOGLE_include_directive : enable
@@ -26,6 +26,6 @@ layout(location = 0) rayPayloadInEXT hitPayload prd;
 
 void main()
 {
-  prd.hitValue = pushC.clearColor.xyz * 0.8;
+  prd.hitValue         = pushC.clearColor.xyz * 0.8;
   prd.additiveBlending = false;
 }
