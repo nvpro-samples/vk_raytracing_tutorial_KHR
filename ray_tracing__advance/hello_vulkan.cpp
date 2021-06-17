@@ -418,8 +418,8 @@ void HelloVulkan::rasterize(const VkCommandBuffer& cmdBuf)
   vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
   vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &m_descSet, 0, nullptr);
 
-
-  for(int i = 0; i < m_objInstance.size(); ++i)
+  uint32_t nbInst = static_cast<uint32_t>(m_objInstance.size() - 1);  // Remove the implicit object
+  for(uint32_t i = 0; i < nbInst; ++i)
   {
     auto& inst                 = m_objInstance[i];
     auto& model                = m_objModel[inst.objIndex];

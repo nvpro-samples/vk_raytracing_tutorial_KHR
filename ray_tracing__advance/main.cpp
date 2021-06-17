@@ -200,7 +200,7 @@ int main(int argc, char** argv)
 
   for(int n = 0; n < 50; ++n)
   {
-    ObjInstance inst;
+    ObjInstance inst    = helloVk.m_objInstance[wusonIndex];
     inst.objIndex       = wusonIndex;
     inst.txtOffset      = 0;
     float         scale = fabsf(disn(gen));
