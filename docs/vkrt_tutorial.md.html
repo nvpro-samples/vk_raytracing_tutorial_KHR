@@ -1239,7 +1239,7 @@ type is `VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR`, and only the `generalSha
 `VK_SHADER_UNUSED_KHR`. This is also the case for the callable shaders, not used in this tutorial. In our layout the ray
 generation comes first (0), followed by the miss shader (1).
 
-  ````C
+```` C
   // Shader groups
   VkRayTracingShaderGroupCreateInfoKHR group{VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR};
   group.anyHitShader       = VK_SHADER_UNUSED_KHR;
