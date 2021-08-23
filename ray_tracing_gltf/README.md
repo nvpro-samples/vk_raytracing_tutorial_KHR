@@ -513,6 +513,7 @@ all code from `// Vector toward the light` to the end can be remove and be repla
   prd.hitValue = emittance + (BRDF * incoming * cos_theta / p);
 ~~~~
 
+:warning: **Note:** We do not implement the point light as in the Rasterizer. Therefore, only the emitting geometry will emit the energy to illuminate the scene.
 
 ## Miss Shader
 
@@ -581,7 +582,7 @@ First initialize the `payload` and variable to compute the accumulation.
 
 Now the loop over the trace function, will be like the following.
 
- **Note:** the depth is hardcode, but could be a parameter to the `push constant`.
+ :warning: **Note:** the depth is hardcode, but could be a parameter to the `push constant`.
 
 ~~~~C
   for(; prd.depth < 10; prd.depth++)
@@ -604,6 +605,4 @@ Now the loop over the trace function, will be like the following.
   }
 ~~~~
 
-**Note:** do not forget to use `hitValue` in the `imageStore`.
-
-
+:warning: **Note:** do not forget to use `hitValue` in the `imageStore`.
