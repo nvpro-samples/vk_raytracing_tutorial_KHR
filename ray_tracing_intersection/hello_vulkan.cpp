@@ -737,7 +737,9 @@ void HelloVulkan::createSpheres(uint32_t nbSpheres)
   nvvk::CommandPool genCmdBuf(m_device, m_graphicsQueueIndex);
   auto              cmdBuf = genCmdBuf.createCommandBuffer();
   m_spheresBuffer          = m_alloc.createBuffer(cmdBuf, m_spheres, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-  m_spheresAabbBuffer      = m_alloc.createBuffer(cmdBuf, aabbs, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+  m_spheresAabbBuffer      = m_alloc.createBuffer(cmdBuf, aabbs,
+                                             VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+                                                 | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
   m_spheresMatIndexBuffer =
       m_alloc.createBuffer(cmdBuf, matIdx, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
   m_spheresMatColorBuffer =
@@ -783,29 +785,31 @@ void HelloVulkan::createBottomLevelAS()
 
 void HelloVulkan::createTopLevelAS()
 {
-  std::vector<nvvk::RaytracingBuilderKHR::Instance> tlas;
+  std::vector<VkAccelerationStructureInstanceKHR> tlas;
 
   auto nbObj = static_cast<uint32_t>(m_objInstance.size()) - 1;
   tlas.reserve(nbObj);
   for(uint32_t i = 0; i < nbObj; i++)
   {
-    nvvk::RaytracingBuilderKHR::Instance rayInst;
-    rayInst.transform        = m_objInstance[i].transform;  // Position of the instance
-    rayInst.instanceCustomId = i;                           // gl_InstanceCustomIndexEXT
-    rayInst.blasId           = m_objInstance[i].objIndex;
-    rayInst.hitGroupId       = 0;  // We will use the same hit group for all objects
-    rayInst.flags            = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    VkAccelerationStructureInstanceKHR rayInst;
+    rayInst.transform           = nvvk::toTransformMatrixKHR(m_objInstance[i].transform);  // Position of the instance
+    rayInst.instanceCustomIndex = i;                                                       // gl_InstanceCustomIndexEXT
+    rayInst.accelerationStructureReference         = m_rtBuilder.getBlasDeviceAddress(m_objInstance[i].objIndex);
+    rayInst.instanceShaderBindingTableRecordOffset = 0;  // We will use the same hit group for all objects
+    rayInst.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    rayInst.mask                                   = 0xFF;
     tlas.emplace_back(rayInst);
   }
 
   // Add the blas containing all spheres
   {
-    nvvk::RaytracingBuilderKHR::Instance rayInst;
-    rayInst.transform        = m_objInstance[0].transform;  // Position of the instance
-    rayInst.instanceCustomId = nbObj;                       // gl_InstanceCustomIndexEXT
-    rayInst.blasId           = static_cast<uint32_t>(m_objModel.size());
-    rayInst.hitGroupId       = 1;  // We will use the same hit group for all objects
-    rayInst.flags            = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    VkAccelerationStructureInstanceKHR rayInst;
+    rayInst.transform           = nvvk::toTransformMatrixKHR(m_objInstance[0].transform);  // Position of the instance
+    rayInst.instanceCustomIndex = nbObj;                                                   // gl_InstanceCustomIndexEXT
+    rayInst.accelerationStructureReference = m_rtBuilder.getBlasDeviceAddress(static_cast<uint32_t>(m_objModel.size()));
+    rayInst.instanceShaderBindingTableRecordOffset = 1;  // We will use the same hit group for all objects
+    rayInst.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    rayInst.mask                                   = 0xFF;
     tlas.emplace_back(rayInst);
   }
 

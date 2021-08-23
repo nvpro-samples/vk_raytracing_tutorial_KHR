@@ -51,10 +51,10 @@ static void onErrorCallback(int error, const char* description)
 }
 
 // Extra UI
-void renderUI(HelloVulkan& helloVk)
+void renderUI(HelloVulkan& helloVk, bool useRaytracer)
 {
   ImGuiH::CameraWidget();
-  if(ImGui::CollapsingHeader("Light"))
+  if( !useRaytracer && ImGui::CollapsingHeader("Light"))
   {
     ImGui::RadioButton("Point", &helloVk.m_pushConstant.lightType, 0);
     ImGui::SameLine();
@@ -204,9 +204,9 @@ int main(int argc, char** argv)
     {
       ImGuiH::Panel::Begin();
       ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
-      ImGui::Checkbox("Ray Tracer mode", &useRaytracer);  // Switch between raster and ray tracing
-
-      renderUI(helloVk);
+      if (ImGui::Checkbox("Ray Tracer mode", &useRaytracer))  // Switch between raster and ray tracing
+        helloVk.resetFrame();
+      renderUI(helloVk, useRaytracer);
       ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
       ImGuiH::Control::Info("", "", "(F10) Toggle Pane", ImGuiH::Control::Flags::Disabled);
       ImGuiH::Panel::End();

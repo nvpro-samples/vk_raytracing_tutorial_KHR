@@ -156,31 +156,33 @@ void Raytracer::createBottomLevelAS(std::vector<ObjModel>& models, ImplInst& imp
 
 void Raytracer::createTopLevelAS(std::vector<ObjInstance>& instances, ImplInst& implicitObj)
 {
-  std::vector<nvvk::RaytracingBuilderKHR::Instance> tlas;
+  std::vector<VkAccelerationStructureInstanceKHR> tlas;
 
 
   auto nbObj = static_cast<uint32_t>(instances.size()) - 1;  // minus the implicit (for material)
   tlas.reserve(instances.size());
   for(uint32_t i = 0; i < nbObj; i++)
   {
-    nvvk::RaytracingBuilderKHR::Instance rayInst;
-    rayInst.transform        = instances[i].transform;  // Position of the instance
-    rayInst.instanceCustomId = instances[i].objIndex;   // gl_InstanceCustomIndexEXT
-    rayInst.blasId           = instances[i].objIndex;
-    rayInst.hitGroupId       = 0;  // We will use the same hit group for all objects
-    rayInst.flags            = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    VkAccelerationStructureInstanceKHR rayInst;
+    rayInst.transform           = nvvk::toTransformMatrixKHR(instances[i].transform);  // Position of the instance
+    rayInst.instanceCustomIndex = instances[i].objIndex;                               // gl_InstanceCustomIndexEXT
+    rayInst.accelerationStructureReference         = m_rtBuilder.getBlasDeviceAddress(instances[i].objIndex);
+    rayInst.instanceShaderBindingTableRecordOffset = 0;  // We will use the same hit group for all objects
+    rayInst.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    rayInst.mask                                   = 0xFF;
     tlas.emplace_back(rayInst);
   }
 
   // Add the blas containing all implicit
   if(!implicitObj.objImpl.empty())
   {
-    nvvk::RaytracingBuilderKHR::Instance rayInst;
-    rayInst.transform        = implicitObj.transform;  // Position of the instance
-    rayInst.instanceCustomId = nbObj;                  // Same for material index
-    rayInst.blasId           = static_cast<uint32_t>(implicitObj.blasId);
-    rayInst.hitGroupId       = 1;  // We will use the same hit group for all objects (the second one)
-    rayInst.flags            = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    VkAccelerationStructureInstanceKHR rayInst;
+    rayInst.transform           = nvvk::toTransformMatrixKHR(implicitObj.transform);  // Position of the instance
+    rayInst.instanceCustomIndex = nbObj;                                              // Same for material index
+    rayInst.accelerationStructureReference = m_rtBuilder.getBlasDeviceAddress(static_cast<uint32_t>(implicitObj.blasId));
+    rayInst.instanceShaderBindingTableRecordOffset = 1;  // We will use the same hit group for all objects (the second one)
+    rayInst.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    rayInst.mask                                   = 0xFF;
     tlas.emplace_back(rayInst);
   }
 

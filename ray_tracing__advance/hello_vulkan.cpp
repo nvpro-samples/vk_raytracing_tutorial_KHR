@@ -551,7 +551,8 @@ void HelloVulkan::createImplictBuffers()
   auto cmdBuf              = cmdGen.createCommandBuffer();
   m_implObjects.implBuf    = m_alloc.createBuffer(cmdBuf, m_implObjects.objImpl,
                                                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR
-                                                   | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+                                                   | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+                                                   | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
   m_implObjects.implMatBuf = m_alloc.createBuffer(cmdBuf, m_implObjects.implMat,
                                                   VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
   cmdGen.submitAndWait(cmdBuf);

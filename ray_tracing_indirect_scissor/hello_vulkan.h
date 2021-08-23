@@ -80,10 +80,10 @@ public:
     nvmath::mat4f   transformIT{1};  // Inverse transpose
     uint32_t        objIndex{0};     // Reference to the `m_objModel`
     uint32_t        txtOffset{0};    // Offset in `m_textures`
-    VkDeviceAddress vertices;
-    VkDeviceAddress indices;
-    VkDeviceAddress materials;
-    VkDeviceAddress materialIndices;
+    VkDeviceAddress vertices{0};
+    VkDeviceAddress indices{0};
+    VkDeviceAddress materials{0};
+    VkDeviceAddress materialIndices{0};
   };
 
   // Information pushed at each draw call
@@ -101,8 +101,8 @@ public:
   {
     nvmath::vec3f position;
     nvmath::vec3f color;
-    float         brightness;
-    float         radius;  // Max world-space distance that light illuminates.
+    float         brightness{0};
+    float         radius{0};  // Max world-space distance that light illuminates.
   };
 
   // Information on each colored lantern, plus the info needed for dispatching the
@@ -114,8 +114,8 @@ public:
     // Filled in by the device using a compute shader.
     // NOTE: I rely on indirectCommand being the first member.
     VkTraceRaysIndirectCommandKHR indirectCommand;
-    int32_t                       offsetX;
-    int32_t                       offsetY;
+    int32_t                       offsetX{0};
+    int32_t                       offsetY{0};
 
     // Filled in by the host.
     Lantern lantern;

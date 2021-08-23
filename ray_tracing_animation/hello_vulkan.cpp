@@ -671,15 +671,15 @@ void HelloVulkan::createBottomLevelAS()
 
 void HelloVulkan::createTopLevelAS()
 {
-  m_tlas.reserve(m_objInstance.size());
   for(uint32_t i = 0; i < static_cast<uint32_t>(m_objInstance.size()); i++)
   {
-    nvvk::RaytracingBuilderKHR::Instance rayInst;
-    rayInst.transform        = m_objInstance[i].transform;  // Position of the instance
-    rayInst.instanceCustomId = i;                           // gl_InstanceCustomIndexEXT
-    rayInst.blasId           = m_objInstance[i].objIndex;
-    rayInst.hitGroupId       = 0;
-    rayInst.flags            = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    VkAccelerationStructureInstanceKHR rayInst;
+    rayInst.transform           = nvvk::toTransformMatrixKHR(m_objInstance[i].transform);  // Position of the instance
+    rayInst.instanceCustomIndex = i;                                                       // gl_InstanceCustomIndexEXT
+    rayInst.accelerationStructureReference         = m_rtBuilder.getBlasDeviceAddress(m_objInstance[i].objIndex);
+    rayInst.instanceShaderBindingTableRecordOffset = 0;  // We will use the same hit group for all objects
+    rayInst.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    rayInst.mask                                   = 0xFF;
     m_tlas.emplace_back(rayInst);
   }
 
@@ -888,8 +888,8 @@ void HelloVulkan::animationInstances(float time)
     inst.transform   = nvmath::rotation_mat4_y(i * deltaAngle + offset) * nvmath::translation_mat4(radius, 0.f, 0.f);
     inst.transformIT = nvmath::transpose(nvmath::invert(inst.transform));
 
-    nvvk::RaytracingBuilderKHR::Instance& tinst = m_tlas[wusonIdx];
-    tinst.transform                             = inst.transform;
+    VkAccelerationStructureInstanceKHR& tinst = m_tlas[wusonIdx];
+    tinst.transform                           = nvvk::toTransformMatrixKHR(inst.transform);
   }
 
   // Update the buffer
@@ -929,7 +929,7 @@ void HelloVulkan::animationObject(float time)
   vkCmdDispatch(cmdBuf, model.nbVertices, 1, 1);
 
   genCmdBuf.submitAndWait(cmdBuf);
-  m_rtBuilder.updateBlas(2);
+  m_rtBuilder.updateBlas(2, m_blas[2], VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR);
 }
 
 //////////////////////////////////////////////////////////////////////////

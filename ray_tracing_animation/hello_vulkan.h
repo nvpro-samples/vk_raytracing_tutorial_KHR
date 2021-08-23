@@ -150,7 +150,7 @@ public:
   VkPipeline                                        m_rtPipeline;
   nvvk::SBTWrapper                                  m_sbtWrapper;
 
-  std::vector<nvvk::RaytracingBuilderKHR::Instance>  m_tlas;
+  std::vector<VkAccelerationStructureInstanceKHR>  m_tlas;
   std::vector<nvvk::RaytracingBuilderKHR::BlasInput> m_blas;
 
   struct RtPushConstant

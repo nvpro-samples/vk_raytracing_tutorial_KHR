@@ -70,10 +70,10 @@ public:
     nvmath::mat4f   transformIT{1};  // Inverse transpose
     uint32_t        objIndex{0};     // Reference to the `m_objModel`
     uint32_t        txtOffset{0};    // Offset in `m_textures`
-    VkDeviceAddress vertices;
-    VkDeviceAddress indices;
-    VkDeviceAddress materials;
-    VkDeviceAddress materialIndices;
+    VkDeviceAddress vertices{0};
+    VkDeviceAddress indices{0};
+    VkDeviceAddress materials{0};
+    VkDeviceAddress materialIndices{0};
   };
 
   // Information pushed at each draw call

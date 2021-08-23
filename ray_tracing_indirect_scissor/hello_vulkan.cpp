@@ -689,7 +689,7 @@ void HelloVulkan::fillLanternVerts(std::vector<nvmath::vec3f>& vertices, std::ve
   for(int recursions = 0; recursions < 3; ++recursions)
   {
     std::vector<Triangle> new_triangles;
-    for(Triangle t : triangles)
+    for(const Triangle& t : triangles)
     {
       // Split each of three edges in half, then fixup the
       // length of the midpoint to match m_lanternModelRadius.
@@ -712,8 +712,8 @@ void HelloVulkan::fillLanternVerts(std::vector<nvmath::vec3f>& vertices, std::ve
   indices.reserve(triangles.size() * 3);
 
   // Write out the vertices to the vertices vector, and
-  // connect the tesselated triangles with indices in the indices vector.
-  for(Triangle t : triangles)
+  // connect the tessellated triangles with indices in the indices vector.
+  for(const Triangle& t : triangles)
   {
     vertices[t.vert0.index] = t.vert0.vertex;
     vertices[t.vert1.index] = t.vert1.vertex;
@@ -829,30 +829,32 @@ void HelloVulkan::createTopLevelAS()
   assert(m_lanternCount == 0);
   m_lanternCount = m_lanterns.size();
 
-  std::vector<nvvk::RaytracingBuilderKHR::Instance> tlas;
+  std::vector<VkAccelerationStructureInstanceKHR> tlas;
   tlas.reserve(m_objInstance.size() + m_lanternCount);
 
   // Add the OBJ instances.
   for(uint32_t i = 0; i < static_cast<uint32_t>(m_objInstance.size()); i++)
   {
-    nvvk::RaytracingBuilderKHR::Instance rayInst;
-    rayInst.transform        = m_objInstance[i].transform;  // Position of the instance
-    rayInst.instanceCustomId = i;                           // gl_InstanceCustomIndexEXT
-    rayInst.blasId           = m_objInstance[i].objIndex;
-    rayInst.hitGroupId       = 0;  // We will use the same hit group for all OBJ
-    rayInst.flags            = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    VkAccelerationStructureInstanceKHR rayInst;
+    rayInst.transform           = nvvk::toTransformMatrixKHR(m_objInstance[i].transform);  // Position of the instance
+    rayInst.instanceCustomIndex = i;                                                       // gl_InstanceCustomIndexEXT
+    rayInst.accelerationStructureReference         = m_rtBuilder.getBlasDeviceAddress(m_objInstance[i].objIndex);
+    rayInst.instanceShaderBindingTableRecordOffset = 0;  // We will use the same hit group for all objects
+    rayInst.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    rayInst.mask                                   = 0xFF;
     tlas.emplace_back(rayInst);
   }
 
   // Add lantern instances.
   for(int i = 0; i < static_cast<int>(m_lanterns.size()); ++i)
   {
-    nvvk::RaytracingBuilderKHR::Instance lanternInstance;
-    lanternInstance.transform        = nvmath::translation_mat4(m_lanterns[i].position);
-    lanternInstance.instanceCustomId = i;
-    lanternInstance.blasId           = uint32_t(m_lanternBlasId);
-    lanternInstance.hitGroupId       = 1;  // Next hit group is for lanterns.
-    lanternInstance.flags            = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    VkAccelerationStructureInstanceKHR lanternInstance;
+    lanternInstance.transform           = nvvk::toTransformMatrixKHR(nvmath::translation_mat4(m_lanterns[i].position));
+    lanternInstance.instanceCustomIndex = i;
+    lanternInstance.accelerationStructureReference = m_rtBuilder.getBlasDeviceAddress(uint32_t(m_lanternBlasId));
+    lanternInstance.instanceShaderBindingTableRecordOffset = 1;  // Next hit group is for lanterns.
+    lanternInstance.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    lanternInstance.mask                                   = 0xFF;
     tlas.emplace_back(lanternInstance);
   }
 
