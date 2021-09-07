@@ -21,46 +21,30 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_scalar_block_layout : enable
 #extension GL_GOOGLE_include_directive : enable
-
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
-#extension GL_EXT_buffer_reference2 : require
 
-#include "binding.glsl"
 #include "gltf.glsl"
+#include "host_device.h"
 
-// clang-format off
-layout(buffer_reference, scalar) buffer  Matrices { mat4 m[]; };
-layout( set = 0, binding = B_SCENEDESC ) readonly buffer SceneDesc_ { SceneDesc sceneDesc; };
-// clang-format on
-
-layout(binding = 0) uniform UniformBufferObject
+layout(binding = 0) uniform _GlobalUniforms
 {
-  mat4 view;
-  mat4 proj;
-  mat4 viewI;
-}
-ubo;
+  GlobalUniforms uni;
+};
 
-layout(push_constant) uniform shaderInformation
+layout(push_constant) uniform _PushConstantRaster
 {
-  vec3  lightPosition;
-  uint  instanceId;
-  float lightIntensity;
-  int   lightType;
-  int   materialId;
-}
-pushC;
+  PushConstantRaster pcRaster;
+};
 
-layout(location = 0) in vec3 inPosition;
-layout(location = 1) in vec3 inNormal;
-layout(location = 2) in vec2 inTexCoord;
+layout(location = 0) in vec3 i_position;
+layout(location = 1) in vec3 i_normal;
+layout(location = 2) in vec2 i_texCoord;
 
 
-//layout(location = 0) flat out int matIndex;
-layout(location = 1) out vec2 fragTexCoord;
-layout(location = 2) out vec3 fragNormal;
-layout(location = 3) out vec3 viewDir;
-layout(location = 4) out vec3 worldPos;
+layout(location = 1) out vec3 o_worldPos;
+layout(location = 2) out vec3 o_worldNrm;
+layout(location = 3) out vec3 o_viewDir;
+layout(location = 4) out vec2 o_texCoord;
 
 out gl_PerVertex
 {
@@ -70,18 +54,12 @@ out gl_PerVertex
 
 void main()
 {
-  Matrices matrices  = Matrices(sceneDesc.matrixAddress);
-  mat4     objMatrix = matrices.m[pushC.instanceId];
+  vec3 origin = vec3(uni.viewInverse * vec4(0, 0, 0, 1));
 
-  mat4 objMatrixIT = transpose(inverse(objMatrix));
+  o_worldPos = vec3(pcRaster.modelMatrix * vec4(i_position, 1.0));
+  o_viewDir  = vec3(o_worldPos - origin);
+  o_texCoord = i_texCoord;
+  o_worldNrm = mat3(pcRaster.modelMatrix) * i_normal;
 
-  vec3 origin = vec3(ubo.viewI * vec4(0, 0, 0, 1));
-
-  worldPos     = vec3(objMatrix * vec4(inPosition, 1.0));
-  viewDir      = vec3(worldPos - origin);
-  fragTexCoord = inTexCoord;
-  fragNormal   = vec3(objMatrixIT * vec4(inNormal, 0.0));
-  //  matIndex     = inMatID;
-
-  gl_Position = ubo.proj * ubo.view * vec4(worldPos, 1.0);
+  gl_Position = uni.viewProj * vec4(o_worldPos, 1.0);
 }

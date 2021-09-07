@@ -25,27 +25,35 @@ To do this, we will need to:
 * Add a new closest hit shader (.chit)
 * Create `VkAccelerationStructureGeometryKHR` from `VkAccelerationStructureGeometryAabbsDataKHR`
 
-## Creating all spheres
+## Creating all implicit objects
 
-In the HelloVulkan class, we will add the structures we will need. First the structure that defines a sphere.
+In `host_device.h`, we will add the structures we will need. First the structure that defines a sphere. Note that it will also be use for defining the box. This information will be retrieve in the intersection shader to return the intersection point.
 
 ~~~~ C++
-  struct Sphere
-  {
-    nvmath::vec3f center;
-    float         radius;
-  };
+struct Sphere
+{
+  vec3  center;
+  float radius;
+};
 ~~~~
 
 Then we need the Aabb structure holding all the spheres, but also used for the creation of the BLAS (`VK_GEOMETRY_TYPE_AABBS_KHR`). 
 
 ~~~~ C++
-  struct Aabb
-  {
-    nvmath::vec3f minimum;
-    nvmath::vec3f maximum;
-  };
+struct Aabb
+{
+  vec3 minimum;
+  vec3 maximum;
+};
 ~~~~
+
+Also add the following define to distinguish between sphere and box
+
+~~~~ C++
+#define KIND_SPHERE 0
+#define KIND_CUBE 1
+~~~~
+
 
 All the information will need to be hold in buffers, which will be available to the shaders.
 
@@ -57,11 +65,11 @@ All the information will need to be hold in buffers, which will be available to 
   nvvkBuffer          m_spheresMatIndexBuffer;  // Define which sphere uses which material
 ~~~~
 
-Finally, there are two functions, one to create the spheres, and one that will create the intermediate structure for the BLAS.
+Finally, there are two functions, one to create the spheres, and one that will create the intermediate structure for the BLAS, similar to `objectToVkGeometryKHR()`.
 
 ~~~~ C++
-  void                              createSpheres();
-  nvvk::RaytracingBuilderKHR::Blas  sphereToVkGeometryKHR();
+  void createSpheres();
+  auto sphereToVkGeometryKHR();
 ~~~~
 
 The following implementation will create 2.000.000 spheres at random positions and radius. It will create the Aabb from the sphere definition, two materials which will be assigned alternatively to each object. All the created information will be moved to Vulkan buffers to be accessed by the intersection and closest shaders.
@@ -120,9 +128,13 @@ void HelloVulkan::createSpheres(uint32_t nbSpheres)
   nvvk::CommandPool genCmdBuf(m_device, m_graphicsQueueIndex);
   auto              cmdBuf = genCmdBuf.createCommandBuffer();
   m_spheresBuffer          = m_alloc.createBuffer(cmdBuf, m_spheres, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-  m_spheresAabbBuffer      = m_alloc.createBuffer(cmdBuf, aabbs, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
-  m_spheresMatIndexBuffer  = m_alloc.createBuffer(cmdBuf, matIdx, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-  m_spheresMatColorBuffer  = m_alloc.createBuffer(cmdBuf, materials, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+  m_spheresAabbBuffer      = m_alloc.createBuffer(cmdBuf, aabbs,
+                                             VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+                                                 | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
+  m_spheresMatIndexBuffer =
+      m_alloc.createBuffer(cmdBuf, matIdx, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+  m_spheresMatColorBuffer =
+      m_alloc.createBuffer(cmdBuf, materials, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
   genCmdBuf.submitAndWait(cmdBuf);
 
   // Debug information
@@ -132,11 +144,14 @@ void HelloVulkan::createSpheres(uint32_t nbSpheres)
   m_debug.setObjectName(m_spheresMatIndexBuffer.buffer, "spheresMatIdx");
 
   // Adding an extra instance to get access to the material buffers
+  ObjDesc objDesc{};
+  objDesc.materialAddress      = nvvk::getBufferDeviceAddress(m_device, m_spheresMatColorBuffer.buffer);
+  objDesc.materialIndexAddress = nvvk::getBufferDeviceAddress(m_device, m_spheresMatIndexBuffer.buffer);
+  m_objDesc.emplace_back(objDesc);
+
   ObjInstance instance{};
-  instance.objIndex        = static_cast<uint32_t>(m_objModel.size());
-  instance.materials       = nvvk::getBufferDeviceAddress(m_device, m_spheresMatColorBuffer.buffer);
-  instance.materialIndices = nvvk::getBufferDeviceAddress(m_device, m_spheresMatIndexBuffer.buffer);
-  m_objInstance.emplace_back(instance);
+  instance.objIndex = static_cast<uint32_t>(m_objModel.size());
+  m_instances.emplace_back(instance);
 }
 ~~~~
 
@@ -157,7 +172,7 @@ What is changing compare to triangle primitive is the Aabb data (see Aabb struct
 //--------------------------------------------------------------------------------------------------
 // Returning the ray tracing geometry used for the BLAS, containing all spheres
 //
-nvvk::RaytracingBuilderKHR::BlasInput HelloVulkan::sphereToVkGeometryKHR()
+auto HelloVulkan::sphereToVkGeometryKHR()
 {
   VkDeviceAddress dataAddress = nvvk::getBufferDeviceAddress(m_device, m_spheresAabbBuffer.buffer);  
 
@@ -191,10 +206,10 @@ In `main.cpp`, where we are loading the OBJ model, we can replace it with
 ~~~~ C++
   // Creation of the example
   helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
-  helloVk.createSpheres();
+  helloVk.createSpheres(2000000);
 ~~~~
 
- **Note:** it is possible to have more OBJ models, but the spheres will need to be added after all of them.
+ **:warning: Note:** it is possible to have more OBJ models, but the spheres will need to be added after all of them, due the way we build TLAS.
 
 The scene will be large, better to move the camera out
 
@@ -241,10 +256,11 @@ The hitGroupId will be set to 1 instead of 0. We need to add a new hit group for
 Because we have added an extra instance when creating the implicit objects, there is one element less to loop for. Therefore the loop will now look like this:
 
 ~~~~ C++
-  auto nbObj = static_cast<uint32_t>(m_objInstance.size()) - 1;
+  auto nbObj = static_cast<uint32_t>(m_instances.size()) - 1;
   tlas.reserve(nbObj);
   for(uint32_t i = 0; i < nbObj; i++)
   {
+      const auto& inst = m_instances[i];
       ...
   }
 ~~~~
@@ -253,29 +269,36 @@ Because we have added an extra instance when creating the implicit objects, ther
 Just after the loop and before building the TLAS, we need to add the following.
 
 ~~~~ C++
-  // Add the blas containing all spheres
+  // Add the blas containing all implicit objects
   {
-    nvvk::RaytracingBuilder::Instance rayInst;
-    rayInst.transform        = m_objInstance[0].transform;  // Position of the instance
-    rayInst.instanceCustomId = nbObj;                       // gl_InstanceCustomIndexEXT
-    rayInst.blasId           = static_cast<uint32_t>(m_objModel.size());
-    rayInst.hitGroupId       = 1;  // We will use the same hit group for all objects
-    rayInst.flags            = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    VkAccelerationStructureInstanceKHR rayInst{};
+    rayInst.transform           = nvvk::toTransformMatrixKHR(nvmath::mat4f(1));  // Position of the instance (identity)
+    rayInst.instanceCustomIndex = nbObj;                                         // nbObj == last object == implicit
+    rayInst.accelerationStructureReference = m_rtBuilder.getBlasDeviceAddress(static_cast<uint32_t>(m_objModel.size()));
+    rayInst.instanceShaderBindingTableRecordOffset = 1;  // We will use the same hit group for all objects
+    rayInst.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    rayInst.mask                                   = 0xFF;  //  Only be hit if rayMask & instance.mask != 0
     tlas.emplace_back(rayInst);
   }
 ~~~~
 
-The `instanceCustomId` will give us the last element of m_objInstance, and in the shader will will be able to access the materials 
+The `instanceCustomIndex` will give us the last element of `m_instances`, and in the shader will will be able to access the materials 
 assigned to the implicit objects.
 
 ## Descriptors
 
 To access the newly created buffers holding all the spheres, some changes are required to the descriptors.
+
+Add a new enum to `Binding` 
+~~~~ C++
+  eImplicit = 3,  // All implicit objects
+~~~~
+
 The descriptor need to add an binding to the implicit object buffer.
 
 ~~~~ C++
   // Storing spheres (binding = 3)
-  m_descSetLayoutBind.addBinding(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
+  m_descSetLayoutBind.addBinding(eImplicit, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
                                  VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_INTERSECTION_BIT_KHR);
 ~~~~
 
@@ -284,7 +307,7 @@ Then write the buffer for the spheres after the array of textures
 
 ~~~~ C++
   VkDescriptorBufferInfo dbiSpheres{m_spheresBuffer.buffer, 0, VK_WHOLE_SIZE};
-  writes.emplace_back(m_descSetLayoutBind.makeWrite(m_descSet, 3, &dbiSpheres));
+  writes.emplace_back(m_descSetLayoutBind.makeWrite(m_descSet, eImplicit, &dbiSpheres));
 ~~~~
 
 ## Intersection Shader
@@ -323,27 +346,6 @@ Here is how the two hit group looks like:
   m_rtShaderGroups.push_back(group);
 ~~~~
 
-### raycommon.glsl
-
-To share the structure of the data across the shaders, we can add the following to `raycommon.glsl`
-
-~~~~ C++
-struct Sphere
-{
-  vec3  center;
-  float radius;
-};
-
-struct Aabb
-{
-  vec3 minimum;
-  vec3 maximum;
-};
-
-#define KIND_SPHERE 0
-#define KIND_CUBE 1
-~~~~
-
 ### raytrace.rint
 
 The intersection shader `raytrace.rint` need to be added to the shader directory and CMake to be rerun such that it is added to the project. The shader will be called every time a ray will hit one of the Aabb of the scene. Note that there are no Aabb information that can be retrieved in the intersection shader. It is also not possible to have the value of the hit point that the ray tracer might have calculated on the GPU.
@@ -360,6 +362,7 @@ We first declare the extensions and include common files.
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_buffer_reference2 : require
+
 #include "raycommon.glsl"
 #include "wavefront.glsl"
 ~~~~
@@ -368,7 +371,7 @@ We first declare the extensions and include common files.
 The following is the topology of all spheres, which we will be able to retrieve using `gl_PrimitiveID`.
 
 ~~~~ C++
-layout(binding = 3, set = 1, scalar) buffer allSpheres_
+layout(binding = 3, set = eImplicit, scalar) buffer allSpheres_
 {
   Sphere allSpheres[];
 };

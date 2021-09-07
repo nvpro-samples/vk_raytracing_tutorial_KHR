@@ -10,7 +10,6 @@ The ray tracing tutorial only uses one closest hit shader, but it is also possib
 For example, this could be used to give different models different shaders, or to use a less complex shader when tracing
 reflections.
 
-
 ## Setting up the Scene
 
 For this example, we will load the `wuson` model and create another translated instance of it.
@@ -21,11 +20,8 @@ Then you can change the `helloVk.loadModel` calls to the following:
   // Creation of the example
   helloVk.loadModel(nvh::findFile("media/scenes/wuson.obj", defaultSearchPaths, true),
                     nvmath::translation_mat4(nvmath::vec3f(-1, 0, 0)));
-  
-  HelloVulkan::ObjInstance inst = helloVk.m_objInstance[0];  // Instance the wuson object
-  inst.transform                = nvmath::translation_mat4(nvmath::vec3f(1, 0, 0));
-  inst.transformIT              = nvmath::transpose(nvmath::invert(inst.transform));
-  helloVk.m_objInstance.push_back(inst);  // Adding an instance of the wuson
+
+  helloVk.m_instances.push_back({nvmath::translation_mat4(nvmath::vec3f(1, 0, 0)), 0}); // Adding an instance of the Wuson
 
   helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
 ~~~~
@@ -93,43 +89,28 @@ If you set the offset to `1`, then all ray hits will use the new CHIT, and the r
 
 ![](images/manyhits2.png)
 
-!!! Warning
-    After testing this out, make sure to revert this change in `raytrace.rgen` before continuing.
+**:warning:** After testing this out, make sure to revert this change in `raytrace.rgen` before continuing.
 
 ### `hello_vulkan.h`
 
-In the `ObjInstance` structure, we will add a new member variable that specifies which hit shader the instance will use:
+In the `ObjInstance` structure, we will add a new member `hitgroup` variable that specifies which hit shader the instance will use:
 
 ~~~~ C++
-uint32_t  hitgroup{0};     // Hit group of the instance
+  struct ObjInstance
+  {
+    nvmath::mat4f transform;    // Matrix of the instance
+    uint32_t      objIndex{0};  // Model index reference
+    int           hitgroup{0};  // Hit group of the instance
+  };
 ~~~~
-
-This change also needs to be reflected in the `sceneDesc` structure in `wavefront.glsl`:
-
-~~~~ C++
-struct SceneDesc
-{
-  mat4     transfo;
-  mat4     transfoIT;
-  int      objId;
-  int      txtOffset;
-  uint64_t vertexAddress;
-  uint64_t indexAddress;
-  uint64_t materialAddress;
-  uint64_t materialIndexAddress;
-  int      hitGroup;
-};
-~~~~
-
- **Note:**
-    The solution will not automatically recompile the shaders after this change to `wavefront.glsl`; instead, you will need to recompile all of the SPIR-V shaders.
 
 ### `hello_vulkan.cpp`
 
-Finally, we need to tell the top-level acceleration structure which hit group to use for each instance. In `createTopLevelAS()` in `hello_vulkan.cpp`, change the line setting `rayInst.hitGroupId` to
+Finally, we need to tell the top-level acceleration structure which hit group to use for each instance. In `createTopLevelAS()`
+in `hello_vulkan.cpp`, we will offset the record of the shading binding table (SBT) with the hit group.
 
 ~~~~ C++
-rayInst.hitGroupId = m_objInstance[i].hitgroup;
+rayInst.instanceShaderBindingTableRecordOffset = inst.hitgroup;  // Using the hit group set in main
 ~~~~
 
 ### Choosing the Hit shader
@@ -137,8 +118,8 @@ rayInst.hitGroupId = m_objInstance[i].hitgroup;
 Back in `main.cpp`, after loading the scene's models, we can now have both `wuson` models use the new CHIT by adding the following:
 
 ~~~~ C++
-  helloVk.m_objInstance[0].hitgroup = 1;
-  helloVk.m_objInstance[1].hitgroup = 1;
+  helloVk.m_instances[0].hitgroup = 1;
+  helloVk.m_instances[1].hitgroup = 1;
 ~~~~
 
 ![](images/manyhits3.png)
@@ -149,33 +130,24 @@ When creating the [Shader Binding Table](https://www.khronos.org/registry/vulkan
 
 This information can be used to pass extra information to a shader, for each entry in the SBT.
 
- **Note:**
+ **:warning: Note:**
     Since each entry in an SBT group must have the same size, each entry of the group has to have enough space to accommodate the largest element in the entire group.
 
 The following diagram represents our current SBT, with the addition of some data to `HitGroup1`. As mentioned in the **note**, even if
-`HitGroup0` doesn't have any shader record data, it still needs to have the same size as `HitGroup1`.
+`HitGroup0` doesn't have any shader record data, it still needs to have the same size as `HitGroup1`, the largest of the hit group.
 
-~~~~ Bash
-+-----------+----------+ 
-| RayGen    | Handle 0 | 
-+-----------+----------+ 
-| Miss      | Handle 1 | 
-+-----------+----------+ 
-| Miss      | Handle 2 | 
-+-----------+----------+ 
-| HitGroup0 | Handle 3 | 
-|           | -Empty-  | 
-+-----------+----------+ 
-| HitGroup1 | Handle 4 | 
-|           | Data 0   | 
-+-----------+----------+ 
-~~~~
+|Group|Handle|
+| ------ | ------ |
+| RayGen    | Handle 0 |
+| Miss0      | Handle 1 |
+| Miss1      | Handle 2 |
+| HitGroup0 | Handle 3 </br>-Empty-   |
+| HitGroup1 | Handle 4 </br> Data 0   |
 
 ## `hello_vulkan.h`
 
 In the HelloVulkan class, we will add a structure to hold the hit group data.
 
-<script type="preformatted">
 ~~~~ C++
   struct HitRecordBuffer
   {
@@ -183,14 +155,13 @@ In the HelloVulkan class, we will add a structure to hold the hit group data.
   };
   std::vector<HitRecordBuffer> m_hitShaderRecord;
 ~~~~
-</script>
 
 ### `raytrace2.rchit`
 
 In the closest hit shader, we can retrieve the shader record using the `layout(shaderRecordEXT)` descriptor
 
 ~~~~ C++
-layout(shaderRecordEXT) buffer sr_ { vec4 c; } shaderRec;
+layout(shaderRecordEXT) buffer sr_ { vec4 shaderRec; };
 ~~~~
 
 and use this information to return the color:
@@ -198,13 +169,12 @@ and use this information to return the color:
 ~~~~ C++
 void main()
 {
-  prd.hitValue = shaderRec.c.rgb;
+  prd.hitValue = shaderRec.rgb;
 }
 ~~~~
 
- **Note:**
+ **:warning: Note:**
     Adding a new shader requires to rerun CMake to added to the project compilation system.
-
 
 ### `main.cpp`
 
@@ -217,13 +187,13 @@ In `main`, after we set which hit group an instance will use, we can add the dat
 
 ### `HelloVulkan::createRtShaderBindingTable`
 
-**NEW**
+**:star:NEW:star:**
 
-The creation of the shading binding table as it was done, was using hardcoded offsets and potentially could lead to errors. 
-Instead, the new code uses the `nvvk::SBTWraper` that uses the ray tracing pipeline and the `VkRayTracingPipelineCreateInfoKHR` to 
-create the SBT information. 
+The creation of the shading binding table as it was done, was using hardcoded offsets and potentially could lead to errors.
+Instead, the new code uses the `nvvk::SBTWraper` that uses the ray tracing pipeline and the `VkRayTracingPipelineCreateInfoKHR` to
+create the SBT information.
 
-The wrapper will find the handles for each group and will add the 
+The wrapper will find the handles for each group and will add the
 data `m_hitShaderRecord` to the Hit group.  
 
 ```` C
@@ -238,19 +208,17 @@ The buffer for Hit will have the following layout
 
 ```
 | handle       | handle,data  | handle,data   |
-``` 
+```
 
-The wrapper will make sure the stride covers the largest data and is aligned 
+The wrapper will make sure the stride covers the largest data and is aligned
 based on the GPU properties.
-
-
 
 **OLD - for reference**
 
-Since we are no longer compacting all handles in a continuous buffer, we need to fill the SBT as described above.
+~~Since we are no longer compacting all handles in a continuous buffer, we need to fill the SBT as described above.~~
 
-After retrieving the handles of all 5 groups (raygen, miss, miss shadow, hit0, and hit1)
-using `getRayTracingShaderGroupHandlesKHR`, store the pointers to easily retrieve them.
+~~After retrieving the handles of all 5 groups (raygen, miss, miss shadow, hit0, and hit1)
+using `getRayTracingShaderGroupHandlesKHR`, store the pointers to easily retrieve them.~~
 
 ~~~~ C++
   // Retrieve the handle pointers
@@ -261,7 +229,7 @@ using `getRayTracingShaderGroupHandlesKHR`, store the pointers to easily retriev
   }
 ~~~~
 
-The size of each group can be described as follows:
+~~The size of each group can be described as follows:~~
 
 ~~~~ C++
   // Sizes
@@ -272,7 +240,7 @@ The size of each group can be described as follows:
   uint32_t newSbtSize = rayGenSize + 2 * missSize + 2 * hitSize;
 ~~~~
 
-Then write the new SBT like this, where only Hit 1 has extra data.
+~~Then write the new SBT like this, where only Hit 1 has extra data.~~
 
 ~~~~ C++
   std::vector<uint8_t> sbtBuffer(newSbtSize);
@@ -299,16 +267,15 @@ Then write the new SBT like this, where only Hit 1 has extra data.
   }
 ~~~~
 
-Then change the call to `m_alloc.createBuffer` to create the SBT buffer from `sbtBuffer`:
+~~Then change the call to `m_alloc.createBuffer` to create the SBT buffer from `sbtBuffer`:~~
 
 ~~~~ C++
   m_rtSBTBuffer = m_alloc.createBuffer(cmdBuf, sbtBuffer, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR);
 ~~~~
 
-
 ### `raytrace`
 
-**NEW**
+**:star:NEW:star:**
 
 The mvvk::SBTWrapper gives use the information without having to compute the `VkStridedDeviceAddressRegionKHR`
 
@@ -319,7 +286,7 @@ The mvvk::SBTWrapper gives use the information without having to compute the `Vk
 
 **OLD**
 
-Finally, since the size of the hit group is now larger than just the handle, we need to set the new value of the hit group stride in `HelloVulkan::raytrace`.
+~~Finally, since the size of the hit group is now larger than just the handle, we need to set the new value of the hit group stride in `HelloVulkan::raytrace`.~~
 
 ~~~~ C++
   VkDeviceSize hitGroupSize =
@@ -327,7 +294,7 @@ Finally, since the size of the hit group is now larger than just the handle, we 
                     m_rtProperties.shaderGroupBaseAlignment);
 ~~~~
 
-The stride device address will be modified like this:
+~~The stride device address will be modified like this:~~
 
 ~~~~ C++
   using Stride = VkStridedDeviceAddressRegionKHR;
@@ -338,8 +305,8 @@ The stride device address will be modified like this:
       Stride{0u, 0u, 0u}};                                                  // callable
 ~~~~
 
-**Note:**
-    The result should now show both `wuson` models with a yellow color.
+~~**Note:**
+    The result should now show both `wuson` models with a yellow color.~~
 
 ![](images/manyhits4.png)
 
@@ -349,25 +316,14 @@ The SBT can be larger than the number of shading models, which could then be use
 
 The following modification will add another entry to the SBT with a different color per instance. The new SBT hit group (2) will use the same CHIT handle (4) as hit group 1.
 
-~~~~ Bash
-+-----------+----------+ 
-| RayGen    | Handle 0 | 
-+-----------+----------+ 
-| Miss      | Handle 1 | 
-+-----------+----------+ 
-| Miss      | Handle 2 | 
-+-----------+----------+ 
-| HitGroup0 | Handle 3 | 
-|           | -Empty-  | 
-+-----------+----------+ 
-| HitGroup1 | Handle 4 | 
-|           | Data 0   | 
-+-----------+----------+ 
-| HitGroup2 | Handle 4 | 
-|           | Data 1   | 
-+-----------+----------+ 
-~~~~
-
+|Group|Handle|
+| ------ | ------ |
+| RayGen    | Handle 0 |
+| Miss0      | Handle 1 |
+| Miss1      | Handle 2 |
+| HitGroup0 | Handle 3 </br>-Empty-   |
+| HitGroup1 | Handle 4 </br> Data 0   |
+| HitGroup1 | Handle 4 </br> Data 1   |
 
 ### `main.cpp`
 
@@ -378,19 +334,26 @@ In the description of the scene in `main`, we will tell the `wuson` models to us
   helloVk.m_hitShaderRecord.resize(2);
   helloVk.m_hitShaderRecord[0].color = nvmath::vec4f(0, 1, 0, 0);  // Green
   helloVk.m_hitShaderRecord[1].color = nvmath::vec4f(0, 1, 1, 0);  // Cyan
-  helloVk.m_objInstance[0].hitgroup  = 1;                          // wuson 0
-  helloVk.m_objInstance[1].hitgroup  = 2;                          // wuson 1
+  helloVk.m_instances[0].hitgroup    = 1;                          // wuson 0
+  helloVk.m_instances[1].hitgroup    = 2;                          // wuson 1
 ~~~~
 
 ### `createRtShaderBindingTable`
 
-The size of the SBT will now account for its 3 hit groups:
+**:star:NEW:star:** 
+
+If you are using the SBT wrapper, this part is automatically handled.
+
+**OLD**
+
+
+~~The size of the SBT will now account for its 3 hit groups:~~
 
 ~~~~ C++
  uint32_t newSbtSize = rayGenSize + 2 * missSize + 3 * hitSize;
 ~~~~
 
-Finally, we need to add the new entry as well at the end of the buffer, reusing the handle of the second Hit Group and setting a different color.
+~~Finally, we need to add the new entry as well at the end of the buffer, reusing the handle of the second Hit Group and setting a different color.~~
 
 ~~~~ C++
     pHitBuffer = pBuffer;
@@ -400,7 +363,7 @@ Finally, we need to add the new entry as well at the end of the buffer, reusing 
     pBuffer += hitSize;
 ~~~~
 
-**Note:**
-    Adding entries like this can be error-prone and inconvenient for decent 
+~~**Note:**
+    Adding entries like this can be error-prone and inconvenient for decent
     scene sizes. Instead, it is recommended to wrap the storage of handles, data,
-    and size per group in a SBT utility to handle this automatically.
+    and size per group in a SBT utility to handle this automatically.~~

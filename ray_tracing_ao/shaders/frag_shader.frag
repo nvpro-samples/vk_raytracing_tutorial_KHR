@@ -30,62 +30,58 @@
 #include "wavefront.glsl"
 
 
-layout(push_constant) uniform shaderInformation
+layout(push_constant) uniform _PushConstantRaster
 {
-  vec3  lightPosition;
-  uint  instanceId;
-  float lightIntensity;
-  int   lightType;
-}
-pushC;
+  PushConstantRaster pcRaster;
+};
 
 // clang-format off
 // Incoming 
-layout(location = 1) in vec2 fragTexCoord;
-layout(location = 2) in vec3 fragNormal;
-layout(location = 3) in vec3 viewDir;
-layout(location = 4) in vec3 worldPos;
+layout(location = 1) in vec3 i_worldPos;
+layout(location = 2) in vec3 i_worldNrm;
+layout(location = 3) in vec3 i_viewDir;
+layout(location = 4) in vec2 i_texCoord;
 // Outgoing
-layout(location = 0) out vec4 outColor;
-layout(location = 1) out vec4 outGbuffer;
+layout(location = 0) out vec4 o_color;
+layout(location = 1) out vec4 o_gbuffer;
 
 layout(buffer_reference, scalar) buffer Vertices {Vertex v[]; }; // Positions of an object
 layout(buffer_reference, scalar) buffer Indices {uint i[]; }; // Triangle indices
 layout(buffer_reference, scalar) buffer Materials {WaveFrontMaterial m[]; }; // Array of all materials on an object
 layout(buffer_reference, scalar) buffer MatIndices {int i[]; }; // Material ID for each triangle
 
-layout(binding = 1, scalar) buffer SceneDesc_ { SceneDesc i[]; } sceneDesc;
-layout(binding = 2) uniform sampler2D[] textureSamplers;
+layout(binding = eObjDescs, scalar) buffer ObjDesc_ { ObjDesc i[]; } objDesc;
+layout(binding = eTextures) uniform sampler2D[] textureSamplers;
 // clang-format on
 
 
 void main()
 {
   // Material of the object
-  SceneDesc  objResource = sceneDesc.i[pushC.instanceId];
+  ObjDesc    objResource = objDesc.i[pcRaster.objIndex];
   MatIndices matIndices  = MatIndices(objResource.materialIndexAddress);
   Materials  materials   = Materials(objResource.materialAddress);
 
   int               matIndex = matIndices.i[gl_PrimitiveID];
   WaveFrontMaterial mat      = materials.m[matIndex];
 
-  vec3 N = normalize(fragNormal);
+  vec3 N = normalize(i_worldNrm);
 
   // Vector toward light
   vec3  L;
   float lightDistance;
-  float lightIntensity = pushC.lightIntensity;
-  if(pushC.lightType == 0)
+  float lightIntensity = pcRaster.lightIntensity;
+  if(pcRaster.lightType == 0)
   {
-    vec3  lDir     = pushC.lightPosition - worldPos;
+    vec3  lDir     = pcRaster.lightPosition - i_worldPos;
     float d        = length(lDir);
-    lightIntensity = pushC.lightIntensity / (d * d);
+    lightIntensity = pcRaster.lightIntensity / (d * d);
     L              = normalize(lDir);
     lightDistance  = d;
   }
   else
   {
-    L             = normalize(pushC.lightPosition - vec3(0));
+    L             = normalize(pcRaster.lightPosition - vec3(0));
     lightDistance = 10000;
   }
 
@@ -95,7 +91,7 @@ void main()
   diffuse      = vec3(1);
   //  if(mat.textureId >= 0)
   //  {
-  //    int  txtOffset  = sceneDesc.i[pushC.instanceId].txtOffset;
+  //    int  txtOffset  = objDesc.i[pcRaster.objIndex].txtOffset;
   //    uint txtId      = txtOffset + mat.textureId;
   //    vec3 diffuseTxt = texture(textureSamplers[nonuniformEXT(txtId)], fragTexCoord).xyz;
   //    diffuse *= diffuseTxt;
@@ -104,9 +100,8 @@ void main()
   // Specular
   vec3 specular  = vec3(0);  //computeSpecular(mat, viewDir, L, N);
   lightIntensity = 1;
+
   // Result
-  outColor = vec4(lightIntensity * (diffuse + specular), 1);
-
-
-  outGbuffer.rgba = vec4(worldPos, uintBitsToFloat(CompressUnitVec(N)));
+  o_color        = vec4(lightIntensity * (diffuse + specular), 1);
+  o_gbuffer.rgba = vec4(i_worldPos, uintBitsToFloat(CompressUnitVec(N)));
 }

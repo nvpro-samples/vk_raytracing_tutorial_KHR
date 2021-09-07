@@ -24,6 +24,7 @@
 #include "nvvk/descriptorsets_vk.hpp"
 #include "nvvk/memallocator_dma_vk.hpp"
 #include "nvvk/resourceallocator_vk.hpp"
+#include "shaders/host_device.h"
 
 // #VKRay
 #include "nvvk/raytraceKHR_vk.hpp"
@@ -44,7 +45,7 @@ public:
   void loadModel(const std::string& filename, nvmath::mat4f transform = nvmath::mat4f(1));
   void updateDescriptorSet();
   void createUniformBuffer();
-  void createSceneDescriptionBuffer();
+  void createObjDescriptionBuffer();
   void createTextureImages(const VkCommandBuffer& cmdBuf, const std::vector<std::string>& textures);
   void updateUniformBuffer(const VkCommandBuffer& cmdBuf);
   void onResize(int /*w*/, int /*h*/) override;
@@ -62,32 +63,27 @@ public:
     nvvk::Buffer matIndexBuffer;  // Device buffer of array of 'Wavefront material'
   };
 
-  // Instance of the OBJ
   struct ObjInstance
   {
-    nvmath::mat4f   transform{1};    // Position of the instance
-    nvmath::mat4f   transformIT{1};  // Inverse transpose
-    uint32_t        objIndex{0};     // Reference to the `m_objModel`
-    uint32_t        txtOffset{0};    // Offset in `m_textures`
-    VkDeviceAddress vertices;
-    VkDeviceAddress indices;
-    VkDeviceAddress materials;
-    VkDeviceAddress materialIndices;
+    nvmath::mat4f transform;    // Matrix of the instance
+    uint32_t      objIndex{0};  // Model index reference
   };
+
 
   // Information pushed at each draw call
-  struct ObjPushConstant
-  {
-    nvmath::vec3f lightPosition{10.f, 15.f, 8.f};
-    int           instanceId{0};  // To retrieve the transformation matrix
-    float         lightIntensity{100.f};
-    int           lightType{0};  // 0: point, 1: infinite
+  PushConstantRaster m_pcRaster{
+      {1},                // Identity matrix
+      {10.f, 15.f, 8.f},  // light position
+      0,                  // instance Id
+      100.f,              // light intensity
+      0                   // light type
   };
-  ObjPushConstant m_pushConstant;
 
   // Array of objects and instances in the scene
-  std::vector<ObjModel>    m_objModel;
-  std::vector<ObjInstance> m_objInstance;
+  std::vector<ObjModel>    m_objModel;   // Model on host
+  std::vector<ObjDesc>     m_objDesc;    // Model description for device access
+  std::vector<ObjInstance> m_instances;  // Scene model instances
+
 
   // Graphic pipeline
   VkPipelineLayout            m_pipelineLayout;
@@ -97,8 +93,8 @@ public:
   VkDescriptorSetLayout       m_descSetLayout;
   VkDescriptorSet             m_descSet;
 
-  nvvk::Buffer m_cameraMat;  // Device-Host of the camera matrices
-  nvvk::Buffer m_sceneDesc;  // Device buffer of the OBJ instances
+  nvvk::Buffer m_bGlobals;  // Device-Host of the camera matrices
+  nvvk::Buffer m_bObjDesc;  // Device buffer of the OBJ descriptions
 
   std::vector<nvvk::Texture> m_textures;  // vector of all textures of the scene
 
@@ -107,7 +103,7 @@ public:
   nvvk::DebugUtil            m_debug;  // Utility to name objects
 
 
-  // #Post
+  // #Post - Draw the rendered image on a quad using a tonemapper
   void createOffscreenRender();
   void createPostPipeline();
   void createPostDescriptor();
@@ -150,12 +146,6 @@ public:
   VkPipeline                                        m_rtPipeline;
   nvvk::Buffer                                      m_rtSBTBuffer;
 
-  struct RtPushConstant
-  {
-    nvmath::vec4f clearColor;
-    nvmath::vec3f lightPosition;
-    float         lightIntensity{100.0f};
-    int           lightType{0};
-    int           maxDepth{10};
-  } m_rtPushConstants;
+  // Push constant for ray tracer
+  PushConstantRay m_pcRay{{}, {}, 0, 0, 10};
 };

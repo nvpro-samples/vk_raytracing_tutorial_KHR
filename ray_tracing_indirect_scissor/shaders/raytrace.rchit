@@ -40,17 +40,20 @@ layout(buffer_reference, scalar) buffer Vertices {Vertex v[]; }; // Positions of
 layout(buffer_reference, scalar) buffer Indices {ivec3 i[]; }; // Triangle indices
 layout(buffer_reference, scalar) buffer Materials {WaveFrontMaterial m[]; }; // Array of all materials on an object
 layout(buffer_reference, scalar) buffer MatIndices {int i[]; }; // Material ID for each triangle
-layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
-layout(binding = 2, set = 0) buffer LanternArray { LanternIndirectEntry lanterns[]; } lanterns;
+layout(set = 0, binding = eTlas) uniform accelerationStructureEXT topLevelAS;
+layout(set = 0, binding = eLanterns) buffer LanternArray { LanternIndirectEntry lanterns[]; } lanterns;
 
-layout(binding = 1, set = 1, scalar) buffer SceneDesc_ { SceneDesc i[]; } sceneDesc;
-layout(binding = 2, set = 1) uniform sampler2D textureSamplers[];
+layout(set = 1, binding = eObjDescs, scalar) buffer ObjDesc_ { ObjDesc i[]; } objDesc;
+layout(set = 1, binding = eTextures) uniform sampler2D textureSamplers[];
+
+layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 // clang-format on
+
 
 void main()
 {
   // Object data
-  SceneDesc  objResource = sceneDesc.i[gl_InstanceCustomIndexEXT];
+  ObjDesc    objResource = objDesc.i[gl_InstanceCustomIndexEXT];
   MatIndices matIndices  = MatIndices(objResource.materialIndexAddress);
   Materials  materials   = Materials(objResource.materialAddress);
   Indices    indices     = Indices(objResource.indexAddress);
@@ -66,47 +69,44 @@ void main()
 
   const vec3 barycentrics = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
 
-  // Computing the normal at hit position
-  vec3 normal = v0.nrm * barycentrics.x + v1.nrm * barycentrics.y + v2.nrm * barycentrics.z;
-  // Transforming the normal to world space
-  normal = normalize(vec3(sceneDesc.i[gl_InstanceCustomIndexEXT].transfoIT * vec4(normal, 0.0)));
-
-
   // Computing the coordinates of the hit position
-  vec3 worldPos = v0.pos * barycentrics.x + v1.pos * barycentrics.y + v2.pos * barycentrics.z;
-  // Transforming the position to world space
-  worldPos = vec3(sceneDesc.i[gl_InstanceCustomIndexEXT].transfo * vec4(worldPos, 1.0));
+  const vec3 pos      = v0.pos * barycentrics.x + v1.pos * barycentrics.y + v2.pos * barycentrics.z;
+  const vec3 worldPos = vec3(gl_ObjectToWorldEXT * vec4(pos, 1.0));  // Transforming the position to world space
+
+  // Computing the normal at hit position
+  const vec3 nrm      = v0.nrm * barycentrics.x + v1.nrm * barycentrics.y + v2.nrm * barycentrics.z;
+  const vec3 worldNrm = normalize(vec3(nrm * gl_WorldToObjectEXT));  // Transforming the normal to world space
 
   // Vector toward the light
   vec3  L;
-  vec3  colorIntensity = vec3(pushC.lightIntensity);
+  vec3  colorIntensity = vec3(pcRay.lightIntensity);
   float lightDistance  = 100000.0;
 
   // ray direction is towards lantern, if in lantern pass.
-  if(pushC.lanternPassNumber >= 0)
+  if(pcRay.lanternPassNumber >= 0)
   {
-    LanternIndirectEntry lantern = lanterns.lanterns[pushC.lanternPassNumber];
+    LanternIndirectEntry lantern = lanterns.lanterns[pcRay.lanternPassNumber];
     vec3                 lDir    = vec3(lantern.x, lantern.y, lantern.z) - worldPos;
     lightDistance                = length(lDir);
     vec3 color                   = vec3(lantern.red, lantern.green, lantern.blue);
     // Lantern light decreases linearly. Not physically accurate, but looks good
     // and avoids a hard "edge" at the radius limit. Use a constant value
     // if lantern debug is enabled to clearly see the covered screen rectangle.
-    float distanceFade = pushC.lanternDebug != 0 ? 0.3 : max(0, (lantern.radius - lightDistance) / lantern.radius);
+    float distanceFade = pcRay.lanternDebug != 0 ? 0.3 : max(0, (lantern.radius - lightDistance) / lantern.radius);
     colorIntensity     = color * lantern.brightness * distanceFade;
     L                  = normalize(lDir);
   }
   // Non-lantern pass may have point light...
-  else if(pushC.lightType == 0)
+  else if(pcRay.lightType == 0)
   {
-    vec3 lDir      = pushC.lightPosition - worldPos;
+    vec3 lDir      = pcRay.lightPosition - worldPos;
     lightDistance  = length(lDir);
-    colorIntensity = vec3(pushC.lightIntensity / (lightDistance * lightDistance));
+    colorIntensity = vec3(pcRay.lightIntensity / (lightDistance * lightDistance));
     L              = normalize(lDir);
   }
   else  // or directional light.
   {
-    L = normalize(pushC.lightPosition - vec3(0));
+    L = normalize(pcRay.lightPosition);
   }
 
   // Material of the object
@@ -115,10 +115,10 @@ void main()
 
 
   // Diffuse
-  vec3 diffuse = computeDiffuse(mat, L, normal);
+  vec3 diffuse = computeDiffuse(mat, L, worldNrm);
   if(mat.textureId >= 0)
   {
-    uint txtId    = mat.textureId + sceneDesc.i[gl_InstanceCustomIndexEXT].txtOffset;
+    uint txtId    = mat.textureId + objDesc.i[gl_InstanceCustomIndexEXT].txtOffset;
     vec2 texCoord = v0.texCoord * barycentrics.x + v1.texCoord * barycentrics.y + v2.texCoord * barycentrics.z;
     diffuse *= texture(textureSamplers[nonuniformEXT(txtId)], texCoord).xyz;
   }
@@ -127,7 +127,7 @@ void main()
   float attenuation = 1;
 
   // Tracing shadow ray only if the light is visible from the surface
-  if(dot(normal, L) > 0)
+  if(dot(worldNrm, L) > 0)
   {
     float tMin   = 0.001;
     float tMax   = lightDistance;
@@ -135,7 +135,7 @@ void main()
     vec3  rayDir = L;
 
     // Ordinary shadow from the simple tutorial.
-    if(pushC.lanternPassNumber < 0)
+    if(pcRay.lanternPassNumber < 0)
     {
       isShadowed = true;
       uint flags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
@@ -179,7 +179,7 @@ void main()
                     2            // payload (location = 2)
         );
         // Did we hit the lantern we expected?
-        isShadowed = (hitLanternInstance != pushC.lanternPassNumber);
+        isShadowed = (hitLanternInstance != pcRay.lanternPassNumber);
       }
     }
 
@@ -190,7 +190,7 @@ void main()
     else
     {
       // Specular
-      specular = computeSpecular(mat, gl_WorldRayDirectionEXT, L, normal);
+      specular = computeSpecular(mat, gl_WorldRayDirectionEXT, L, worldNrm);
     }
   }
 

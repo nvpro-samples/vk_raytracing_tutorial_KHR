@@ -84,12 +84,12 @@ void renderUI(HelloVulkan& helloVk)
   ImGuiH::CameraWidget();
   if(ImGui::CollapsingHeader("Light"))
   {
-    ImGui::RadioButton("Point", &helloVk.m_pushConstant.lightType, 0);
+    ImGui::RadioButton("Point", &helloVk.m_pcRaster.lightType, 0);
     ImGui::SameLine();
-    ImGui::RadioButton("Infinite", &helloVk.m_pushConstant.lightType, 1);
+    ImGui::RadioButton("Infinite", &helloVk.m_pcRaster.lightType, 1);
 
-    ImGui::SliderFloat3("Position", &helloVk.m_pushConstant.lightPosition.x, -20.f, 20.f);
-    ImGui::SliderFloat("Intensity", &helloVk.m_pushConstant.lightIntensity, 0.f, 150.f);
+    ImGui::SliderFloat3("Position", &helloVk.m_pcRaster.lightPosition.x, -20.f, 20.f);
+    ImGui::SliderFloat("Intensity", &helloVk.m_pcRaster.lightIntensity, 0.f, 150.f);
   }
 }
 
@@ -190,17 +190,14 @@ int main(int argc, char** argv)
   std::mt19937                    gen(rd());  //Standard mersenne_twister_engine seeded with rd()
   std::normal_distribution<float> dis(1.0f, 1.0f);
   std::normal_distribution<float> disn(0.05f, 0.05f);
-  for(int n = 0; n < 2000; ++n)
+  for(uint32_t n = 0; n < 2000; ++n)
   {
-    helloVk.loadModel(nvh::findFile("media/scenes/cube_multi.obj", defaultSearchPaths, true));
-    HelloVulkan::ObjInstance& inst = helloVk.m_objInstance.back();
-
     float         scale = fabsf(disn(gen));
     nvmath::mat4f mat   = nvmath::translation_mat4(nvmath::vec3f{dis(gen), 2.0f + dis(gen), dis(gen)});
     mat                 = mat * nvmath::rotation_mat4_x(dis(gen));
     mat                 = mat * nvmath::scale_mat4(nvmath::vec3f(scale));
-    inst.transform      = mat;
-    inst.transformIT    = nvmath::transpose(nvmath::invert((inst.transform)));
+
+    helloVk.loadModel(nvh::findFile("media/scenes/cube_multi.obj", defaultSearchPaths, true), mat);
   }
 
   helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
@@ -212,7 +209,7 @@ int main(int argc, char** argv)
   helloVk.createDescriptorSetLayout();
   helloVk.createGraphicsPipeline();
   helloVk.createUniformBuffer();
-  helloVk.createSceneDescriptionBuffer();
+  helloVk.createObjDescriptionBuffer();
   helloVk.updateDescriptorSet();
 
   // #VKRay

@@ -17,32 +17,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-struct GltfShadeMaterial
-{
-  vec4 pbrBaseColorFactor;
-  vec3 emissiveFactor;
-  int  pbrBaseColorTexture;
-};
 
-#ifndef __cplusplus
-struct PrimMeshInfo
-{
-  uint indexOffset;
-  uint vertexOffset;
-  int  materialIndex;
-};
-
-struct SceneDesc
-{
-  uint64_t vertexAddress;
-  uint64_t normalAddress;
-  uint64_t uvAddress;
-  uint64_t indexAddress;
-  uint64_t materialAddress;
-  uint64_t matrixAddress;
-  uint64_t rtPrimAddress;
-};
-
+#include "host_device.h"
 
 vec3 computeDiffuse(GltfShadeMaterial mat, vec3 lightDir, vec3 normal)
 {
@@ -65,4 +41,3 @@ vec3 computeSpecular(GltfShadeMaterial mat, vec3 viewDir, vec3 lightDir, vec3 no
 
   return vec3(specular);
 }
-#endif

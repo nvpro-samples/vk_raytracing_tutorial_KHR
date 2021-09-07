@@ -8,8 +8,8 @@ This is an extension of the Vulkan ray tracing [tutorial](https://nvpro-samples.
 
 We will implement two animation methods: only the transformation matrices, and animating the geometry itself.
 
-
 ## Animating the Matrices
+
 This first example shows how we can update the matrices used for instances in the TLAS.
 
 ### Creating a Scene
@@ -24,26 +24,30 @@ and the acceleration structure does not deal with this well.
   helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths),
                     nvmath::scale_mat4(nvmath::vec3f(2.f, 1.f, 2.f)));
   helloVk.loadModel(nvh::findFile("media/scenes/wuson.obj", defaultSearchPaths));
-  HelloVulkan::ObjInstance inst = helloVk.m_objInstance.back();
+  uint32_t      wusonId = 1;
+  nvmath::mat4f identity{1};
   for(int i = 0; i < 20; i++)
-    helloVk.m_objInstance.push_back(inst);
-~~~~ 
+    helloVk.m_instances.push_back({identity, wusonId});
+~~~~
 
 ### Animation Function
+
 We want to have all of the Wuson models running in a circle, and we will first modify the rasterizer to handle this.
 Animating the transformation matrices will be done entirely on the CPU, and we will copy the computed transformation to the GPU.
 In the next example, the animation will be done on the GPU using a compute shader.
 
 Add the declaration of the animation to the `HelloVulkan` class.
-~~~~ C++ 
+
+~~~~ C++
 void animationInstances(float time);
-~~~~ 
+~~~~
 
 The first part computes the transformations for all of the Wuson models, placing each one behind another.
+
 ~~~~ C++
 void HelloVulkan::animationInstances(float time)
 {
-  const int32_t nbWuson     = static_cast<int32_t>(m_objInstance.size() - 1);
+  const int32_t nbWuson     = static_cast<int32_t>(m_instances.size() - 1);
   const float   deltaAngle  = 6.28318530718f / static_cast<float>(nbWuson);
   const float   wusonLength = 3.f;
   const float   radius      = wusonLength / (2.f * sin(deltaAngle / 2.0f));
@@ -52,106 +56,73 @@ void HelloVulkan::animationInstances(float time)
   for(int i = 0; i < nbWuson; i++)
   {
     int          wusonIdx = i + 1;
-    ObjInstance& inst     = m_objInstance[wusonIdx];
-    inst.transform        = nvmath::rotation_mat4_y(i * deltaAngle + offset)
+    auto& transform = m_instances[wusonIdx].transform;
+    transform        = nvmath::rotation_mat4_y(i * deltaAngle + offset)
                      * nvmath::translation_mat4(radius, 0.f, 0.f);
-    inst.transformIT = nvmath::transpose(nvmath::invert(inst.transform));
   }
-~~~~ 
-
-Next, we update the buffer that describes the scene, which is used by the rasterizer to set each object's position, and also by the ray tracer to compute shading normals.
-~~~~ C++
-  // Update the buffer
-  VkDeviceSize bufferSize = m_objInstance.size() * sizeof(ObjInstance);
-  nvvk::Buffer stagingBuffer =
-      m_alloc.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-  // Copy data to staging buffer
-  auto* gInst = m_alloc.map(stagingBuffer);
-  memcpy(gInst, m_objInstance.data(), bufferSize);
-  m_alloc.unmap(stagingBuffer);
-  // Copy staging buffer to the Scene Description buffer
-  nvvk::CommandPool genCmdBuf(m_device, m_graphicsQueueIndex);
-  VkCommandBuffer   cmdBuf = genCmdBuf.createCommandBuffer();
-
-  VkBufferCopy region{0, 0, bufferSize};
-  vkCmdCopyBuffer(cmdBuf, stagingBuffer.buffer, m_sceneDesc.buffer, 1, &region);
-
-  m_debug.endLabel(cmdBuf);
-  genCmdBuf.submitAndWait(cmdBuf);
-  m_alloc.destroy(stagingBuffer);
-}
 ~~~~
 
- **Note:**
-    We could have used `cmdBuf.updateBuffer<ObjInstance>(m_sceneDesc.buffer, 0, m_objInstance)` to 
-    update the buffer, but this function only works for buffers with less than 65,536 bytes. If we had 2000 Wuson models, this 
-    call wouldn't work.
-
 ### Loop Animation
+
 In `main()`, just before the main loop, add a variable to hold the start time.
 We will use this time in our animation function.
 
 ~~~~ C++
   auto start = std::chrono::system_clock::now();
-~~~~ 
+~~~~
 
 Inside the `while` loop, just before calling `appBase.prepareFrame()`, invoke the animation function.
 
 ~~~~ C++
     std::chrono::duration<float> diff = std::chrono::system_clock::now() - start;
     helloVk.animationInstances(diff.count());
-~~~~ 
+~~~~
 
 If you run the application, the Wuson models will be running in a circle when using the rasterizer, but
 they will still be at their original positions in the ray traced version. We will need to update the TLAS for this.
-
 
 ## Update TLAS
 
 Since we want to update the transformation matrices in the TLAS, we need to keep some of the objects used to create it.
 
-First, move the vector of `nvvk::RaytracingBuilder::Instance` objects from `HelloVulkan::createTopLevelAS()` to the 
-`HelloVulkan` class. 
+First, move the vector of `nvvk::RaytracingBuilder::Instance` objects from `HelloVulkan::createTopLevelAS()` to the
+`HelloVulkan` class.
+
 ~~~~ C++
 std::vector<nvvk::RaytracingBuilder::Instance> m_tlas;
-~~~~ 
+~~~~
 
-Make sure to rename it to `m_tlas`, instead of `tlas`. 
+Make sure to rename it to `m_tlas`, instead of `tlas`.
 
-One important point is that we need to set the TLAS build flags to allow updates, by adding the`VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR` flag. 
+One important point is that we need to set the TLAS build flags to allow updates, by adding the`VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR` flag.
 This is absolutely needed, since otherwise the TLAS cannot be updated.
 
 ~~~~ C++
+//--------------------------------------------------------------------------------------------------
+//
+//
 void HelloVulkan::createTopLevelAS()
 {
-  m_tlas.reserve(m_objInstance.size());
-  for(uint32_t i = 0; i < static_cast<uint32_t>(m_objInstance.size()); i++)
+  m_tlas.reserve(m_instances.size());
+  for(const HelloVulkan::ObjInstance& inst : m_instances)
   {
-    nvvk::RaytracingBuilderKHR::Instance rayInst;
-    rayInst.transform        = m_objInstance[i].transform;  // Position of the instance
-    rayInst.instanceCustomId = i;                           // gl_InstanceCustomIndexEXT
-    rayInst.blasId           = m_objInstance[i].objIndex;
-    rayInst.hitGroupId       = 0;
-    rayInst.flags            = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    VkAccelerationStructureInstanceKHR rayInst{};
+    rayInst.transform                      = nvvk::toTransformMatrixKHR(inst.transform);  // Position of the instance
+    rayInst.instanceCustomIndex            = inst.objIndex;                               // gl_InstanceCustomIndexEXT
+    rayInst.accelerationStructureReference = m_rtBuilder.getBlasDeviceAddress(inst.objIndex);
+    rayInst.flags                          = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    rayInst.mask                           = 0xFF;       //  Only be hit if rayMask & instance.mask != 0
+    rayInst.instanceShaderBindingTableRecordOffset = 0;  // We will use the same hit group for all objects
     m_tlas.emplace_back(rayInst);
   }
 
   m_rtFlags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
   m_rtBuilder.buildTlas(m_tlas, m_rtFlags);
 }
-~~~~ 
-
-Back in `HelloVulkan::animationInstances()`, we need to copy the new computed transformation 
-matrices to the vector of `nvvk::RaytracingBuilder::Instance` objects.
-
-In the `for` loop, add at the end
-
-~~~~ C++
-   nvvk::RaytracingBuilder::Instance& tinst = m_tlas[wusonIdx];
-   tinst.transform                            = inst.transform;
 ~~~~
 
-The last point is to call the update at the end of the function.
+Back in `HelloVulkan::animationInstances()`, we need to update the TLAS by calling 
+`buildTlas` with the update to `true`.
 
 ~~~~ C++
   m_rtBuilder.buildTlas(m_tlas, m_rtFlags, true);
@@ -167,9 +138,9 @@ differences are:
 
 * The `VkAccelerationStructureBuildGeometryInfoKHR` mode will be set to `VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR`
 * We will **not** create the acceleration structure, but reuse it.
-* The source and destination of `VkAccelerationStructureCreateInfoKHR` will both use the previously created acceleration structure. 
+* The source and destination of `VkAccelerationStructureCreateInfoKHR` will both use the previously created acceleration structure.
 
-What is happening is the buffer containing all matrices will be updated and the `vkCmdBuildAccelerationStructuresKHR` will update the acceleration in place. 
+What is happening is the buffer containing all matrices will be updated and the `vkCmdBuildAccelerationStructuresKHR` will update the acceleration in place.
 
 ## BLAS Animation
 
@@ -180,19 +151,22 @@ In the previous chapter, we updated the transformation matrices. In this one we 
 In this chapter, we will animate a sphere. In `main.cpp`, set up the scene like this:
 
 ~~~~ C++
-  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths),
+  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true),
                     nvmath::scale_mat4(nvmath::vec3f(2.f, 1.f, 2.f)));
-  helloVk.loadModel(nvh::findFile("media/scenes/wuson.obj", defaultSearchPaths));
-  HelloVulkan::ObjInstance inst = helloVk.m_objInstance.back();
+  helloVk.loadModel(nvh::findFile("media/scenes/wuson.obj", defaultSearchPaths, true));
+  uint32_t      wusonId = 1;
+  nvmath::mat4f identity{1};
   for(int i = 0; i < 5; i++)
-    helloVk.m_objInstance.push_back(inst);
-  helloVk.loadModel(nvh::findFile("media/scenes/sphere.obj", defaultSearchPaths));
+  {
+    helloVk.m_instances.push_back({identity, wusonId});
+  }
+  helloVk.loadModel(nvh::findFile("media/scenes/sphere.obj", defaultSearchPaths, true));
 ~~~~
 
 Because we now have a new instance, we have to adjust the calculation of the number of Wuson models in `HelloVulkan::animationInstances()`.
 
 ~~~~ C++
-  const int32_t nbWuson     = static_cast<int32_t>(m_objInstance.size() - 2);
+  const int32_t nbWuson     = static_cast<int32_t>(m_instances.size() - 2); // All except sphere and plane
 ~~~~
 
 ### Compute Shader
@@ -279,7 +253,7 @@ Finally, destroy the resources in `HelloVulkan::destroyResources()`:
   vkDestroyDescriptorSetLayout(m_device, m_compDescSetLayout, nullptr);
 ~~~~
 
-### `anim.comp` 
+### `anim.comp`
 
 The compute shader will be simple. We need to add a new shader file, `anim.comp`, to the `shaders` filter in the solution.
 
@@ -347,7 +321,8 @@ The implementation only pushes the current time and calls the compute shader (`d
 ~~~~ C++
 void HelloVulkan::animationObject(float time)
 {
-  ObjModel& model = m_objModel[2];
+  const uint32_t sphereId = 2;
+  ObjModel&      model    = m_objModel[sphereId];
 
   updateCompDescriptors(model.vertexBuffer);
 
@@ -378,17 +353,16 @@ In the rendering loop, **before** the call to `animationInstances`, call the obj
   helloVk.animationObject(diff.count());
 ~~~~
 
-**Note:** Always update the TLAS when BLAS are modified. This will make sure that the TLAS knows about the new bounding box sizes.
+**:warning: Note:** Always update the TLAS when BLAS are modified. This will make sure that the TLAS knows about the new bounding box sizes.
 
-**Note:**  At this point, the object should be animated when using the rasterizer, but should still be immobile when using the ray tracer.
-
+**:warning: Note:**  At this point, the object should be animated when using the rasterizer, but should still be immobile when using the ray tracer.
 
 ## Update BLAS
 
 In `nvvk::RaytracingBuilder` in `raytrace_vkpp.hpp`, we can add a function to update a BLAS whose vertex buffer was previously updated. This function is very similar to the one used for instances, but in this case, there is no buffer transfer to do.
 
 ~~~~ C++
-  //--------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 // Refit BLAS number blasIdx from updated buffer contents.
 //
 void nvvk::RaytracingBuilderKHR::updateBlas(uint32_t blasIdx, BlasInput& blas, VkBuildAccelerationStructureFlagsKHR flags)
@@ -415,12 +389,11 @@ void nvvk::RaytracingBuilderKHR::updateBlas(uint32_t blasIdx, BlasInput& blas, V
 
   // Allocate the scratch buffer and setting the scratch info
   nvvk::Buffer scratchBuffer =
-      m_alloc->createBuffer(sizeInfo.buildScratchSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR
-                                                           | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+      m_alloc->createBuffer(sizeInfo.buildScratchSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
   VkBufferDeviceAddressInfo bufferInfo{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO};
   bufferInfo.buffer                    = scratchBuffer.buffer;
   buildInfos.scratchData.deviceAddress = vkGetBufferDeviceAddress(m_device, &bufferInfo);
-
+  NAME_VK(scratchBuffer.buffer);
 
   std::vector<const VkAccelerationStructureBuildRangeInfoKHR*> pBuildOffset(blas.asBuildOffsetInfo.size());
   for(size_t i = 0; i < blas.asBuildOffsetInfo.size(); i++)
@@ -440,7 +413,7 @@ void nvvk::RaytracingBuilderKHR::updateBlas(uint32_t blasIdx, BlasInput& blas, V
 }
 ~~~~
 
-The previous function (`updateBlas`) uses geometry information stored in `m_blas`. 
+The previous function (`updateBlas`) uses geometry information stored in `m_blas`.
 To be able to re-use this information, we need to keep the structure of `nvvk::RaytracingBuilderKHR::Blas` objects
 used for its creation.
 
@@ -450,8 +423,8 @@ Move the `nvvk::RaytracingBuilderKHR::Blas` vector from `HelloVulkan::createBott
   std::vector<nvvk::RaytracingBuilderKHR::Blas>         m_blas;
 ~~~~
 
-As with the TLAS, the BLAS needs to allow updates. We will also enable the 
-`VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR` flag, which indicates that the given 
+As with the TLAS, the BLAS needs to allow updates. We will also enable the
+`VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR` flag, which indicates that the given
 acceleration structure build should prioritize build time over trace performance.
 
 ~~~~ C++
@@ -474,7 +447,8 @@ void HelloVulkan::createBottomLevelAS()
 Finally, we can add a line at the end of `HelloVulkan::animationObject()` to update the BLAS.
 
 ~~~~ C++
-m_rtBuilder.updateBlas(2, m_blas[2], VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR);
+m_rtBuilder.updateBlas(sphereId, m_blas[sphereId],
+                         VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR);
 ~~~~
 
 ![](images/animation2.gif)

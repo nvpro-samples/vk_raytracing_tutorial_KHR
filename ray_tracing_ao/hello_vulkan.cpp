@@ -40,15 +40,6 @@
 extern std::vector<std::string> defaultSearchPaths;
 
 
-// Holding the camera matrices
-struct CameraMatrices
-{
-  nvmath::mat4f view;
-  nvmath::mat4f proj;
-  nvmath::mat4f viewInverse;
-};
-
-
 //--------------------------------------------------------------------------------------------------
 // Keep the handle on the device
 // Initialize the tool to do all our allocations: buffers, images
@@ -68,14 +59,17 @@ void HelloVulkan::updateUniformBuffer(const VkCommandBuffer& cmdBuf)
 {
   // Prepare new UBO contents on host.
   const float    aspectRatio = m_size.width / static_cast<float>(m_size.height);
-  CameraMatrices hostUBO     = {};
-  hostUBO.view               = CameraManip.getMatrix();
-  hostUBO.proj               = nvmath::perspectiveVK(CameraManip.getFov(), aspectRatio, 0.1f, 1000.0f);
-  // hostUBO.proj[1][1] *= -1;  // Inverting Y for Vulkan (not needed with perspectiveVK).
-  hostUBO.viewInverse = nvmath::invert(hostUBO.view);
+  GlobalUniforms hostUBO     = {};
+  const auto&    view        = CameraManip.getMatrix();
+  const auto&    proj        = nvmath::perspectiveVK(CameraManip.getFov(), aspectRatio, 0.1f, 1000.0f);
+  // proj[1][1] *= -1;  // Inverting Y for Vulkan (not needed with perspectiveVK).
+
+  hostUBO.viewProj    = proj * view;
+  hostUBO.viewInverse = nvmath::invert(view);
+  hostUBO.projInverse = nvmath::invert(proj);
 
   // UBO on the device, and what stages access it.
-  VkBuffer deviceUBO      = m_cameraMat.buffer;
+  VkBuffer deviceUBO      = m_bGlobals.buffer;
   auto     uboUsageStages = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR;
 
   // Ensure that the modified UBO is not visible to previous frames.
@@ -91,7 +85,7 @@ void HelloVulkan::updateUniformBuffer(const VkCommandBuffer& cmdBuf)
 
   // Schedule the host-to-device upload. (hostUBO is copied into the cmd
   // buffer so it is okay to deallocate when the function returns).
-  vkCmdUpdateBuffer(cmdBuf, m_cameraMat.buffer, 0, sizeof(CameraMatrices), &hostUBO);
+  vkCmdUpdateBuffer(cmdBuf, m_bGlobals.buffer, 0, sizeof(GlobalUniforms), &hostUBO);
 
   // Making sure the updated UBO will be visible.
   VkBufferMemoryBarrier afterBarrier{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
@@ -111,12 +105,13 @@ void HelloVulkan::createDescriptorSetLayout()
 {
   auto nbTxt = static_cast<uint32_t>(m_textures.size());
 
-  // Camera matrices (binding = 0)
-  m_descSetLayoutBind.addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT);
-  // Scene description (binding = 1)
-  m_descSetLayoutBind.addBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
-  // Textures (binding = 3)
-  m_descSetLayoutBind.addBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nbTxt, VK_SHADER_STAGE_FRAGMENT_BIT);
+  // Camera matrices
+  m_descSetLayoutBind.addBinding(SceneBindings::eGlobals, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT);
+  // Obj descriptions
+  m_descSetLayoutBind.addBinding(SceneBindings::eObjDescs, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
+                                 VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+  // Textures
+  m_descSetLayoutBind.addBinding(SceneBindings::eTextures, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nbTxt, VK_SHADER_STAGE_FRAGMENT_BIT);
 
 
   m_descSetLayout = m_descSetLayoutBind.createLayout(m_device);
@@ -132,11 +127,11 @@ void HelloVulkan::updateDescriptorSet()
   std::vector<VkWriteDescriptorSet> writes;
 
   // Camera matrices and scene description
-  VkDescriptorBufferInfo dbiUnif{m_cameraMat.buffer, 0, VK_WHOLE_SIZE};
-  writes.emplace_back(m_descSetLayoutBind.makeWrite(m_descSet, 0, &dbiUnif));
+  VkDescriptorBufferInfo dbiUnif{m_bGlobals.buffer, 0, VK_WHOLE_SIZE};
+  writes.emplace_back(m_descSetLayoutBind.makeWrite(m_descSet, SceneBindings::eGlobals, &dbiUnif));
 
-  VkDescriptorBufferInfo dbiSceneDesc{m_sceneDesc.buffer, 0, VK_WHOLE_SIZE};
-  writes.emplace_back(m_descSetLayoutBind.makeWrite(m_descSet, 1, &dbiSceneDesc));
+  VkDescriptorBufferInfo dbiSceneDesc{m_bObjDesc.buffer, 0, VK_WHOLE_SIZE};
+  writes.emplace_back(m_descSetLayoutBind.makeWrite(m_descSet, SceneBindings::eObjDescs, &dbiSceneDesc));
 
   // All texture samplers
   std::vector<VkDescriptorImageInfo> diit;
@@ -144,7 +139,7 @@ void HelloVulkan::updateDescriptorSet()
   {
     diit.emplace_back(texture.descriptor);
   }
-  writes.emplace_back(m_descSetLayoutBind.makeWriteArray(m_descSet, 2, diit.data()));
+  writes.emplace_back(m_descSetLayoutBind.makeWriteArray(m_descSet, SceneBindings::eTextures, diit.data()));
 
   // Writing the information
   vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
@@ -156,7 +151,7 @@ void HelloVulkan::updateDescriptorSet()
 //
 void HelloVulkan::createGraphicsPipeline()
 {
-  VkPushConstantRange pushConstantRanges = {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(ObjPushConstant)};
+  VkPushConstantRange pushConstantRanges = {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstantRaster)};
 
   // Creating the Pipeline Layout
   VkPipelineLayoutCreateInfo createInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
@@ -221,30 +216,35 @@ void HelloVulkan::loadModel(const std::string& filename, nvmath::mat4f transform
   model.indexBuffer = m_alloc.createBuffer(cmdBuf, loader.m_indices, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | rayTracingFlags);
   model.matColorBuffer = m_alloc.createBuffer(cmdBuf, loader.m_materials, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | flag);
   model.matIndexBuffer = m_alloc.createBuffer(cmdBuf, loader.m_matIndx, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | flag);
-  // Creates all textures found
-  uint32_t txtOffset = static_cast<uint32_t>(m_textures.size());
+  // Creates all textures found and find the offset for this model
+  auto txtOffset = static_cast<uint32_t>(m_textures.size());
   createTextureImages(cmdBuf, loader.m_textures);
   cmdBufGet.submitAndWait(cmdBuf);
   m_alloc.finalizeAndReleaseStaging();
 
   std::string objNb = std::to_string(m_objModel.size());
-  m_debug.setObjectName(model.vertexBuffer.buffer, (std::string("vertex_" + objNb).c_str()));
-  m_debug.setObjectName(model.indexBuffer.buffer, (std::string("index_" + objNb).c_str()));
-  m_debug.setObjectName(model.matColorBuffer.buffer, (std::string("mat_" + objNb).c_str()));
-  m_debug.setObjectName(model.matIndexBuffer.buffer, (std::string("matIdx_" + objNb).c_str()));
+  m_debug.setObjectName(model.vertexBuffer.buffer, (std::string("vertex_" + objNb)));
+  m_debug.setObjectName(model.indexBuffer.buffer, (std::string("index_" + objNb)));
+  m_debug.setObjectName(model.matColorBuffer.buffer, (std::string("mat_" + objNb)));
+  m_debug.setObjectName(model.matIndexBuffer.buffer, (std::string("matIdx_" + objNb)));
 
+  // Keeping transformation matrix of the instance
   ObjInstance instance;
-  instance.objIndex        = static_cast<uint32_t>(m_objModel.size());
-  instance.transform       = transform;
-  instance.transformIT     = nvmath::transpose(nvmath::invert(transform));
-  instance.txtOffset       = txtOffset;
-  instance.vertices        = nvvk::getBufferDeviceAddress(m_device, model.vertexBuffer.buffer);
-  instance.indices         = nvvk::getBufferDeviceAddress(m_device, model.indexBuffer.buffer);
-  instance.materials       = nvvk::getBufferDeviceAddress(m_device, model.matColorBuffer.buffer);
-  instance.materialIndices = nvvk::getBufferDeviceAddress(m_device, model.matIndexBuffer.buffer);
+  instance.transform = transform;
+  instance.objIndex  = static_cast<uint32_t>(m_objModel.size());
+  m_instances.push_back(instance);
 
+  // Creating information for device access
+  ObjDesc desc;
+  desc.txtOffset            = txtOffset;
+  desc.vertexAddress        = nvvk::getBufferDeviceAddress(m_device, model.vertexBuffer.buffer);
+  desc.indexAddress         = nvvk::getBufferDeviceAddress(m_device, model.indexBuffer.buffer);
+  desc.materialAddress      = nvvk::getBufferDeviceAddress(m_device, model.matColorBuffer.buffer);
+  desc.materialIndexAddress = nvvk::getBufferDeviceAddress(m_device, model.matIndexBuffer.buffer);
+
+  // Keeping the obj host model and device description
   m_objModel.emplace_back(model);
-  m_objInstance.emplace_back(instance);
+  m_objDesc.emplace_back(desc);
 }
 
 
@@ -254,9 +254,9 @@ void HelloVulkan::loadModel(const std::string& filename, nvmath::mat4f transform
 //
 void HelloVulkan::createUniformBuffer()
 {
-  m_cameraMat = m_alloc.createBuffer(sizeof(CameraMatrices), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-  m_debug.setObjectName(m_cameraMat.buffer, "cameraMat");
+  m_bGlobals = m_alloc.createBuffer(sizeof(GlobalUniforms), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+  m_debug.setObjectName(m_bGlobals.buffer, "Globals");
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -265,15 +265,15 @@ void HelloVulkan::createUniformBuffer()
 // - Transformation
 // - Offset for texture
 //
-void HelloVulkan::createSceneDescriptionBuffer()
+void HelloVulkan::createObjDescriptionBuffer()
 {
   nvvk::CommandPool cmdGen(m_device, m_graphicsQueueIndex);
 
   auto cmdBuf = cmdGen.createCommandBuffer();
-  m_sceneDesc = m_alloc.createBuffer(cmdBuf, m_objInstance, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+  m_bObjDesc  = m_alloc.createBuffer(cmdBuf, m_objDesc, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
   cmdGen.submitAndWait(cmdBuf);
   m_alloc.finalizeAndReleaseStaging();
-  m_debug.setObjectName(m_sceneDesc.buffer, "sceneDesc");
+  m_debug.setObjectName(m_bObjDesc.buffer, "ObjDescs");
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -359,8 +359,8 @@ void HelloVulkan::destroyResources()
   vkDestroyDescriptorPool(m_device, m_descPool, nullptr);
   vkDestroyDescriptorSetLayout(m_device, m_descSetLayout, nullptr);
 
-  m_alloc.destroy(m_cameraMat);
-  m_alloc.destroy(m_sceneDesc);
+  m_alloc.destroy(m_bGlobals);
+  m_alloc.destroy(m_bObjDesc);
 
   for(auto& m : m_objModel)
   {
@@ -415,14 +415,14 @@ void HelloVulkan::rasterize(const VkCommandBuffer& cmdBuf)
   vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &m_descSet, 0, nullptr);
 
 
-  for(int i = 0; i < m_objInstance.size(); ++i)
+  for(const HelloVulkan::ObjInstance& inst : m_instances)
   {
-    auto& inst                = m_objInstance[i];
-    auto& model               = m_objModel[inst.objIndex];
-    m_pushConstant.instanceId = i;  // Telling which instance is drawn
+    auto& model            = m_objModel[inst.objIndex];
+    m_pcRaster.objIndex    = inst.objIndex;  // Telling which object is drawn
+    m_pcRaster.modelMatrix = inst.transform;
 
     vkCmdPushConstants(cmdBuf, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
-                       sizeof(ObjPushConstant), &m_pushConstant);
+                       sizeof(PushConstantRaster), &m_pcRaster);
     vkCmdBindVertexBuffers(cmdBuf, 0, 1, &model.vertexBuffer.buffer, &offset);
     vkCmdBindIndexBuffer(cmdBuf, model.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
     vkCmdDrawIndexed(cmdBuf, model.nbIndices, 1, 0, 0, 0);
@@ -441,9 +441,11 @@ void HelloVulkan::onResize(int /*w*/, int /*h*/)
   resetFrame();
 }
 
+
 //////////////////////////////////////////////////////////////////////////
 // Post-processing
 //////////////////////////////////////////////////////////////////////////
+
 
 //--------------------------------------------------------------------------------------------------
 // Creating an offscreen frame buffer and the associated render pass
@@ -649,7 +651,7 @@ auto HelloVulkan::objectToVkGeometryKHR(const ObjModel& model)
 
   // Describe buffer as array of VertexObj.
   VkAccelerationStructureGeometryTrianglesDataKHR triangles{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR};
-  triangles.vertexFormat             = VK_FORMAT_R32G32B32A32_SFLOAT;  // vec3 vertex position data.
+  triangles.vertexFormat             = VK_FORMAT_R32G32B32_SFLOAT;  // vec3 vertex position data.
   triangles.vertexData.deviceAddress = vertexAddress;
   triangles.vertexStride             = sizeof(VertexObj);
   // Describe index data (32-bit unsigned int)
@@ -698,19 +700,22 @@ void HelloVulkan::createBottomLevelAS()
   m_rtBuilder.buildBlas(allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 }
 
+//--------------------------------------------------------------------------------------------------
+//
+//
 void HelloVulkan::createTopLevelAS()
 {
   std::vector<VkAccelerationStructureInstanceKHR> tlas;
-  tlas.reserve(m_objInstance.size());
-  for(uint32_t i = 0; i < static_cast<uint32_t>(m_objInstance.size()); i++)
+  tlas.reserve(m_instances.size());
+  for(const HelloVulkan::ObjInstance& inst : m_instances)
   {
-    VkAccelerationStructureInstanceKHR rayInst;
-    rayInst.transform                      = nvvk::toTransformMatrixKHR(m_objInstance[i].transform);  // Position of the instance
-    rayInst.instanceCustomIndex            = i;  // gl_InstanceCustomIndexEXT
-    rayInst.accelerationStructureReference = m_rtBuilder.getBlasDeviceAddress(m_objInstance[i].objIndex);
+    VkAccelerationStructureInstanceKHR rayInst{};
+    rayInst.transform                      = nvvk::toTransformMatrixKHR(inst.transform);  // Position of the instance
+    rayInst.instanceCustomIndex            = inst.objIndex;                               // gl_InstanceCustomIndexEXT
+    rayInst.accelerationStructureReference = m_rtBuilder.getBlasDeviceAddress(inst.objIndex);
+    rayInst.flags                          = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    rayInst.mask                           = 0xFF;       //  Only be hit if rayMask & instance.mask != 0
     rayInst.instanceShaderBindingTableRecordOffset = 0;  // We will use the same hit group for all objects
-    rayInst.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-    rayInst.mask                                   = 0xFF;
     tlas.emplace_back(rayInst);
   }
   m_rtBuilder.buildTlas(tlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);

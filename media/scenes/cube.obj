@@ -1,7 +1,3 @@
-# NVIDIA Iray Viewer OBJ exporter
-
-#Error: Object scnCamera of type ELEMENT_TYPE_CAMERA cannot be exported
-
 mtllib cube.mtl
 
 o  cube

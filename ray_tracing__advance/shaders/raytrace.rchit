@@ -22,7 +22,6 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_EXT_scalar_block_layout : enable
 #extension GL_GOOGLE_include_directive : enable
-
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_buffer_reference2 : require
 
@@ -39,22 +38,13 @@ layout(buffer_reference, scalar) buffer Vertices {Vertex v[]; }; // Positions of
 layout(buffer_reference, scalar) buffer Indices {ivec3 i[]; }; // Triangle indices
 layout(buffer_reference, scalar) buffer Materials {WaveFrontMaterial m[]; }; // Array of all materials on an object
 layout(buffer_reference, scalar) buffer MatIndices {int i[]; }; // Material ID for each triangle
-layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
-layout(binding = 1, set = 1, scalar) buffer SceneDesc_ { SceneDesc i[]; } sceneDesc;
-layout(binding = 2, set = 1) uniform sampler2D textureSamplers[];
+layout(set = 0, binding = eTlas) uniform accelerationStructureEXT topLevelAS;
+layout(set = 1, binding = eObjDescs, scalar) buffer ObjDesc_ { ObjDesc i[]; } objDesc;
+layout(set = 1, binding = eTextures) uniform sampler2D textureSamplers[];
+
+layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 // clang-format on
 
-layout(push_constant) uniform Constants
-{
-  vec4  clearColor;
-  vec3  lightPosition;
-  float lightIntensity;
-  vec3  lightDirection;
-  float lightSpotCutoff;
-  float lightSpotOuterCutoff;
-  int   lightType;
-}
-pushC;
 
 layout(location = 3) callableDataEXT rayLight cLight;
 
@@ -62,7 +52,7 @@ layout(location = 3) callableDataEXT rayLight cLight;
 void main()
 {
   // Object data
-  SceneDesc  objResource = sceneDesc.i[gl_InstanceCustomIndexEXT];
+  ObjDesc    objResource = objDesc.i[gl_InstanceCustomIndexEXT];
   MatIndices matIndices  = MatIndices(objResource.materialIndexAddress);
   Materials  materials   = Materials(objResource.materialAddress);
   Indices    indices     = Indices(objResource.indexAddress);
@@ -81,45 +71,44 @@ void main()
   // Computing the normal at hit position
   vec3 normal = v0.nrm * barycentrics.x + v1.nrm * barycentrics.y + v2.nrm * barycentrics.z;
   // Transforming the normal to world space
-  normal = normalize(vec3(sceneDesc.i[gl_InstanceCustomIndexEXT].transfoIT * vec4(normal, 0.0)));
-
+  normal = normalize(vec3(normal * gl_WorldToObjectEXT));
 
   // Computing the coordinates of the hit position
   vec3 worldPos = v0.pos * barycentrics.x + v1.pos * barycentrics.y + v2.pos * barycentrics.z;
   // Transforming the position to world space
-  worldPos = vec3(sceneDesc.i[gl_InstanceCustomIndexEXT].transfo * vec4(worldPos, 1.0));
+  worldPos = vec3(gl_ObjectToWorldEXT * vec4(worldPos, 1.0));
 
   cLight.inHitPosition = worldPos;
 //#define DONT_USE_CALLABLE
 #if defined(DONT_USE_CALLABLE)
   // Point light
-  if(pushC.lightType == 0)
+  if(pcRay.lightType == 0)
   {
-    vec3  lDir              = pushC.lightPosition - cLight.inHitPosition;
+    vec3  lDir              = pcRay.lightPosition - cLight.inHitPosition;
     float lightDistance     = length(lDir);
-    cLight.outIntensity     = pushC.lightIntensity / (lightDistance * lightDistance);
+    cLight.outIntensity     = pcRay.lightIntensity / (lightDistance * lightDistance);
     cLight.outLightDir      = normalize(lDir);
     cLight.outLightDistance = lightDistance;
   }
-  else if(pushC.lightType == 1)
+  else if(pcRay.lightType == 1)
   {
-    vec3 lDir               = pushC.lightPosition - cLight.inHitPosition;
+    vec3 lDir               = pcRay.lightPosition - cLight.inHitPosition;
     cLight.outLightDistance = length(lDir);
-    cLight.outIntensity     = pushC.lightIntensity / (cLight.outLightDistance * cLight.outLightDistance);
+    cLight.outIntensity     = pcRay.lightIntensity / (cLight.outLightDistance * cLight.outLightDistance);
     cLight.outLightDir      = normalize(lDir);
-    float theta             = dot(cLight.outLightDir, normalize(-pushC.lightDirection));
-    float epsilon           = pushC.lightSpotCutoff - pushC.lightSpotOuterCutoff;
-    float spotIntensity     = clamp((theta - pushC.lightSpotOuterCutoff) / epsilon, 0.0, 1.0);
+    float theta             = dot(cLight.outLightDir, normalize(-pcRay.lightDirection));
+    float epsilon           = pcRay.lightSpotCutoff - pcRay.lightSpotOuterCutoff;
+    float spotIntensity     = clamp((theta - pcRay.lightSpotOuterCutoff) / epsilon, 0.0, 1.0);
     cLight.outIntensity *= spotIntensity;
   }
   else  // Directional light
   {
-    cLight.outLightDir      = normalize(-pushC.lightDirection);
+    cLight.outLightDir      = normalize(-pcRay.lightDirection);
     cLight.outIntensity     = 1.0;
     cLight.outLightDistance = 10000000;
   }
 #else
-  executeCallableEXT(pushC.lightType, 3);
+  executeCallableEXT(pcRay.lightType, 3);
 #endif
 
   // Material of the object
@@ -131,7 +120,7 @@ void main()
   vec3 diffuse = computeDiffuse(mat, cLight.outLightDir, normal);
   if(mat.textureId >= 0)
   {
-    uint txtId    = mat.textureId + sceneDesc.i[gl_InstanceCustomIndexEXT].txtOffset;
+    uint txtId    = mat.textureId + objDesc.i[gl_InstanceCustomIndexEXT].txtOffset;
     vec2 texCoord = v0.texCoord * barycentrics.x + v1.texCoord * barycentrics.y + v2.texCoord * barycentrics.z;
     diffuse *= texture(textureSamplers[nonuniformEXT(txtId)], texCoord).xyz;
   }
@@ -182,7 +171,6 @@ void main()
     prd.rayOrigin = origin;
     prd.rayDir    = rayDir;
   }
-
 
   prd.hitValue = vec3(cLight.outIntensity * attenuation * (diffuse + specular));
 }

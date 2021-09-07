@@ -30,7 +30,6 @@ This shader starts like `raytrace.chit`, but uses less information.
 ~~~~ C++
 #version 460
 #extension GL_EXT_ray_tracing : require
-#extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_EXT_scalar_block_layout : enable
 #extension GL_GOOGLE_include_directive : enable
 
@@ -47,11 +46,11 @@ layout(buffer_reference, scalar) buffer Vertices {Vertex v[]; }; // Positions of
 layout(buffer_reference, scalar) buffer Indices {uint i[]; }; // Triangle indices
 layout(buffer_reference, scalar) buffer Materials {WaveFrontMaterial m[]; }; // Array of all materials on an object
 layout(buffer_reference, scalar) buffer MatIndices {int i[]; }; // Material ID for each triangle
-layout(binding = 1, set = 1, scalar) buffer SceneDesc_ { SceneDesc i[]; } sceneDesc;
+layout(set = 1, binding = eObjDescs, scalar) buffer ObjDesc_ { ObjDesc i[]; } objDesc;
 // clang-format on
 ~~~~ 
 
- **Note:**
+ **:warning: Note:**
     You can find the source of `random.glsl` in the Antialiasing Tutorial [here](../ray_tracing_jitter_cam/README.md#toc1.1).
 
 
@@ -62,7 +61,7 @@ opaque, we simply return, which means that the hit will be accepted.
 void main()
 {
   // Object data
-  SceneDesc  objResource = sceneDesc.i[gl_InstanceCustomIndexEXT];
+  ObjDesc    objResource = objDesc.i[gl_InstanceCustomIndexEXT];
   MatIndices matIndices  = MatIndices(objResource.materialIndexAddress);
   Materials  materials   = Materials(objResource.materialAddress);
 
@@ -139,8 +138,8 @@ add the Any Hit stage index and push back the shader module to the stages.
 In `createDescriptorSetLayout()`, we need to allow the Any Hit shader to access the scene description buffer
 
 ~~~~ C++
-  // Scene description (binding = 1)
-  m_descSetLayoutBind.addBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
+  // Obj descriptions
+  m_descSetLayoutBind.addBinding(eObjDescs, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
                                  VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
                                      | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR);
 ~~~~
@@ -392,7 +391,7 @@ is added. We are skipping the closest hit shader in the trace call, so we can ig
 ~~~~ 
 
 
- **Note:** Re-Run
+ **:warning: Note:** Re-Run
     Everything should work as before, but now it does it right.
 
 

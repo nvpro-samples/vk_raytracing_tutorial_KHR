@@ -23,14 +23,12 @@
 
 #include "raycommon.glsl"
 
+// clang-format off
 layout(location = 0) rayPayloadInEXT hitPayload prd;
-layout(shaderRecordEXT) buffer sr_
-{
-  vec4 c;
-}
-shaderRec;
+layout(shaderRecordEXT) buffer sr_ { vec4 shaderRec; };
+// clang-format on
 
 void main()
 {
-  prd.hitValue = shaderRec.c.rgb;
+  prd.hitValue = shaderRec.rgb;
 }

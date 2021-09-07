@@ -30,7 +30,7 @@
 
 hitAttributeEXT vec3 HitAttribute;
 
-layout(binding = 3, set = 1, scalar) buffer allImpl_
+layout(set = 1, binding = eImplicits, scalar) buffer allImpl_
 {
   Implicit i[];
 }
@@ -77,6 +77,7 @@ float hitAabb(const Aabb aabb, const Ray r)
 
 void main()
 {
+
   Ray ray;
   ray.origin    = gl_WorldRayOriginEXT;
   ray.direction = gl_WorldRayDirectionEXT;

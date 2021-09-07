@@ -28,7 +28,7 @@
 #include "wavefront.glsl"
 
 
-layout(binding = 3, set = 1, scalar) buffer allSpheres_
+layout(set = 1, binding = eImplicit, scalar) buffer allSpheres_
 {
   Sphere allSpheres[];
 };

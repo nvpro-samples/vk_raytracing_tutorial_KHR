@@ -211,34 +211,27 @@ In `raytrace.rgen`, we can now make the maximum ray depth significantly larger -
 
 As an extra, we can also add UI to control the maximum depth.
 
-In the `RtPushConstant` structure, we can add a new `maxDepth` member to pass to the shader.
+In the `PushConstantRay` structure, we can add a new `maxDepth` member to pass to the shader.
 
 ~~~~ C++
-  struct RtPushConstant
-  {
-    nvmath::vec4f clearColor;
-    nvmath::vec3f lightPosition;
-    float         lightIntensity;
-    int           lightType;
-    int           maxDepth{10};
-  } m_rtPushConstants;
-~~~~
-
-In the `raytrace.rgen` shader, we will collect the push constant data
-
-~~~~ C++
-layout(push_constant) uniform Constants
+struct PushConstantRay
 {
   vec4  clearColor;
   vec3  lightPosition;
   float lightIntensity;
   int   lightType;
   int   maxDepth;
-}
-pushC;
-~~~~ 
+};
+~~~~
 
-Then test for the value for when to stop
+And we can set a default value to 10, in `hello_vulkan.h` 
+
+~~~~ C++
+PushConstantRay m_pcRay{{}, {}, 0, 0, 10};
+~~~~
+
+
+In the `raytrace.rgen` shader, we test for the value for when to stop
 
 ~~~~ C++
     if(prd.done == 1 || prd.depth >= pushC.maxDepth)
@@ -248,6 +241,6 @@ Then test for the value for when to stop
 Finally, in `main.cpp` after the `renderUI()` function call, we will add a slider to control the depth value.
 
 ~~~~ C++
-  ImGui::SliderInt("Max Depth", &helloVk.m_rtPushConstants.maxDepth, 1, 50);
+  ImGui::SliderInt("Max Depth", &helloVk.m_pcRay.maxDepth, 1, 50);
 ~~~~
 

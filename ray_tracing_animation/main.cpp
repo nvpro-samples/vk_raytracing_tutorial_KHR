@@ -56,12 +56,12 @@ void renderUI(HelloVulkan& helloVk)
   ImGuiH::CameraWidget();
   if(ImGui::CollapsingHeader("Light"))
   {
-    ImGui::RadioButton("Point", &helloVk.m_pushConstant.lightType, 0);
+    ImGui::RadioButton("Point", &helloVk.m_pcRaster.lightType, 0);
     ImGui::SameLine();
-    ImGui::RadioButton("Infinite", &helloVk.m_pushConstant.lightType, 1);
+    ImGui::RadioButton("Infinite", &helloVk.m_pcRaster.lightType, 1);
 
-    ImGui::SliderFloat3("Position", &helloVk.m_pushConstant.lightPosition.x, -20.f, 20.f);
-    ImGui::SliderFloat("Intensity", &helloVk.m_pushConstant.lightIntensity, 0.f, 150.f);
+    ImGui::SliderFloat3("Position", &helloVk.m_pcRaster.lightPosition.x, -20.f, 20.f);
+    ImGui::SliderFloat("Intensity", &helloVk.m_pcRaster.lightIntensity, 0.f, 150.f);
   }
 }
 
@@ -87,6 +87,7 @@ int main(int argc, char** argv)
   }
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   GLFWwindow* window = glfwCreateWindow(SAMPLE_WIDTH, SAMPLE_HEIGHT, PROJECT_NAME, nullptr, nullptr);
+
 
   // Setup camera
   CameraManip.setWindowSize(SAMPLE_WIDTH, SAMPLE_HEIGHT);
@@ -159,16 +160,19 @@ int main(int argc, char** argv)
   helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true),
                     nvmath::scale_mat4(nvmath::vec3f(2.f, 1.f, 2.f)));
   helloVk.loadModel(nvh::findFile("media/scenes/wuson.obj", defaultSearchPaths, true));
-  HelloVulkan::ObjInstance inst = helloVk.m_objInstance.back();
+  uint32_t      wusonId = 1;
+  nvmath::mat4f identity{1};
   for(int i = 0; i < 5; i++)
-    helloVk.m_objInstance.push_back(inst);
+  {
+    helloVk.m_instances.push_back({identity, wusonId});
+  }
   helloVk.loadModel(nvh::findFile("media/scenes/sphere.obj", defaultSearchPaths, true));
 
   helloVk.createOffscreenRender();
   helloVk.createDescriptorSetLayout();
   helloVk.createGraphicsPipeline();
   helloVk.createUniformBuffer();
-  helloVk.createSceneDescriptionBuffer();
+  helloVk.createObjDescriptionBuffer();
   helloVk.updateDescriptorSet();
 
   // #VKRay

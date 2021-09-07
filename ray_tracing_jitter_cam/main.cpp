@@ -57,7 +57,7 @@ void renderUI(HelloVulkan& helloVk)
   ImGuiH::CameraWidget();
   if(ImGui::CollapsingHeader("Light"))
   {
-    auto& pc = helloVk.m_pushConstant;
+    auto& pc = helloVk.m_pcRaster;
     changed |= ImGui::RadioButton("Point", &pc.lightType, 0);
     ImGui::SameLine();
     changed |= ImGui::RadioButton("Infinite", &pc.lightType, 1);
@@ -170,7 +170,7 @@ int main(int argc, char** argv)
   helloVk.createDescriptorSetLayout();
   helloVk.createGraphicsPipeline();
   helloVk.createUniformBuffer();
-  helloVk.createSceneDescriptionBuffer();
+  helloVk.createObjDescriptionBuffer();
   helloVk.updateDescriptorSet();
 
   // #VKRay

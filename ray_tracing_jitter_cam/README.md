@@ -58,31 +58,17 @@ Since our jittered samples will be accumulated across frames, we need to know wh
 
 Note that the uniform image is read/write, which makes it possible to accumulate previous frames.
 
-In `raytrace.rgen`, add the push constant block from `raytrace.rchit`, adding a new `frame` member:
+Add the frame member to the `PushConstantRay` struct in `shaders/host_device.h`:
 
 ~~~~ C++
-layout(push_constant) uniform Constants
+struct PushConstantRay
 {
   vec4  clearColor;
   vec3  lightPosition;
   float lightIntensity;
   int   lightType;
   int   frame;
-}
-pushC;
-~~~~
-
-Also add this frame member to the `RtPushConstant` struct in `hello_vulkan.h`:
-
-~~~~ C++
-  struct RtPushConstant
-  {
-    nvmath::vec4f clearColor;
-    nvmath::vec3f lightPosition;
-    float         lightIntensity;
-    int           lightType;
-    int           frame{0};
-  } m_rtPushConstants;
+};
 ~~~~
 
 ## Random and Jitter
@@ -91,7 +77,7 @@ In `raytrace.rgen`, at the beginning of `main()`, initialize the random seed:
 
 ~~~~ C++
   // Initialize the random number
-  uint seed = tea(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, pushC.frame);
+  uint seed = tea(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, pcRay.frame);
 ~~~~
 
 Then we need two random numbers to vary the X and Y inside the pixel, except for frame 0, where we always shoot
@@ -102,7 +88,7 @@ float r1 = rnd(seed);
 float r2 = rnd(seed);
 // Subpixel jitter: send the ray through a different position inside the pixel
 // each time, to provide antialiasing.
-vec2 subpixel_jitter = pushC.frame == 0 ? vec2(0.5f, 0.5f) : vec2(r1, r2);
+vec2 subpixel_jitter = pcRay.frame == 0 ? vec2(0.5f, 0.5f) : vec2(r1, r2);
 ~~~~
 
 Now we only need to change how we compute the pixel center:
@@ -118,9 +104,9 @@ Otherwise, we combine the new image with the previous `frame` frames.
 
 ~~~~ C++
   // Do accumulation over time
-  if(pushC.frame > 0)
+  if(pcRay.frame > 0)
   {
-    float a         = 1.0f / float(pushC.frame + 1);
+    float a         = 1.0f / float(pcRay.frame + 1);
     vec3  old_color = imageLoad(image, ivec2(gl_LaunchIDEXT.xy)).xyz;
     imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(mix(old_color, prd.hitValue, a), 1.f));
   }
@@ -164,7 +150,7 @@ void HelloVulkan::updateFrame()
     refCamMatrix = m;
     refFov       = fov;
   }
-  m_rtPushConstants.frame++;
+  m_pcRay.frame++;
 }
 ~~~~
 
@@ -173,7 +159,7 @@ Since `resetFrame` will be called before `updateFrame` increments the frame coun
 ~~~~ C++
 void HelloVulkan::resetFrame()
 {
-  m_rtPushConstants.frame = -1;
+  m_pcRay.frame = -1;
 }
 ~~~~
 
@@ -246,7 +232,7 @@ changed |= ImGui::SliderInt("Max Frames", &helloVk.m_maxFrames, 1, 100);
 Then in  `raytrace()`, immediately after the call to `updateFrame()`, return if the current frame has exceeded the max frame.
 
 ~~~~ C++
-  if(m_rtPushConstants.frame >= m_maxFrames)
+  if(m_pcRay.frame >= m_maxFrames)
     return;
 ~~~~
 

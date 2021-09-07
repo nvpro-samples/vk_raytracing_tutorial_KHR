@@ -26,7 +26,7 @@ In `main.cpp`, add the following includes:
 #include <random>
 ~~~~
 
-Then replace the calls to `helloVk.loadModel` in `main()` by
+Then replace the calls to `helloVk.loadModel` in `main()` by following, which will create instances of cube and cube_multi.
 
 ~~~~ C++
   // Creation of the example
@@ -39,17 +39,14 @@ Then replace the calls to `helloVk.loadModel` in `main()` by
   std::normal_distribution<float> dis(1.0f, 1.0f);
   std::normal_distribution<float> disn(0.05f, 0.05f);
 
-  for(int n = 0; n < 2000; ++n)
+  for(uint32_t n = 0; n < 2000; ++n)
   {
-    HelloVulkan::ObjInstance inst = helloVk.m_objInstance[n % 2];;
     float         scale = fabsf(disn(gen));
     nvmath::mat4f mat =
         nvmath::translation_mat4(nvmath::vec3f{dis(gen), 2.0f + dis(gen), dis(gen)});
     mat              = mat * nvmath::rotation_mat4_x(dis(gen));
     mat              = mat * nvmath::scale_mat4(nvmath::vec3f(scale));
-    inst.transform   = mat;
-    inst.transformIT = nvmath::transpose(nvmath::invert((inst.transform)));
-    helloVk.m_objInstance.push_back(inst);
+    helloVk.m_instances.push_back({mat, n % 2});
   }
 ~~~~
 
@@ -71,16 +68,12 @@ Remove the previous code and replace it with the following
   std::normal_distribution<float> disn(0.05f, 0.05f);
   for(int n = 0; n < 2000; ++n)
   {
-    helloVk.loadModel(nvh::findFile("media/scenes/cube_multi.obj", defaultSearchPaths, true));
-    HelloVulkan::ObjInstance& inst = helloVk.m_objInstance.back();
-
     float         scale = fabsf(disn(gen));
-    nvmath::mat4f mat =
-        nvmath::translation_mat4(nvmath::vec3f{dis(gen), 2.0f + dis(gen), dis(gen)});
-    mat              = mat * nvmath::rotation_mat4_x(dis(gen));
-    mat              = mat * nvmath::scale_mat4(nvmath::vec3f(scale));
-    inst.transform   = mat;
-    inst.transformIT = nvmath::transpose(nvmath::invert((inst.transform)));
+    nvmath::mat4f mat   = nvmath::translation_mat4(nvmath::vec3f{dis(gen), 2.0f + dis(gen), dis(gen)});
+    mat                 = mat * nvmath::rotation_mat4_x(dis(gen));
+    mat                 = mat * nvmath::scale_mat4(nvmath::vec3f(scale));
+
+    helloVk.loadModel(nvh::findFile("media/scenes/cube_multi.obj", defaultSearchPaths, true), mat);
   }
 
   helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));

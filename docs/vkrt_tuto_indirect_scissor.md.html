@@ -671,42 +671,47 @@ write `m_lanternCount`.
 // that all ObjInstance and lanterns have been added. One instance with hitGroupId=0
 // is created for every OBJ instance, and one instance with hitGroupId=1 for each lantern.
 //
-// gl_InstanceCustomIndexEXT will be the index of the instance or lantern in m_objInstance or
+// gl_InstanceCustomIndexEXT will be the index of the instance or lantern in m_instances or
 // m_lanterns respectively.
+//--------------------------------------------------------------------------------------------------
+//
+//
 void HelloVulkan::createTopLevelAS()
 {
-  assert(m_lanternCount == 0);
-  m_lanternCount = m_lanterns.size();
-
-  std::vector<nvvk::RaytracingBuilderKHR::Instance> tlas;
-  tlas.reserve(m_objInstance.size() + m_lanternCount);
-
-  // Add the OBJ instances.
-  for(uint32_t i = 0; i < static_cast<uint32_t>(m_objInstance.size()); i++)
-  {
-    nvvk::RaytracingBuilderKHR::Instance rayInst;
-    rayInst.transform        = m_objInstance[i].transform;  // Position of the instance
-    rayInst.instanceCustomId = i;                           // gl_InstanceCustomIndexEXT
-    rayInst.blasId           = m_objInstance[i].objIndex;
-    rayInst.hitGroupId       = 0;  // We will use the same hit group for all OBJ
-    rayInst.flags            = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-    tlas.emplace_back(rayInst);
+    assert(m_lanternCount == 0);
+    m_lanternCount = m_lanterns.size();
+  
+    std::vector<VkAccelerationStructureInstanceKHR> tlas;
+    tlas.reserve(m_instances.size() + m_lanternCount);
+  
+    // Add the OBJ instances.
+    for(const HelloVulkan::ObjInstance& inst : m_instances)
+    {
+      VkAccelerationStructureInstanceKHR rayInst{};
+      rayInst.transform                      = nvvk::toTransformMatrixKHR(inst.transform);  // Position of the instance
+      rayInst.instanceCustomIndex            = inst.objIndex;                               // gl_InstanceCustomIndexEXT
+      rayInst.accelerationStructureReference = m_rtBuilder.getBlasDeviceAddress(inst.objIndex);
+      rayInst.flags                          = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+      rayInst.mask                           = 0xFF;       //  Only be hit if rayMask & instance.mask != 0
+      rayInst.instanceShaderBindingTableRecordOffset = 0;  // We will use the same hit group for all objects
+      tlas.emplace_back(rayInst);
+    }
+  
+    // Add lantern instances.
+    for(int i = 0; i < static_cast<int>(m_lanterns.size()); ++i)
+    {
+      VkAccelerationStructureInstanceKHR lanternInstance;
+      lanternInstance.transform           = nvvk::toTransformMatrixKHR(nvmath::translation_mat4(m_lanterns[i].position));
+      lanternInstance.instanceCustomIndex = i;
+      lanternInstance.accelerationStructureReference = m_rtBuilder.getBlasDeviceAddress(uint32_t(m_lanternBlasId));
+      lanternInstance.instanceShaderBindingTableRecordOffset = 1;  // Next hit group is for lanterns.
+      lanternInstance.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+      lanternInstance.mask                                   = 0xFF;
+      tlas.emplace_back(lanternInstance);
+    }
+  
+    m_rtBuilder.buildTlas(tlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
   }
-
-  // Add lantern instances.
-  for(int i = 0; i < static_cast<int>(m_lanterns.size()); ++i)
-  {
-    nvvk::RaytracingBuilderKHR::Instance lanternInstance;
-    lanternInstance.transform        = nvmath::translation_mat4(m_lanterns[i].position);
-    lanternInstance.instanceCustomId = i;
-    lanternInstance.blasId           = m_lanternBlasId;
-    lanternInstance.hitGroupId       = 1;  // Next hit group is for lanterns.
-    lanternInstance.flags            = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-    tlas.emplace_back(lanternInstance);
-  }
-
-  m_rtBuilder.buildTlas(tlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
-}
 ````
 
 The principle differences are:
@@ -761,7 +766,7 @@ void HelloVulkan::createRtDescriptorSet()
   // ...
 
   // Lantern buffer (binding = 2)
-  m_rtDescSetLayoutBind.addBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
+  m_rtDescSetLayoutBind.addBinding(eLanterns, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
                                    VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
   assert(m_lanternCount > 0);
 
@@ -771,7 +776,7 @@ void HelloVulkan::createRtDescriptorSet()
   
   // ...
   
-  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, 2, &lanternBufferInfo));
+  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, eLanterns, &lanternBufferInfo));
   vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
 ````
@@ -858,7 +863,7 @@ screen. As this is no longer the case for scissor rectangles, we communicate the
 size through push constant instead. In addition, we also add to the push constants a number
 indicating which lantern pass is currently being drawn (-1 for the original full screen pass).
 
-Modify `m_rtPushConstants` in `hello_vulkan.h`.
+Modify `m_pcRay` in `hello_vulkan.h`.
 
 ```` C
   // Push constant for ray trace pipeline.
@@ -883,7 +888,7 @@ Modify `m_rtPushConstants` in `hello_vulkan.h`.
 
     // See m_lanternDebug.
     int32_t       lanternDebug;
-  } m_rtPushConstants;
+  } m_pcRay;
 ````
 
 We also update the GLSL push constant to match. Since the raygen shader now needs
@@ -1391,14 +1396,14 @@ pass. There are minimal changes from before, we just have to
 
 ```` C
   // Initialize push constant values
-  m_rtPushConstants.clearColor     = clearColor;
-  m_rtPushConstants.lightPosition  = m_pushConstant.lightPosition;
-  m_rtPushConstants.lightIntensity = m_pushConstant.lightIntensity;
-  m_rtPushConstants.lightType      = m_pushConstant.lightType;
-  m_rtPushConstants.lanternPassNumber = -1; // Global non-lantern pass
-  m_rtPushConstants.screenX = m_size.width;
-  m_rtPushConstants.screenY = m_size.height;
-  m_rtPushConstants.lanternDebug = m_lanternDebug;
+  m_pcRay.clearColor     = clearColor;
+  m_pcRay.lightPosition  = m_pushConstant.lightPosition;
+  m_pcRay.lightIntensity = m_pushConstant.lightIntensity;
+  m_pcRay.lightType      = m_pushConstant.lightType;
+  m_pcRay.lanternPassNumber = -1; // Global non-lantern pass
+  m_pcRay.screenX = m_size.width;
+  m_pcRay.screenY = m_size.height;
+  m_pcRay.lanternDebug = m_lanternDebug;
 ````
 
 * Update the addresses of the raygen, miss, and hit group sections of the SBT
@@ -1457,10 +1462,10 @@ is the first member of `LanternIndirectEntry`.
 
 ```` C
     // Set lantern pass number.
-    m_rtPushConstants.lanternPassNumber = i;
+    m_pcRay.lanternPassNumber = i;
     vkCmdPushConstants(cmdBuf, m_rtPipelineLayout,
                        VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
-                       0, sizeof(RtPushConstant), &m_rtPushConstants);
+                       0, sizeof(RtPushConstant), &m_pcRay);
 
 
     VkDeviceAddress indirectDeviceAddress =

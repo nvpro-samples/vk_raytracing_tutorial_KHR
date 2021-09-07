@@ -22,6 +22,7 @@
 #include "nvvk/appbase_vk.hpp"
 #include "nvvk/debug_util_vk.hpp"
 #include "nvvk/resourceallocator_vk.hpp"
+#include "shaders/host_device.h"
 
 // #VKRay
 #include "nvvk/raytraceKHR_vk.hpp"
@@ -65,7 +66,7 @@ public:
   void loadModel(const std::string& filename, nvmath::mat4f transform = nvmath::mat4f(1));
   void updateDescriptorSet();
   void createUniformBuffer();
-  void createSceneDescriptionBuffer();
+  void createObjDescriptionBuffer();
   void createTextureImages(const VkCommandBuffer& cmdBuf, const std::vector<std::string>& textures);
   void updateUniformBuffer(const VkCommandBuffer& cmdBuf);
   void onResize(int /*w*/, int /*h*/) override;
@@ -76,11 +77,22 @@ public:
   Raytracer& raytracer() { return m_raytrace; }
 
 
-  ObjPushConstants m_pushConstants;
+  // Information pushed at each draw call
+  PushConstantRaster m_pcRaster{
+      {1},                    // Identity matrix
+      {10.f, 15.f, 8.f},      // light position
+      0,                      // instance Id
+      {1, 0, 0},              // lightDirection;
+      {cos(deg2rad(12.5f))},  // lightSpotCutoff;
+      {cos(deg2rad(17.5f))},  // lightSpotOuterCutoff;
+      100.f,                  // light intensity
+      0                       // light type
+  };
 
   // Array of objects and instances in the scene
-  std::vector<ObjModel>    m_objModel;
-  std::vector<ObjInstance> m_objInstance;
+  std::vector<ObjModel>    m_objModel;   // Model on host
+  std::vector<ObjDesc>     m_objDesc;    // Model description for device access
+  std::vector<ObjInstance> m_instances;  // Scene model instances
 
 
   // Graphic pipeline
@@ -91,18 +103,18 @@ public:
   VkDescriptorSetLayout       m_descSetLayout;
   VkDescriptorSet             m_descSet;
 
-  int  m_maxFrames{10};
+  int  m_maxFrames{500};
   void resetFrame();
   void updateFrame();
 
-  nvvk::Buffer m_cameraMat;  // Device-Host of the camera matrices
-  nvvk::Buffer m_sceneDesc;  // Device buffer of the OBJ instances
+  nvvk::Buffer m_bGlobals;  // Device-Host of the camera matrices
+  nvvk::Buffer m_bObjDesc;  // Device buffer of the OBJ descriptions
 
   std::vector<nvvk::Texture> m_textures;  // vector of all textures of the scene
 
-  nvvk::DebugUtil m_debug;  // Utility to name objects
 
-  Allocator m_alloc;  // Allocator for buffer, images, acceleration structures
+  Allocator       m_alloc;  // Allocator for buffer, images, acceleration structures
+  nvvk::DebugUtil m_debug;  // Utility to name objects
 
   // #Post
   Offscreen m_offscreen;

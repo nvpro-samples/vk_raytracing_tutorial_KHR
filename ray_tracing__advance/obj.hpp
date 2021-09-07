@@ -20,6 +20,7 @@
 #pragma once
 #include "obj_loader.h"
 
+
 // The OBJ model
 struct ObjModel
 {
@@ -31,31 +32,12 @@ struct ObjModel
   nvvk::Buffer matIndexBuffer;  // Device buffer of array of 'Wavefront material'
 };
 
-// Instance of the OBJ
 struct ObjInstance
 {
-  nvmath::mat4f   transform{1};    // Position of the instance
-  nvmath::mat4f   transformIT{1};  // Inverse transpose
-  uint32_t        objIndex{0};     // Reference to the `m_objModel`
-  uint32_t        txtOffset{0};    // Offset in `m_textures`
-  VkDeviceAddress vertices{0};
-  VkDeviceAddress indices{0};
-  VkDeviceAddress materials{0};
-  VkDeviceAddress materialIndices{0};
+  nvmath::mat4f transform;    // Matrix of the instance
+  uint32_t      objIndex{0};  // Model index reference
 };
 
-// Information pushed at each draw call
-struct ObjPushConstants
-{
-  nvmath::vec3f lightPosition{10.f, 15.f, 8.f};
-  float         lightIntensity{100.f};
-  nvmath::vec3f lightDirection{-1, -1, -1};
-  float         lightSpotCutoff{cos(deg2rad(12.5f))};
-  float         lightSpotOuterCutoff{cos(deg2rad(17.5f))};
-  int           instanceId{0};  // To retrieve the transformation matrix
-  int           lightType{0};   // 0: point, 1: infinite
-  int           frame{0};
-};
 
 enum EObjType
 {

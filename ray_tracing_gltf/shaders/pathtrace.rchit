@@ -27,11 +27,10 @@
 #extension GL_EXT_buffer_reference2 : require
 
 
-#include "binding.glsl"
 #include "gltf.glsl"
 #include "raycommon.glsl"
 #include "sampling.glsl"
-
+#include "host_device.h"
 
 hitAttributeEXT vec2 attribs;
 
@@ -49,19 +48,11 @@ layout(buffer_reference, scalar) readonly buffer Normals   { vec3  n[]; };
 layout(buffer_reference, scalar) readonly buffer TexCoords { vec2  t[]; };
 layout(buffer_reference, scalar) readonly buffer Materials { GltfShadeMaterial m[]; };
 
-layout(set = 1, binding = B_SCENEDESC ) readonly buffer SceneDesc_ { SceneDesc sceneDesc; };
-layout(set = 1, binding = B_TEXTURES) uniform sampler2D texturesMap[]; // all textures
+layout(set = 1, binding = eSceneDesc ) readonly buffer SceneDesc_ { SceneDesc sceneDesc; };
+layout(set = 1, binding = eTextures) uniform sampler2D texturesMap[]; // all textures
 
+layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 // clang-format on
-
-layout(push_constant) uniform Constants
-{
-  vec4  clearColor;
-  vec3  lightPosition;
-  float lightIntensity;
-  int   lightType;
-}
-pushC;
 
 
 void main()

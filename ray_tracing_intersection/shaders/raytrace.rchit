@@ -22,7 +22,6 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_EXT_scalar_block_layout : enable
 #extension GL_GOOGLE_include_directive : enable
-
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_buffer_reference2 : require
 
@@ -39,25 +38,18 @@ layout(buffer_reference, scalar) buffer Vertices {Vertex v[]; }; // Positions of
 layout(buffer_reference, scalar) buffer Indices {ivec3 i[]; }; // Triangle indices
 layout(buffer_reference, scalar) buffer Materials {WaveFrontMaterial m[]; }; // Array of all materials on an object
 layout(buffer_reference, scalar) buffer MatIndices {int i[]; }; // Material ID for each triangle
-layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
-layout(binding = 1, set = 1, scalar) buffer SceneDesc_ { SceneDesc i[]; } sceneDesc;
-layout(binding = 2, set = 1) uniform sampler2D textureSamplers[];
-// clang-format on
+layout(set = 0, binding = eTlas) uniform accelerationStructureEXT topLevelAS;
+layout(set = 1, binding = eObjDescs, scalar) buffer ObjDesc_ { ObjDesc i[]; } objDesc;
+layout(set = 1, binding = eTextures) uniform sampler2D textureSamplers[];
 
-layout(push_constant) uniform Constants
-{
-  vec4  clearColor;
-  vec3  lightPosition;
-  float lightIntensity;
-  int   lightType;
-}
-pushC;
+layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
+// clang-format on
 
 
 void main()
 {
   // Object data
-  SceneDesc  objResource = sceneDesc.i[gl_InstanceCustomIndexEXT];
+  ObjDesc    objResource = objDesc.i[gl_InstanceCustomIndexEXT];
   MatIndices matIndices  = MatIndices(objResource.materialIndexAddress);
   Materials  materials   = Materials(objResource.materialAddress);
   Indices    indices     = Indices(objResource.indexAddress);
@@ -73,32 +65,29 @@ void main()
 
   const vec3 barycentrics = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
 
-  // Computing the normal at hit position
-  vec3 normal = v0.nrm * barycentrics.x + v1.nrm * barycentrics.y + v2.nrm * barycentrics.z;
-  // Transforming the normal to world space
-  normal = normalize(vec3(sceneDesc.i[gl_InstanceCustomIndexEXT].transfoIT * vec4(normal, 0.0)));
-
-
   // Computing the coordinates of the hit position
-  vec3 worldPos = v0.pos * barycentrics.x + v1.pos * barycentrics.y + v2.pos * barycentrics.z;
-  // Transforming the position to world space
-  worldPos = vec3(sceneDesc.i[gl_InstanceCustomIndexEXT].transfo * vec4(worldPos, 1.0));
+  const vec3 pos      = v0.pos * barycentrics.x + v1.pos * barycentrics.y + v2.pos * barycentrics.z;
+  const vec3 worldPos = vec3(gl_ObjectToWorldEXT * vec4(pos, 1.0));  // Transforming the position to world space
+
+  // Computing the normal at hit position
+  const vec3 nrm      = v0.nrm * barycentrics.x + v1.nrm * barycentrics.y + v2.nrm * barycentrics.z;
+  const vec3 worldNrm = normalize(vec3(nrm * gl_WorldToObjectEXT));  // Transforming the normal to world space
 
   // Vector toward the light
   vec3  L;
-  float lightIntensity = pushC.lightIntensity;
+  float lightIntensity = pcRay.lightIntensity;
   float lightDistance  = 100000.0;
   // Point light
-  if(pushC.lightType == 0)
+  if(pcRay.lightType == 0)
   {
-    vec3 lDir      = pushC.lightPosition - worldPos;
+    vec3 lDir      = pcRay.lightPosition - worldPos;
     lightDistance  = length(lDir);
-    lightIntensity = pushC.lightIntensity / (lightDistance * lightDistance);
+    lightIntensity = pcRay.lightIntensity / (lightDistance * lightDistance);
     L              = normalize(lDir);
   }
   else  // Directional light
   {
-    L = normalize(pushC.lightPosition - vec3(0));
+    L = normalize(pcRay.lightPosition);
   }
 
   // Material of the object
@@ -107,10 +96,10 @@ void main()
 
 
   // Diffuse
-  vec3 diffuse = computeDiffuse(mat, L, normal);
+  vec3 diffuse = computeDiffuse(mat, L, worldNrm);
   if(mat.textureId >= 0)
   {
-    uint txtId    = mat.textureId + sceneDesc.i[gl_InstanceCustomIndexEXT].txtOffset;
+    uint txtId    = mat.textureId + objDesc.i[gl_InstanceCustomIndexEXT].txtOffset;
     vec2 texCoord = v0.texCoord * barycentrics.x + v1.texCoord * barycentrics.y + v2.texCoord * barycentrics.z;
     diffuse *= texture(textureSamplers[nonuniformEXT(txtId)], texCoord).xyz;
   }
@@ -119,7 +108,7 @@ void main()
   float attenuation = 1;
 
   // Tracing shadow ray only if the light is visible from the surface
-  if(dot(normal, L) > 0)
+  if(dot(worldNrm, L) > 0)
   {
     float tMin   = 0.001;
     float tMax   = lightDistance;
@@ -147,7 +136,7 @@ void main()
     else
     {
       // Specular
-      specular = computeSpecular(mat, gl_WorldRayDirectionEXT, L, normal);
+      specular = computeSpecular(mat, gl_WorldRayDirectionEXT, L, worldNrm);
     }
   }
 

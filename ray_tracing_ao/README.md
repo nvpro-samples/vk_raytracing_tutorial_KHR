@@ -1,6 +1,5 @@
 # G-Buffer and Ambient Occlusion - Tutorial
 
-
 ![](images/ray_tracing_ao.png)
 
 ## Tutorial ([Setup](../docs/setup.md))
@@ -10,17 +9,16 @@ This is an extension of the Vulkan ray tracing [tutorial](https://nvpro-samples.
 This extension to the tutorial is showing how G-Buffers from the fragment shader, can be used in a compute shader to cast ambient occlusion rays using
 ray queries [(GLSL_EXT_ray_query)](https://github.com/KhronosGroup/GLSL/blob/master/extensions/ext/GLSL_EXT_ray_query.txt).
 
-We are using some previous extensions of the tutorial to create this one. 
+We are using some previous extensions of the tutorial to create this one.
+
 * The usage of `ray query` is from [ray_tracing_rayquery](../ray_tracing_rayquery)
 * The notion of accumulated frames, is comming from [ray_tracing_jitter_cam](../ray_tracing_jitter_cam)
 * The creation and dispatch of compute shader was inspired from [ray_tracing_animation](../ray_tracing_animation)
 
-
-
 ## Workflow
 
-The fragment shader no longer just writes to an RGBA buffer for the colored image, but also writes to a G-buffer the position and normal for each fragment. 
-Then a compute shader takes the G-buffer and sends random ambient occlusion rays into the hemisphere formed by position and normal. 
+The fragment shader no longer just writes to an RGBA buffer for the colored image, but also writes to a G-buffer the position and normal for each fragment.
+Then a compute shader takes the G-buffer and sends random ambient occlusion rays into the hemisphere formed by position and normal.
 
 ![](images/Hemisphere_sampling.png)
 
@@ -32,11 +30,9 @@ The following are the buffers are they can be seen in [NSight Graphics](https://
 
 ![](images/buffers.png)
 
-
-
 ## G-Buffer
 
-The framework was already writing to G-Buffers, but was writing to a single `VK_FORMAT_R32G32B32A32_SFLOAT` buffer. In the function `HelloVulkan::createOffscreenRender()`, we will add the creation of two new buffers. One `VK_FORMAT_R32G32B32A32_SFLOAT` to store the position and normal and one `VK_FORMAT_R32_SFLOAT` for the ambient occlusion. 
+The framework was already writing to G-Buffers, but was writing to a single `VK_FORMAT_R32G32B32A32_SFLOAT` buffer. In the function `HelloVulkan::createOffscreenRender()`, we will add the creation of two new buffers. One `VK_FORMAT_R32G32B32A32_SFLOAT` to store the position and normal and one `VK_FORMAT_R32_SFLOAT` for the ambient occlusion.
 
 ~~~~ C++
   // The G-Buffer (rgba32f) - position(xyz) / normal(w-compressed)
@@ -77,7 +73,7 @@ The render pass for the fragment shader will need two color buffers, therefore w
   std::vector<VkImageView> attachments = {m_offscreenColor.descriptor.imageView,
                                           m_gBuffer.descriptor.imageView,
                                           m_offscreenDepth.descriptor.imageView};
-```                                            
+```
 
 ### Renderpass
 
@@ -87,7 +83,7 @@ This means that the renderpass in `main()` will have to be modified as well. The
       std::array<VkClearValue, 3> clearValues{};
 ```
 
-Since the clear value will be re-used by the offscreen (3 attachments) and the post/UI (2 attachments), we will set the clear values in each section. 
+Since the clear value will be re-used by the offscreen (3 attachments) and the post/UI (2 attachments), we will set the clear values in each section.
 
 ```
       // Offscreen render pass
@@ -110,21 +106,20 @@ We are omitting the code to compress and decompress the XYZ normal to and from a
 
 ```
 // Outgoing
-layout(location = 0) out vec4 outColor;
-layout(location = 1) out vec4 outGbuffer;
-
+layout(location = 0) out vec4 o_color;
+layout(location = 1) out vec4 o_gbuffer;
 ...
 
- outGbuffer.rgba = vec4(worldPos, uintBitsToFloat(CompressUnitVec(N)));
+ o_gbuffer.rgba = vec4(worldPos, uintBitsToFloat(CompressUnitVec(N)));
 ```
 
 ## Ray Tracing
 
-As for the [ray_tracing_rayquery](../ray_tracing_rayquery) sample, we use the VK_KHR_acceleration_structure extension to generate the ray tracing acceleration structure, while the ray tracing itself is carried out in a compute shader. This section remains unchanged compared to the rayquery example. 
+As for the [ray_tracing_rayquery](../ray_tracing_rayquery) sample, we use the VK_KHR_acceleration_structure extension to generate the ray tracing acceleration structure, while the ray tracing itself is carried out in a compute shader. This section remains unchanged compared to the rayquery example.
 
-## Compute Shader 
+## Compute Shader
 
-The compute shader will take the G-Buffer containing the position and normal and will randomly shot rays in the hemisphere defined by the normal. 
+The compute shader will take the G-Buffer containing the position and normal and will randomly shot rays in the hemisphere defined by the normal.
 
 ### Descriptor
 
@@ -147,7 +142,8 @@ void HelloVulkan::createCompDescriptors()
 ~~~
 
 ### Descriptor Update
-The function `updateCompDescriptors()` is done separately from the descriptor, because it can happen that some resources 
+
+The function `updateCompDescriptors()` is done separately from the descriptor, because it can happen that some resources
 are re-created, therefore their address isn't valid and we need to set those values back to the decriptors. For example,
 when resizing the window and the G-Buffer and AO buffer are resized.
 
@@ -169,16 +165,14 @@ void HelloVulkan::updateCompDescriptors()
 
   vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
-~~~~ 
-
+~~~~
 
 ### Pipeline
 
-The creation of the pipeline is identical to the animation tutorial, but we will push a structure to the pushConstant 
+The creation of the pipeline is identical to the animation tutorial, but we will push a structure to the pushConstant
 instead of a single float.
 
-
-The information we will push, will allow us to play with the AO algorithm. 
+The information we will push, will allow us to play with the AO algorithm.
 
 ~~~~ C++
 struct AoControl
@@ -191,13 +185,12 @@ struct AoControl
 };
 ~~~~
 
-
 ### Dispatch Compute
 
-The first thing we are doing in the `runCompute` is to call `updateFrame()` (see [jitter cam](../ray_tracing_jitter_cam)). 
+The first thing we are doing in the `runCompute` is to call `updateFrame()` (see [jitter cam](../ray_tracing_jitter_cam)).
 This sets the current frame index, which allows us to accumulate AO samples over time.
 
-Next, we are adding a `VkImageMemoryBarrier` to be sure the G-Buffer image is ready to be read from the compute shader. 
+Next, we are adding a `VkImageMemoryBarrier` to be sure the G-Buffer image is ready to be read from the compute shader.
 
 ~~~~ C++
   // Adding a barrier to be sure the fragment has finished writing to the G-Buffer
@@ -215,7 +208,7 @@ Next, we are adding a `VkImageMemoryBarrier` to be sure the G-Buffer image is re
                        VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 0, nullptr, 1, &imgMemBarrier);
 ~~~~
 
-Folowing is the call to dispatch the compute shader 
+Folowing is the call to dispatch the compute shader
 
 ~~~~ C++
   // Preparing for the compute shader
@@ -231,7 +224,7 @@ Folowing is the call to dispatch the compute shader
   vkCmdDispatch(cmdBuf, (m_size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (m_size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
 ~~~~
 
-Then we are adding a final barrier to make sure the compute shader is done 
+Then we are adding a final barrier to make sure the compute shader is done
 writing the AO so that the fragment shader (post) can use it.
 
 ~~~~ C++
@@ -247,7 +240,7 @@ writing the AO so that the fragment shader (post) can use it.
 The following functions were added to tell which frame we are rendering.
 The function `updateFrame()` is called only once per frame, and we are doing this in runCompute()/
 
-And the `resetFrame()` should be called whenever the image is changed, like in `onResize()` or 
+And the `resetFrame()` should be called whenever the image is changed, like in `onResize()` or
 after modifying the GUI related to the AO.
 
 ~~~~ C++
@@ -275,14 +268,15 @@ void HelloVulkan::resetFrame()
 {
   m_frame = -1;
 }
-~~~~ 
+~~~~
 
-## Compute Shader
+## Compute Shader (code)
 
 The compute shader, which can be found under [ao.comp](shaders/ao.comp) is using the [ray query](https://github.com/KhronosGroup/GLSL/blob/master/extensions/ext/GLSL_EXT_ray_query.txt) extension.
 
 The first thing in `main()` is to check if the invocation is not exceeding the size of the image.
-~~~~
+
+~~~~C
 void main()
 {
   float occlusion = 0.0;
@@ -291,34 +285,33 @@ void main()
   // Check if not outside boundaries
   if(gl_GlobalInvocationID.x >= size.x || gl_GlobalInvocationID.y >= size.y)
     return;
-~~~~ 
+~~~~
 
-The seed of the random number sequence is initialized using the TEA algorithm, while the random number themselves will be generated using PCG. 
+The seed of the random number sequence is initialized using the TEA algorithm, while the random number themselves will be generated using PCG.
 This is a fine when many random numbers are generated from this seed, but tea isn't a random
-number generator and if you use only one sample per pixel, you will see correlation and the AO will not look fine because it won't 
-sample uniformly the entire hemisphere. This could be resolved if the seed was kept over frame, but for this example, we will use 
+number generator and if you use only one sample per pixel, you will see correlation and the AO will not look fine because it won't
+sample uniformly the entire hemisphere. This could be resolved if the seed was kept over frame, but for this example, we will use
 this simple technique.
 
-~~~~
+~~~~C
   // Initialize the random number
   uint seed = tea(size.x * gl_GlobalInvocationID.y + gl_GlobalInvocationID.x, frame_number);
 ~~~~
 
 Secondly, we are retrieving the position and normal stored in the fragment shader.
 
-~~~~
+~~~~C
   // Retrieving position and normal
   vec4 gBuffer = imageLoad(inImage, ivec2(gl_GlobalInvocationID.xy));
 ~~~~
 
 The G-Buffer was cleared and we will sample the hemisphere only if a fragment was rendered. In `w`
-we stored the compressed normal, which is nonzero only if a normal was actually stored into the pixel. 
+we stored the compressed normal, which is nonzero only if a normal was actually stored into the pixel.
 Note that while this compression introduces some level of quantization, it does not result in visible artifacts in this example.
 
 The `OffsetRay` can be found in [raycommon.glsl](shaders/raycommon.glsl), and was taken from [Ray Tracing Gems, Ch. 6](http://www.realtimerendering.com/raytracinggems/unofficial_RayTracingGems_v1.7.pdf). This is a convenient way to avoid finding manually the appropriate minimum offset.
 
-
-~~~~
+~~~~C
   // Shooting rays only if a fragment was rendered
   if(gBuffer != vec4(0))
   {
@@ -333,15 +326,15 @@ The `OffsetRay` can be found in [raycommon.glsl](shaders/raycommon.glsl), and wa
 From the normal, we generate the basis (tangent and bitangent) which will be used for sampling.
 The function `compute_default_basis` is also in [raycommon.glsl](shaders/raycommon.glsl)
 
-~~~~ 
+~~~~C
     // Finding the basis (tangent and bitangent) from the normal
     vec3 n, tangent, bitangent;
     compute_default_basis(normal, tangent, bitangent);
-~~~~    
+~~~~
 
 Then we are sampling the hemisphere `rtao_samples` time, using a [cosine weighted sampling](https://people.cs.kuleuven.be/~philip.dutre/GI/)
 
-~~~~
+~~~~C
     // Sampling hemiphere n-time
     for(int i = 0; i < rtao_samples; i++)
     {
@@ -359,16 +352,16 @@ Then we are sampling the hemisphere `rtao_samples` time, using a [cosine weighte
     }
 ~~~~
 
-The function `TraceRay` is a very simple way to send a shadow ray using ray query. 
+The function `TraceRay` is a very simple way to send a shadow ray using ray query.
 For any type of shadow, we don't care which object we hit as long as the ray hit something
 before maximum length. For this, we can set the flag to `gl_RayFlagsTerminateOnFirstHitEXT`.
-But there is a case where we may want to know the distance of the hit from the closest hit, in this case 
-the flag is set to `gl_RayFlagsNoneEXT`. 
+But there is a case where we may want to know the distance of the hit from the closest hit, in this case
+the flag is set to `gl_RayFlagsNoneEXT`.
 
-The function returns 0 if it didn't hit anything or a value between 0 and 1, depending on how close the 
+The function returns 0 if it didn't hit anything or a value between 0 and 1, depending on how close the
 hit was. It will return 1 if `rtao_distance_based == 0`
 
-~~~~
+~~~~C
 //----------------------------------------------------------------------------
 // Tracing a ray and returning the weight based on the distance of the hit
 //
@@ -401,7 +394,7 @@ float TraceRay(in rayQueryEXT rayQuery, in vec3 origin, in vec3 direction)
 
 Similar to the camera jitter example, the result is stored at frame 0 and accumulate over time.
 
-~~~~
+~~~~C
   // Writting out the AO
   if(frame_number == 0)
   {
@@ -438,7 +431,7 @@ if(ImGui::CollapsingHeader("Ambient Occlusion"))
 
 We have also have added `AoControl aoControl;` somwhere in main() and passing the information to the execution of the compute shader.
 
-~~~~ 
+~~~~C
 // Rendering Scene
 {
   vkCmdBeginRenderPass(cmdBuf, &offscreenRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -450,16 +443,16 @@ We have also have added `AoControl aoControl;` somwhere in main() and passing th
 
 ## Post shader
 
-The post shader will combine the result of the fragment (color) and the result of the compute shader (ao). 
-In `createPostDescriptor` we will need to add the descriptor 
+The post shader will combine the result of the fragment (color) and the result of the compute shader (ao).
+In `createPostDescriptor` we will need to add the descriptor
 
-~~~~
+~~~~C
 m_postDescSetLayoutBind.addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
 ~~~~
 
 And the equivalent in `updatePostDescriptorSet()`
 
-~~~~
+~~~~C
 writes.push_back(m_postDescSetLayoutBind.makeWrite(m_postDescSet, 1, &m_aoBuffer.descriptor));
 ~~~~
 
@@ -467,16 +460,15 @@ writes.push_back(m_postDescSetLayoutBind.makeWrite(m_postDescSet, 1, &m_aoBuffer
 
 Then in the fragment shader of the post process, we need to add the layout for the AO image
 
-~~~~
+~~~~C
 layout(set = 0, binding = 1) uniform sampler2D aoTxt;
 ~~~~
 
-And the image will now be returned as the following 
+And the image will now be returned as the following
 
-~~~~ 
+~~~~C
   vec4  color = texture(noisyTxt, uv);
   float ao    = texture(aoTxt, uv).x;
 
   fragColor = pow(color * ao, vec4(gamma));
 ~~~~
-

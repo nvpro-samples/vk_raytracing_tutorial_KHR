@@ -59,35 +59,37 @@ void renderUI(HelloVulkan& helloVk)
   changed |= ImGuiH::CameraWidget();
   if(ImGui::CollapsingHeader("Light"))
   {
-    changed |= ImGui::RadioButton("Point", &helloVk.m_pushConstants.lightType, 0);
+    auto& pc = helloVk.m_pcRaster;
+
+    changed |= ImGui::RadioButton("Point", &pc.lightType, 0);
     ImGui::SameLine();
-    changed |= ImGui::RadioButton("Spot", &helloVk.m_pushConstants.lightType, 1);
+    changed |= ImGui::RadioButton("Spot", &pc.lightType, 1);
     ImGui::SameLine();
-    changed |= ImGui::RadioButton("Infinite", &helloVk.m_pushConstants.lightType, 2);
+    changed |= ImGui::RadioButton("Infinite", &pc.lightType, 2);
 
 
-    if(helloVk.m_pushConstants.lightType < 2)
+    if(pc.lightType < 2)
     {
-      changed |= ImGui::SliderFloat3("Light Position", &helloVk.m_pushConstants.lightPosition.x, -20.f, 20.f);
+      changed |= ImGui::SliderFloat3("Light Position", &pc.lightPosition.x, -20.f, 20.f);
     }
-    if(helloVk.m_pushConstants.lightType > 0)
+    if(pc.lightType > 0)
     {
-      changed |= ImGui::SliderFloat3("Light Direction", &helloVk.m_pushConstants.lightDirection.x, -1.f, 1.f);
+      changed |= ImGui::SliderFloat3("Light Direction", &pc.lightDirection.x, -1.f, 1.f);
     }
-    if(helloVk.m_pushConstants.lightType < 2)
+    if(pc.lightType < 2)
     {
-      changed |= ImGui::SliderFloat("Light Intensity", &helloVk.m_pushConstants.lightIntensity, 0.f, 500.f);
+      changed |= ImGui::SliderFloat("Light Intensity", &pc.lightIntensity, 0.f, 500.f);
     }
-    if(helloVk.m_pushConstants.lightType == 1)
+    if(pc.lightType == 1)
     {
-      float dCutoff    = rad2deg(acos(helloVk.m_pushConstants.lightSpotCutoff));
-      float dOutCutoff = rad2deg(acos(helloVk.m_pushConstants.lightSpotOuterCutoff));
+      float dCutoff    = rad2deg(acos(pc.lightSpotCutoff));
+      float dOutCutoff = rad2deg(acos(pc.lightSpotOuterCutoff));
       changed |= ImGui::SliderFloat("Cutoff", &dCutoff, 0.f, 45.f);
       changed |= ImGui::SliderFloat("OutCutoff", &dOutCutoff, 0.f, 45.f);
       dCutoff = dCutoff > dOutCutoff ? dOutCutoff : dCutoff;
 
-      helloVk.m_pushConstants.lightSpotCutoff      = cos(deg2rad(dCutoff));
-      helloVk.m_pushConstants.lightSpotOuterCutoff = cos(deg2rad(dOutCutoff));
+      pc.lightSpotCutoff      = cos(deg2rad(dCutoff));
+      pc.lightSpotOuterCutoff = cos(deg2rad(dOutCutoff));
     }
   }
 
@@ -196,20 +198,19 @@ int main(int argc, char** argv)
   std::mt19937                    gen(rd());  // Standard mersenne_twister_engine seeded with rd()
   std::normal_distribution<float> dis(2.0f, 2.0f);
   std::normal_distribution<float> disn(0.5f, 0.2f);
-  int                             wusonIndex = static_cast<int>(helloVk.m_objModel.size() - 1);
+  auto                            wusonIndex = static_cast<int>(helloVk.m_objModel.size() - 1);
 
   for(int n = 0; n < 50; ++n)
   {
-    ObjInstance inst    = helloVk.m_objInstance[wusonIndex];
+    ObjInstance inst;
     inst.objIndex       = wusonIndex;
-    inst.txtOffset      = 0;
     float         scale = fabsf(disn(gen));
     nvmath::mat4f mat   = nvmath::translation_mat4(nvmath::vec3f{dis(gen), 0.f, dis(gen) + 6});
     //    mat              = mat * nvmath::rotation_mat4_x(dis(gen));
-    mat              = mat * nvmath::scale_mat4(nvmath::vec3f(scale));
-    inst.transform   = mat;
-    inst.transformIT = nvmath::transpose(nvmath::invert((inst.transform)));
-    helloVk.m_objInstance.push_back(inst);
+    mat            = mat * nvmath::scale_mat4(nvmath::vec3f(scale));
+    inst.transform = mat;
+
+    helloVk.m_instances.push_back(inst);
   }
 
   // Creation of implicit geometry
@@ -238,7 +239,7 @@ int main(int argc, char** argv)
   helloVk.createDescriptorSetLayout();
   helloVk.createGraphicsPipeline();
   helloVk.createUniformBuffer();
-  helloVk.createSceneDescriptionBuffer();
+  helloVk.createObjDescriptionBuffer();
   helloVk.updateDescriptorSet();
 
   // #VKRay

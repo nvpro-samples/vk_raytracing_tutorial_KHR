@@ -69,7 +69,7 @@ auto Raytracer::objectToVkGeometryKHR(const ObjModel& model)
   VkDeviceAddress indexAddress  = nvvk::getBufferDeviceAddress(m_device, model.indexBuffer.buffer);
 
   VkAccelerationStructureGeometryTrianglesDataKHR triangles{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR};
-  triangles.vertexFormat             = VK_FORMAT_R32G32B32A32_SFLOAT;
+  triangles.vertexFormat             = VK_FORMAT_R32G32B32_SFLOAT;
   triangles.vertexData.deviceAddress = vertexAddress;
   triangles.vertexStride             = sizeof(VertexObj);
   triangles.indexType                = VK_INDEX_TYPE_UINT32;
@@ -163,26 +163,26 @@ void Raytracer::createTopLevelAS(std::vector<ObjInstance>& instances, ImplInst& 
   tlas.reserve(instances.size());
   for(uint32_t i = 0; i < nbObj; i++)
   {
-    VkAccelerationStructureInstanceKHR rayInst;
+    VkAccelerationStructureInstanceKHR rayInst{};
     rayInst.transform           = nvvk::toTransformMatrixKHR(instances[i].transform);  // Position of the instance
     rayInst.instanceCustomIndex = instances[i].objIndex;                               // gl_InstanceCustomIndexEXT
     rayInst.accelerationStructureReference         = m_rtBuilder.getBlasDeviceAddress(instances[i].objIndex);
-    rayInst.instanceShaderBindingTableRecordOffset = 0;  // We will use the same hit group for all objects
     rayInst.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-    rayInst.mask                                   = 0xFF;
+    rayInst.mask                                   = 0xFF;  // Only be hit if rayMask & instance.mask != 0
+    rayInst.instanceShaderBindingTableRecordOffset = 0;     // We will use the same hit group for all objects
     tlas.emplace_back(rayInst);
   }
 
   // Add the blas containing all implicit
   if(!implicitObj.objImpl.empty())
   {
-    VkAccelerationStructureInstanceKHR rayInst;
+    VkAccelerationStructureInstanceKHR rayInst{};
     rayInst.transform           = nvvk::toTransformMatrixKHR(implicitObj.transform);  // Position of the instance
-    rayInst.instanceCustomIndex = nbObj;                                              // Same for material index
+    rayInst.instanceCustomIndex = instances[nbObj].objIndex;
     rayInst.accelerationStructureReference = m_rtBuilder.getBlasDeviceAddress(static_cast<uint32_t>(implicitObj.blasId));
+    rayInst.flags                          = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    rayInst.mask                           = 0xFF;       // Only be hit if rayMask & instance.mask != 0
     rayInst.instanceShaderBindingTableRecordOffset = 1;  // We will use the same hit group for all objects (the second one)
-    rayInst.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-    rayInst.mask                                   = 0xFF;
     tlas.emplace_back(rayInst);
   }
 
@@ -196,9 +196,9 @@ void Raytracer::createRtDescriptorSet(const VkImageView& outputImage)
 {
   using vkDSLB = VkDescriptorSetLayoutBinding;
 
-  m_rtDescSetLayoutBind.addBinding(0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1,
+  m_rtDescSetLayoutBind.addBinding(RtxBindings::eTlas, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1,
                                    VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);  // TLAS
-  m_rtDescSetLayoutBind.addBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR);  // Output image
+  m_rtDescSetLayoutBind.addBinding(RtxBindings::eOutImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR);  // Output image
 
   m_rtDescPool      = m_rtDescSetLayoutBind.createPool(m_device);
   m_rtDescSetLayout = m_rtDescSetLayoutBind.createLayout(m_device);
@@ -217,8 +217,8 @@ void Raytracer::createRtDescriptorSet(const VkImageView& outputImage)
 
 
   std::vector<VkWriteDescriptorSet> writes;
-  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, 0, &descASInfo));
-  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, 1, &imageInfo));
+  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eTlas, &descASInfo));
+  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eOutImage, &imageInfo));
   vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
 
@@ -230,7 +230,7 @@ void Raytracer::createRtDescriptorSet(const VkImageView& outputImage)
 void Raytracer::updateRtDescriptorSet(const VkImageView& outputImage)
 {
   VkDescriptorImageInfo imageInfo{{}, outputImage, VK_IMAGE_LAYOUT_GENERAL};
-  VkWriteDescriptorSet  wds = m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, 1, &imageInfo);
+  VkWriteDescriptorSet  wds = m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eOutImage, &imageInfo);
   vkUpdateDescriptorSets(m_device, 1, &wds, 0, nullptr);
 }
 
@@ -362,7 +362,7 @@ void Raytracer::createRtPipeline(VkDescriptorSetLayout& sceneDescLayout)
   // Push constant: we want to be able to update constants used by the shaders
   VkPushConstantRange pushConstant{VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR
                                        | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_CALLABLE_BIT_KHR,
-                                   0, sizeof(RtPushConstants)};
+                                   0, sizeof(PushConstantRay)};
 
 
   VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
@@ -408,18 +408,18 @@ void Raytracer::raytrace(const VkCommandBuffer& cmdBuf,
                          const nvmath::vec4f&   clearColor,
                          VkDescriptorSet&       sceneDescSet,
                          VkExtent2D&            size,
-                         ObjPushConstants&      sceneConstants)
+                         PushConstantRaster&    sceneConstants)
 {
   m_debug.beginLabel(cmdBuf, "Ray trace");
   // Initializing push constant values
-  m_rtPushConstants.clearColor           = clearColor;
-  m_rtPushConstants.lightPosition        = sceneConstants.lightPosition;
-  m_rtPushConstants.lightIntensity       = sceneConstants.lightIntensity;
-  m_rtPushConstants.lightDirection       = sceneConstants.lightDirection;
-  m_rtPushConstants.lightSpotCutoff      = sceneConstants.lightSpotCutoff;
-  m_rtPushConstants.lightSpotOuterCutoff = sceneConstants.lightSpotOuterCutoff;
-  m_rtPushConstants.lightType            = sceneConstants.lightType;
-  m_rtPushConstants.frame                = sceneConstants.frame;
+  m_pcRay.clearColor           = clearColor;
+  m_pcRay.lightPosition        = sceneConstants.lightPosition;
+  m_pcRay.lightIntensity       = sceneConstants.lightIntensity;
+  m_pcRay.lightDirection       = sceneConstants.lightDirection;
+  m_pcRay.lightSpotCutoff      = sceneConstants.lightSpotCutoff;
+  m_pcRay.lightSpotOuterCutoff = sceneConstants.lightSpotOuterCutoff;
+  m_pcRay.lightType            = sceneConstants.lightType;
+  m_pcRay.frame                = sceneConstants.frame;
 
 
   std::vector<VkDescriptorSet> descSets{m_rtDescSet, sceneDescSet};
@@ -429,7 +429,7 @@ void Raytracer::raytrace(const VkCommandBuffer& cmdBuf,
   vkCmdPushConstants(cmdBuf, m_rtPipelineLayout,
                      VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR
                          | VK_SHADER_STAGE_CALLABLE_BIT_KHR,
-                     0, sizeof(RtPushConstants), &m_rtPushConstants);
+                     0, sizeof(PushConstantRay), &m_pcRay);
 
 
   auto& regions = m_sbtWrapper.getRegions();

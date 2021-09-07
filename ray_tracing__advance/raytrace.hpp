@@ -24,6 +24,8 @@
 #include "nvvk/sbtwrapper_vk.hpp"
 #include "obj.hpp"
 
+#include "shaders/host_device.h"
+
 class Raytracer
 {
 public:
@@ -41,7 +43,7 @@ public:
                 const nvmath::vec4f&   clearColor,
                 VkDescriptorSet&       sceneDescSet,
                 VkExtent2D&            size,
-                ObjPushConstants&      sceneConstants);
+                PushConstantRaster&    sceneConstants);
 
 private:
   nvvk::ResourceAllocator* m_alloc{nullptr};  // Allocator for buffer, images, acceleration structures
@@ -62,15 +64,6 @@ private:
   VkPipeline                                        m_rtPipeline;
   nvvk::Buffer                                      m_rtSBTBuffer;
 
-  struct RtPushConstants
-  {
-    nvmath::vec4f clearColor;
-    nvmath::vec3f lightPosition;
-    float         lightIntensity{100.0f};
-    nvmath::vec3f lightDirection{-1, -1, -1};
-    float         lightSpotCutoff{deg2rad(12.5f)};
-    float         lightSpotOuterCutoff{deg2rad(17.5f)};
-    int           lightType{0};
-    int           frame{0};
-  } m_rtPushConstants;
+
+  PushConstantRay m_pcRay{};
 };

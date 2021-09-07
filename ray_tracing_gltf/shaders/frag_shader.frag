@@ -26,34 +26,26 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_buffer_reference2 : require
 
-#include "binding.glsl"
 #include "gltf.glsl"
+#include "host_device.h"
 
-
-layout(push_constant) uniform shaderInformation
+layout(push_constant) uniform _PushConstantRaster
 {
-  vec3  lightPosition;
-  uint  instanceId;
-  float lightIntensity;
-  int   lightType;
-  int   matetrialId;
-}
-pushC;
+  PushConstantRaster pcRaster;
+};
 
 // clang-format off
 // Incoming 
-layout(location = 1) in vec2 fragTexCoord;
-layout(location = 2) in vec3 fragNormal;
-layout(location = 3) in vec3 viewDir;
-layout(location = 4) in vec3 worldPos;
+layout(location = 1) in vec3 i_worldPos;
+layout(location = 2) in vec3 i_worldNrm;
+layout(location = 3) in vec3 i_viewDir;
+layout(location = 4) in vec2 i_texCoord;
 // Outgoing
-layout(location = 0) out vec4 outColor;
+layout(location = 0) out vec4 o_color;
 // Buffers
-
-layout(buffer_reference, scalar) buffer  Matrices { mat4 m[]; };
 layout(buffer_reference, scalar) buffer  GltfMaterial { GltfShadeMaterial m[]; };
-layout(set = 0, binding = B_SCENEDESC ) readonly buffer SceneDesc_ { SceneDesc sceneDesc; } ;
-layout(set = 0, binding = B_TEXTURES) uniform sampler2D[] textureSamplers;
+layout(set = 0, binding = eSceneDesc ) readonly buffer SceneDesc_ { SceneDesc sceneDesc; } ;
+layout(set = 0, binding = eTextures) uniform sampler2D[] textureSamplers;
 // clang-format on
 
 
@@ -61,23 +53,23 @@ void main()
 {
   // Material of the object
   GltfMaterial      gltfMat = GltfMaterial(sceneDesc.materialAddress);
-  GltfShadeMaterial mat     = gltfMat.m[pushC.matetrialId];
+  GltfShadeMaterial mat     = gltfMat.m[pcRaster.materialId];
 
-  vec3 N = normalize(fragNormal);
+  vec3 N = normalize(i_worldNrm);
 
   // Vector toward light
   vec3  L;
-  float lightIntensity = pushC.lightIntensity;
-  if(pushC.lightType == 0)
+  float lightIntensity = pcRaster.lightIntensity;
+  if(pcRaster.lightType == 0)
   {
-    vec3  lDir     = pushC.lightPosition - worldPos;
+    vec3  lDir     = pcRaster.lightPosition - i_worldPos;
     float d        = length(lDir);
-    lightIntensity = pushC.lightIntensity / (d * d);
+    lightIntensity = pcRaster.lightIntensity / (d * d);
     L              = normalize(lDir);
   }
   else
   {
-    L = normalize(pushC.lightPosition - vec3(0));
+    L = normalize(pcRaster.lightPosition);
   }
 
 
@@ -86,13 +78,13 @@ void main()
   if(mat.pbrBaseColorTexture > -1)
   {
     uint txtId      = mat.pbrBaseColorTexture;
-    vec3 diffuseTxt = texture(textureSamplers[nonuniformEXT(txtId)], fragTexCoord).xyz;
+    vec3 diffuseTxt = texture(textureSamplers[nonuniformEXT(txtId)], i_texCoord).xyz;
     diffuse *= diffuseTxt;
   }
 
   // Specular
-  vec3 specular = computeSpecular(mat, viewDir, L, N);
+  vec3 specular = computeSpecular(mat, i_viewDir, L, N);
 
   // Result
-  outColor = vec4(lightIntensity * (diffuse + specular), 1);
+  o_color = vec4(lightIntensity * (diffuse + specular), 1);
 }

@@ -2,8 +2,8 @@
 
 ![](images/specialization.png)
 
-In Vulkans, shaders are compiled to Spir-V, but the driver completes optimization during pipeline creation. 
-Having specialization constants in a shader, is like having #defines that can be changed when pipeline creation is submitted. 
+In Vulkans, shaders are compiled to Spir-V, but the driver completes optimization during pipeline creation.
+Having specialization constants in a shader, is like having #defines that can be changed when pipeline creation is submitted.
 
 In this example, we will add three specialization constants with all possible permutations.
 
@@ -13,7 +13,7 @@ In this example, we will add three specialization constants with all possible pe
 
 ## Shader
 
-In the closest hit shader (`raytrace.chit`), we will add the three constants. Note that we are using `int` only because the tiny helper class later is made for `int` values. 
+In the closest hit shader (`raytrace.chit`), we will add the three constants. Note that we are using `int` only because the tiny helper class later is made for `int` values.
 
 ~~~~ C
 layout(constant_id = 0) const int USE_DIFFUSE = 1;
@@ -130,12 +130,12 @@ private:
   std::vector<VkSpecializationMapEntry> spec_entries;
   VkSpecializationInfo                  spec_info;
 };
-~~~~ 
+~~~~
 
 In `HelloVulkan::createRtPipeline()`, we will create 8 specialization of the closest hit shader.
 So the number of stages, will be 11 instead of 4.
 
-~~~~ C 
+~~~~ C
   enum StageIndices
   {
     eRaygen,
@@ -158,7 +158,7 @@ Then create a `Specialization` for each of the 8 on/off permutations of the 3 co
     int c = ((i >> 0) % 2) == 1;
     specializations[i].add({{0, a}, {1, b}, {2, c}});
   }
-~~~~ 
+~~~~
 
 Now the shader group will be created 8 times, each with a different specialization.
 
@@ -174,9 +174,8 @@ Now the shader group will be created 8 times, each with a different specializati
   }
 ~~~~
 
-**Tip** : We can avoid to create 8 shader modules, but we would have to properly deal with the 
+**Tip** : We can avoid to create 8 shader modules, but we would have to properly deal with the
     deletion of them at the end of the function.
-
 
 We will also modify the creation of the hit group to create as many HIT shader groups as we have specializations. This will give us the ability later to choose which 'specialization' we want to use.
 
@@ -193,50 +192,42 @@ We will also modify the creation of the hit group to create as many HIT shader g
 ~~~~
 
 **Note**, it is important that the data and structures are not created on the stack inside the loop,
-because we are passing the data address and specialization information, so all this would become 
+because we are passing the data address and specialization information, so all this would become
 invalid when the pipeline is created.
 
-# Using Specialization
+## Using Specialization
 
 If you would run the sample, nothing would have changed. This is because each TLAS's  `hitGroupId` is set to `0`.
-A quick test would be to change the value to `4`, corresponding to only using diffuse. 
+A quick test would be to change the value to `4`, corresponding to only using diffuse.
 
 ~~~~ C
 rayInst.hitGroupId       = 4;  // We will use the same hit group for all objects
-~~~~ 
+~~~~
 
 Knowing the type of material each object is using, it would be possible to choose the appropriate
 specialization for each object.
 
 ## Interactive Change
 
-In our example, we will allow to choose globally the specialization for all objects. To do this, we will add 
-a new entry to the push constants structure, for both `ObjPushConstant` and `RtPushConstant`.
+In our example, we will allow to choose globally the specialization for all objects. To do this, we will add
+a new entry to the push constants structure of `PushConstantRay`.
 
-At the end of both structures, add
+At the end of the structures, add
 
 ~~~~ C
-int           specialization{7}; // All in use
-~~~~ 
+int   specialization;
+~~~~
+
+and in the `hello_vulkan.h`, initialize the member to 7 (all)
+
+~~~~C
+  PushConstantRay m_pcRay{{}, {}, 0, 0, 7};
+~~~~
 
 In `raytrace.rgen`, we will use this new value to offset the hit group. Instead of always taking the hit group 0, it will
 use the one we choose.
 
-Add the `specialization` to the push constant layout.
-
-~~~~ C
-layout(push_constant) uniform Constants
-{
-  vec4  clearColor;
-  vec3  lightPosition;
-  float lightIntensity;
-  int   lightType;
-  int   specialization;
-}
-pushC;
-~~~~ 
-
-Then where we trace, we will use the specialization value to change the SBT offset.
+When we call trace, we will use the specialization value to change the SBT offset.
 
 ~~~~ C
   traceRayEXT(topLevelAS,            // acceleration structure
@@ -259,25 +250,19 @@ In main.cpp `renderUI()`, add the following code.
 
 ~~~~ C
   // Specialization
-  ImGui::SliderInt("Specialization", &helloVk.m_pushConstant.specialization, 0, 7);
-  int s = helloVk.m_pushConstant.specialization;
+  ImGui::SliderInt("Specialization", &helloVk.m_pcRay.specialization, 0, 7);
+  int s = helloVk.m_pcRay.specialization;
   int a = ((s >> 2) % 2) == 1;
   int b = ((s >> 1) % 2) == 1;
   int c = ((s >> 0) % 2) == 1;
   ImGui::Checkbox("Use Diffuse", (bool*)&a);
   ImGui::Checkbox("Use Specular", (bool*)&b);
   ImGui::Checkbox("Trace shadow", (bool*)&c);
-  helloVk.m_pushConstant.specialization = (a << 2) + (b << 1) + c;
-~~~~ 
-
-
-
-
-
+  helloVk.m_pcRay.specialization = (a << 2) + (b << 1) + c;
+~~~~
 
 ## References
 
 * Pipelines [Specialization Constants](https://www.khronos.org/registry/vulkan/specs/1.1-khr-extensions/html/chap10.html#pipelines-specialization-constants)
 * [VkSpecializationInfo](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkSpecializationInfo.html)
 * [VkSpecializationMapEntry](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkSpecializationMapEntry.html)
-

@@ -54,30 +54,31 @@ static void onErrorCallback(int error, const char* description)
 void renderUI(HelloVulkan& helloVk)
 {
   ImGuiH::CameraWidget();
+  ImGui::SetNextTreeNodeOpen(true, ImGuiCond_Once);
   if(ImGui::CollapsingHeader("Light"))
   {
-    ImGui::RadioButton("Point", &helloVk.m_pushConstant.lightType, 0);
+    ImGui::RadioButton("Point", &helloVk.m_pcRaster.lightType, 0);
     ImGui::SameLine();
-    ImGui::RadioButton("Spot", &helloVk.m_pushConstant.lightType, 1);
+    ImGui::RadioButton("Spot", &helloVk.m_pcRaster.lightType, 1);
     ImGui::SameLine();
-    ImGui::RadioButton("Infinite", &helloVk.m_pushConstant.lightType, 2);
+    ImGui::RadioButton("Infinite", &helloVk.m_pcRaster.lightType, 2);
 
-    if(helloVk.m_pushConstant.lightType < 2)
-      ImGui::SliderFloat3("Light Position", &helloVk.m_pushConstant.lightPosition.x, -20.f, 20.f);
-    if(helloVk.m_pushConstant.lightType > 0)
-      ImGui::SliderFloat3("Light Direction", &helloVk.m_pushConstant.lightDirection.x, -1.f, 1.f);
-    if(helloVk.m_pushConstant.lightType < 2)
-      ImGui::SliderFloat("Light Intensity", &helloVk.m_pushConstant.lightIntensity, 0.f, 500.f);
-    if(helloVk.m_pushConstant.lightType == 1)
+    if(helloVk.m_pcRaster.lightType < 2)
+      ImGui::SliderFloat3("Light Position", &helloVk.m_pcRaster.lightPosition.x, -20.f, 20.f);
+    if(helloVk.m_pcRaster.lightType > 0)
+      ImGui::SliderFloat3("Light Direction", &helloVk.m_pcRaster.lightDirection.x, -1.f, 1.f);
+    if(helloVk.m_pcRaster.lightType < 2)
+      ImGui::SliderFloat("Light Intensity", &helloVk.m_pcRaster.lightIntensity, 0.f, 500.f);
+    if(helloVk.m_pcRaster.lightType == 1)
     {
-      float dCutoff    = rad2deg(acos(helloVk.m_pushConstant.lightSpotCutoff));
-      float dOutCutoff = rad2deg(acos(helloVk.m_pushConstant.lightSpotOuterCutoff));
+      float dCutoff    = rad2deg(acos(helloVk.m_pcRaster.lightSpotCutoff));
+      float dOutCutoff = rad2deg(acos(helloVk.m_pcRaster.lightSpotOuterCutoff));
       ImGui::SliderFloat("Cutoff", &dCutoff, 0.f, 45.f);
       ImGui::SliderFloat("OutCutoff", &dOutCutoff, 0.f, 45.f);
       dCutoff = dCutoff > dOutCutoff ? dOutCutoff : dCutoff;
 
-      helloVk.m_pushConstant.lightSpotCutoff      = cos(deg2rad(dCutoff));
-      helloVk.m_pushConstant.lightSpotOuterCutoff = cos(deg2rad(dOutCutoff));
+      helloVk.m_pcRaster.lightSpotCutoff      = cos(deg2rad(dCutoff));
+      helloVk.m_pcRaster.lightSpotOuterCutoff = cos(deg2rad(dOutCutoff));
     }
   }
 }
@@ -87,6 +88,7 @@ void renderUI(HelloVulkan& helloVk)
 //////////////////////////////////////////////////////////////////////////
 static int const SAMPLE_WIDTH  = 1280;
 static int const SAMPLE_HEIGHT = 720;
+
 
 //--------------------------------------------------------------------------------------------------
 // Application Entry
@@ -180,7 +182,7 @@ int main(int argc, char** argv)
   helloVk.createDescriptorSetLayout();
   helloVk.createGraphicsPipeline();
   helloVk.createUniformBuffer();
-  helloVk.createSceneDescriptionBuffer();
+  helloVk.createObjDescriptionBuffer();
   helloVk.updateDescriptorSet();
 
   // #VKRay

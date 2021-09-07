@@ -56,24 +56,24 @@ void renderUI(HelloVulkan& helloVk)
   ImGuiH::CameraWidget();
   if(ImGui::CollapsingHeader("Light"))
   {
-    ImGui::RadioButton("Point", &helloVk.m_pushConstant.lightType, 0);
+    ImGui::RadioButton("Point", &helloVk.m_pcRaster.lightType, 0);
     ImGui::SameLine();
-    ImGui::RadioButton("Infinite", &helloVk.m_pushConstant.lightType, 1);
+    ImGui::RadioButton("Infinite", &helloVk.m_pcRaster.lightType, 1);
 
-    ImGui::SliderFloat3("Position", &helloVk.m_pushConstant.lightPosition.x, -20.f, 20.f);
-    ImGui::SliderFloat("Intensity", &helloVk.m_pushConstant.lightIntensity, 0.f, 150.f);
+    ImGui::SliderFloat3("Position", &helloVk.m_pcRaster.lightPosition.x, -20.f, 20.f);
+    ImGui::SliderFloat("Intensity", &helloVk.m_pcRaster.lightIntensity, 0.f, 150.f);
   }
 
   // Specialization
-  ImGui::SliderInt("Specialization", &helloVk.m_pushConstant.specialization, 0, 7);
-  int s = helloVk.m_pushConstant.specialization;
+  ImGui::SliderInt("Specialization", &helloVk.m_pcRay.specialization, 0, 7);
+  int s = helloVk.m_pcRay.specialization;
   int a = ((s >> 2) % 2) == 1;
   int b = ((s >> 1) % 2) == 1;
   int c = ((s >> 0) % 2) == 1;
   ImGui::Checkbox("Use Diffuse", (bool*)&a);
   ImGui::Checkbox("Use Specular", (bool*)&b);
   ImGui::Checkbox("Trace shadow", (bool*)&c);
-  helloVk.m_pushConstant.specialization = (a << 2) + (b << 1) + c;
+  helloVk.m_pcRay.specialization = (a << 2) + (b << 1) + c;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -175,7 +175,7 @@ int main(int argc, char** argv)
   helloVk.createDescriptorSetLayout();
   helloVk.createGraphicsPipeline();
   helloVk.createUniformBuffer();
-  helloVk.createSceneDescriptionBuffer();
+  helloVk.createObjDescriptionBuffer();
   helloVk.updateDescriptorSet();
 
   // #VKRay

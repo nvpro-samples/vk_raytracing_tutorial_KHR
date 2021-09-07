@@ -39,13 +39,13 @@ layout(buffer_reference, scalar) buffer Vertices {Vertex v[]; }; // Positions of
 layout(buffer_reference, scalar) buffer Indices {uint i[]; }; // Triangle indices
 layout(buffer_reference, scalar) buffer Materials {WaveFrontMaterial m[]; }; // Array of all materials on an object
 layout(buffer_reference, scalar) buffer MatIndices {int i[]; }; // Material ID for each triangle
-layout(binding = 1, set = 1, scalar) buffer SceneDesc_ { SceneDesc i[]; } sceneDesc;
+layout(set = 1, binding = eObjDescs, scalar) buffer ObjDesc_ { ObjDesc i[]; } objDesc;
 // clang-format on
 
 void main()
 {
   // Object data
-  SceneDesc  objResource = sceneDesc.i[gl_InstanceCustomIndexEXT];
+  ObjDesc    objResource = objDesc.i[gl_InstanceCustomIndexEXT];
   MatIndices matIndices  = MatIndices(objResource.materialIndexAddress);
   Materials  materials   = Materials(objResource.materialAddress);
 

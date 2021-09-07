@@ -34,27 +34,48 @@ of the number of elements and offsets.
 From the source tutorial, we will not need the following and therefore remove it:
 
 ~~~~C
-  struct ObjModel          {..};
-  struct ObjInstance       {..};
-  std::vector<ObjModel>    m_objModel;
-  std::vector<ObjInstance> m_objInstance;
-  nvvk::Buffer             m_sceneDesc;  // Device buffer of the OBJ instances
+  std::vector<ObjModel>    m_objModel;   // Model on host
+  std::vector<ObjDesc>     m_objDesc;    // Model description for device access
+  std::vector<ObjInstance> m_instances;  // Scene model instances
 ~~~~
 
-But instead, we will use this following structure to retrieve the information of the primitive that has been hit in the closest hit shader;
+In `host_device.h` we will add new host/device structures: PrimMeshInfo, SceneDesc and GltfShadeMaterial.
 
 ~~~~C
-  // Structure used for retrieving the primitive information in the closest hit
-  // The gl_InstanceCustomIndexNV
-  struct RtPrimitiveLookup
-  {
-    uint32_t indexOffset;
-    uint32_t vertexOffset;
-    int      materialIndex;
-  };
- ~~~~
+// Structure used for retrieving the primitive information in the closest hit
+struct PrimMeshInfo
+{
+  uint indexOffset;
+  uint vertexOffset;
+  int  materialIndex;
+};
 
- And for holding the information, we will be using a helper class to hold glTF scene and buffers for the data.
+// Scene buffer addresses
+struct SceneDesc
+{
+  uint64_t vertexAddress;    // Address of the Vertex buffer
+  uint64_t normalAddress;    // Address of the Normal buffer
+  uint64_t uvAddress;        // Address of the texture coordinates buffer
+  uint64_t indexAddress;     // Address of the triangle indices buffer
+  uint64_t materialAddress;  // Address of the Materials buffer (GltfShadeMaterial)
+  uint64_t primInfoAddress;  // Address of the mesh primitives buffer (PrimMeshInfo)
+};
+~~~~
+
+And also, our glTF material representation for the shading. This is a stripped down version of the glTF PBR. If you are interested in the 
+correct PBR implementation, check out [vk_raytrace](https://github.com/nvpro-samples/vk_raytrace).
+
+~~~~ C
+struct GltfShadeMaterial
+{
+  vec4 pbrBaseColorFactor;
+  vec3 emissiveFactor;
+  int  pbrBaseColorTexture;
+};
+~~~~
+
+
+ And for holding the all the buffers allocated for representing the scene, we will store them in the following.
 
  ~~~~C
   nvh::GltfScene m_gltfScene;
@@ -63,25 +84,9 @@ But instead, we will use this following structure to retrieve the information of
   nvvk::Buffer   m_uvBuffer;
   nvvk::Buffer   m_indexBuffer;
   nvvk::Buffer   m_materialBuffer;
-  nvvk::Buffer   m_matrixBuffer;
-  nvvk::Buffer   m_rtPrimLookup;
+  nvvk::Buffer   m_primInfo;
   nvvk::Buffer   m_sceneDesc;
 ~~~~
-
-And a structure to retrieve all buffers of the scene
-
-~~~~ C++
-  struct SceneDescription
-  {
-    uint64_t vertexAddress;
-    uint64_t normalAddress;
-    uint64_t uvAddress;
-    uint64_t indexAddress;
-    uint64_t materialAddress;
-    uint64_t matrixAddress;
-    uint64_t rtPrimAddress;
-  };
-  ~~~~
 
 ## Loading glTF scene
 
@@ -146,26 +151,12 @@ We are making a simple material, extracting only a few members from the glTF mat
 ~~~~
 
 
-We could use `push_constant` to set the matrix of the node, but instead, we will push the index of the 
-node to draw and fetch the matrix from a buffer.
-
-~~~~C
-  // Instance Matrices used by rasterizer
-  std::vector<nvmath::mat4f> nodeMatrices;
-  for(auto& node : m_gltfScene.m_nodes)
-  {
-    nodeMatrices.emplace_back(node.worldMatrix);
-  }
-  m_matrixBuffer = m_alloc.createBuffer(cmdBuf, nodeMatrices,
-                                        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
-~~~~
-
 To find the positions of the triangle hit in the closest hit shader, as well as the other 
 attributes, we will store the offsets information of that geometry.
 
 ~~~~C
   // The following is used to find the primitive mesh information in the CHIT
-  std::vector<RtPrimitiveLookup> primLookup;
+  std::vector<PrimMeshInfo> primLookup;
   for(auto& primMesh : m_gltfScene.m_primMeshes)
   {
     primLookup.push_back({primMesh.firstIndex, primMesh.vertexOffset, primMesh.materialIndex});
@@ -177,15 +168,14 @@ attributes, we will store the offsets information of that geometry.
 Finally, we are creating a buffer holding the address of all buffers
 
 ~~~~ C++
-  SceneDescription sceneDesc;
+  SceneDesc sceneDesc;
   sceneDesc.vertexAddress   = nvvk::getBufferDeviceAddress(m_device, m_vertexBuffer.buffer);
   sceneDesc.indexAddress    = nvvk::getBufferDeviceAddress(m_device, m_indexBuffer.buffer);
   sceneDesc.normalAddress   = nvvk::getBufferDeviceAddress(m_device, m_normalBuffer.buffer);
   sceneDesc.uvAddress       = nvvk::getBufferDeviceAddress(m_device, m_uvBuffer.buffer);
   sceneDesc.materialAddress = nvvk::getBufferDeviceAddress(m_device, m_materialBuffer.buffer);
-  sceneDesc.matrixAddress   = nvvk::getBufferDeviceAddress(m_device, m_matrixBuffer.buffer);
-  sceneDesc.rtPrimAddress   = nvvk::getBufferDeviceAddress(m_device, m_rtPrimLookup.buffer);
-  m_sceneDesc               = m_alloc.createBuffer(cmdBuf, sizeof(SceneDescription), &sceneDesc,
+  sceneDesc.primInfoAddress = nvvk::getBufferDeviceAddress(m_device, m_primInfo.buffer);
+  m_sceneDesc               = m_alloc.createBuffer(cmdBuf, sizeof(SceneDesc), &sceneDesc,
                                      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 ~~~~
 
@@ -204,18 +194,18 @@ The finalize and releasing staging is waiting for the copy of all data to the GP
   NAME_VK(m_normalBuffer.buffer);
   NAME_VK(m_uvBuffer.buffer);
   NAME_VK(m_materialBuffer.buffer);
-  NAME_VK(m_matrixBuffer.buffer);
-  NAME_VK(m_rtPrimLookup.buffer);
+  NAME_VK(m_primInfo.buffer);
   NAME_VK(m_sceneDesc.buffer);
 }
 ~~~~ 
 
-**NOTE**: the macro `NAME_VK` is a convenience to name Vulkan object to easily identify them in Nsight Graphics and to know where it was created. 
+**:warning: NOTE**: the macro `NAME_VK` is a convenience to name Vulkan object to easily identify them in Nsight Graphics and to know where it was created. 
 
 ## Converting geometry to BLAS
 
-Instead of `objectToVkGeometryKHR()`, we will be using `primitiveToGeometry(const nvh::GltfPrimMesh& prim)`.
-The function is similar, only the input is different. 
+Instead of `objectToVkGeometryKHR()`, we will be using `primitiveToVkGeometry(const nvh::GltfPrimMesh& prim)`.
+The function is similar, only the input is different, except for `VkAccelerationStructureBuildRangeInfoKHR` where 
+we also include the offsets.
 
 ~~~~C
 //--------------------------------------------------------------------------------------------------
@@ -231,7 +221,7 @@ auto HelloVulkan::primitiveToGeometry(const nvh::GltfPrimMesh& prim)
 
   // Describe buffer as array of VertexObj.
   VkAccelerationStructureGeometryTrianglesDataKHR triangles{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR};
-  triangles.vertexFormat             = VK_FORMAT_R32G32B32A32_SFLOAT;  // vec3 vertex position data.
+  triangles.vertexFormat             = VK_FORMAT_R32G32B32_SFLOAT;  // vec3 vertex position data.
   triangles.vertexData.deviceAddress = vertexAddress;
   triangles.vertexStride             = sizeof(nvmath::vec3f);
   // Describe index data (32-bit unsigned int)
@@ -264,22 +254,18 @@ auto HelloVulkan::primitiveToGeometry(const nvh::GltfPrimMesh& prim)
 
 ## Top Level creation
 
-There are almost no changes for creating the TLAS but is actually even simpler. Each 
-drawable node has a matrix and an index to the geometry, which in our case, also 
-correspond directly to the BLAS ID. To know which geometry is used, and to find back 
-all the data (see structure `RtPrimitiveLookup`), we will set the `instanceCustomId` member 
-to the primitive mesh id. This value will be recovered with `gl_InstanceCustomIndexEXT`
-in the closest hit shader.
+There are almost no differences, besides the fact that the index of the geometry is stored in `primMesh`.
 
 ~~~~C
   for(auto& node : m_gltfScene.m_nodes)
   {
-    nvvk::RaytracingBuilderKHR::Instance rayInst;
-    rayInst.transform        = node.worldMatrix;
-    rayInst.instanceCustomId = node.primMesh;  // gl_InstanceCustomIndexEXT: to find which primitive
-    rayInst.blasId           = node.primMesh;
-    rayInst.flags            = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-    rayInst.hitGroupId       = 0;  // We will use the same hit group for all objects
+    VkAccelerationStructureInstanceKHR rayInst;
+    rayInst.transform                      = nvvk::toTransformMatrixKHR(node.worldMatrix);
+    rayInst.instanceCustomIndex            = node.primMesh;  // gl_InstanceCustomIndexEXT: to find which primitive
+    rayInst.accelerationStructureReference = m_rtBuilder.getBlasDeviceAddress(node.primMesh);
+    rayInst.flags                          = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    rayInst.mask                           = 0xFF;
+    rayInst.instanceShaderBindingTableRecordOffset = 0;  // We will use the same hit group for all objects
     tlas.emplace_back(rayInst);
   }
 ~~~~
@@ -288,8 +274,8 @@ in the closest hit shader.
 ## Raster Rendering
 
 Raster rendering is simple. The shader was changed to use vertex, normal and texture coordinates. For 
-each node, we will be pushing the instance Id (retrieve the matrix) and the material Id. Since we 
-don't have a scene graph, we could loop over all drawable nodes.
+each node, we will be pushing the material Id this primitive is using. Since we have flatten the scene graph,
+we can loop over all drawable nodes.
 
 ~~~~C
   std::vector<VkBuffer> vertexBuffers = {m_vertexBuffer.buffer, m_normalBuffer.buffer, m_uvBuffer.buffer};
@@ -301,10 +287,11 @@ don't have a scene graph, we could loop over all drawable nodes.
   {
     auto& primitive = m_gltfScene.m_primMeshes[node.primMesh];
 
-    m_pushConstant.instanceId = idxNode++;
-    m_pushConstant.materialId = primitive.materialIndex;
+    m_pcRaster.modelMatrix = node.worldMatrix;
+    m_pcRaster.objIndex    = node.primMesh;
+    m_pcRaster.materialId  = primitive.materialIndex;
     vkCmdPushConstants(cmdBuf, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
-                       sizeof(ObjPushConstant), &m_pushConstant);
+                       sizeof(PushConstantRaster), &m_pcRaster);
     vkCmdDrawIndexed(cmdBuf, primitive.indexCount, 1, primitive.firstIndex, primitive.vertexOffset, 0);
   }
 ~~~~
@@ -316,12 +303,12 @@ In `createRtDescriptorSet()`, the only change we will add is the primitive info 
 the data when hitting a triangle. 
 
 ~~~~C
-  m_rtDescSetLayoutBind.addBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
+  m_rtDescSetLayoutBind.addBinding(ePrimLookup, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
                                    VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR);  // Primitive info
 // ...
   VkDescriptorBufferInfo primitiveInfoDesc{m_rtPrimLookup.buffer, 0, VK_WHOLE_SIZE};
 // ...
-  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, 2, &primitiveInfoDesc));
+  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, ePrimLookup, &primitiveInfoDesc));
 ~~~~
 
 
@@ -393,12 +380,12 @@ void HelloVulkan::updateFrame()
     refCamMatrix = m;
     refFov       = fov;
   }
-  m_rtPushConstants.frame++;
+  m_pcRay.frame++;
 }
 
 void HelloVulkan::resetFrame()
 {
-  m_rtPushConstants.frame = -1;
+  m_pcRay.frame = -1;
 }
 ~~~~
 
@@ -436,16 +423,16 @@ To accumulate the samples, instead of only write to the image, we will also use 
 
 ~~~~C
   // Do accumulation over time
-  if(pushC.frame > 0)
+  if(pcRay.frame > 0)
   {
-    float a         = 1.0f / float(pushC.frame + 1);
+    float a         = 1.0f / float(pcRay.frame + 1);
     vec3  old_color = imageLoad(image, ivec2(gl_LaunchIDEXT.xy)).xyz;
-    imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(mix(old_color, prd.hitValue, a), 1.f));
+    imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(mix(old_color, hitValue, a), 1.f));
   }
   else
   {
     // First frame, replace the value in the buffer
-    imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(prd.hitValue, 1.f));
+    imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(hitValue, 1.f));
   }
 ~~~~
 

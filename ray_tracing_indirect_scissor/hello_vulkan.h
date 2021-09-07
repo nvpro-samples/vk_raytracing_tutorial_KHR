@@ -24,6 +24,7 @@
 #include "nvvk/descriptorsets_vk.hpp"
 #include "nvvk/memallocator_dma_vk.hpp"
 #include "nvvk/resourceallocator_vk.hpp"
+#include "shaders/host_device.h"
 
 // #VKRay
 #include "nvvk/raytraceKHR_vk.hpp"
@@ -45,13 +46,13 @@ public:
   void addLantern(nvmath::vec3f pos, nvmath::vec3f color, float brightness, float radius);
   void updateDescriptorSet();
   void createUniformBuffer();
-  void createSceneDescriptionBuffer();
+  void createObjDescriptionBuffer();
   void createTextureImages(const VkCommandBuffer& cmdBuf, const std::vector<std::string>& textures);
 
-  nvmath::mat4 getViewMatrix() { return CameraManip.getMatrix(); }
+  nvmath::mat4f getViewMatrix() { return CameraManip.getMatrix(); }
 
   static constexpr float nearZ = 0.1f;
-  nvmath::mat4           getProjMatrix()
+  nvmath::mat4f          getProjMatrix()
   {
     const float aspectRatio = m_size.width / static_cast<float>(m_size.height);
     return nvmath::perspectiveVK(CameraManip.getFov(), aspectRatio, nearZ, 1000.0f);
@@ -73,28 +74,21 @@ public:
     nvvk::Buffer matIndexBuffer;  // Device buffer of array of 'Wavefront material'
   };
 
-  // Instance of the OBJ
   struct ObjInstance
   {
-    nvmath::mat4f   transform{1};    // Position of the instance
-    nvmath::mat4f   transformIT{1};  // Inverse transpose
-    uint32_t        objIndex{0};     // Reference to the `m_objModel`
-    uint32_t        txtOffset{0};    // Offset in `m_textures`
-    VkDeviceAddress vertices{0};
-    VkDeviceAddress indices{0};
-    VkDeviceAddress materials{0};
-    VkDeviceAddress materialIndices{0};
+    nvmath::mat4f transform;    // Matrix of the instance
+    uint32_t      objIndex{0};  // Model index reference
   };
 
+
   // Information pushed at each draw call
-  struct ObjPushConstant
-  {
-    nvmath::vec3f lightPosition{10.f, 15.f, 8.f};
-    int           instanceId{0};  // To retrieve the transformation matrix
-    float         lightIntensity{40.f};
-    int           lightType{0};  // 0: point, 1: infinite
+  PushConstantRaster m_pcRaster{
+      {1},                // Identity matrix
+      {10.f, 15.f, 8.f},  // light position
+      0,                  // instance Id
+      100.f,              // light intensity
+      0                   // light type
   };
-  ObjPushConstant m_pushConstant;
 
   // Information on each colored lantern illuminating the scene.
   struct Lantern
@@ -113,17 +107,18 @@ public:
   {
     // Filled in by the device using a compute shader.
     // NOTE: I rely on indirectCommand being the first member.
-    VkTraceRaysIndirectCommandKHR indirectCommand;
+    VkTraceRaysIndirectCommandKHR indirectCommand{};
     int32_t                       offsetX{0};
     int32_t                       offsetY{0};
 
     // Filled in by the host.
-    Lantern lantern;
+    Lantern lantern{};
   };
 
   // Array of objects and instances in the scene. Not modifiable after acceleration structure build.
-  std::vector<ObjModel>    m_objModel;
-  std::vector<ObjInstance> m_objInstance;
+  std::vector<ObjModel>    m_objModel;   // Model on host
+  std::vector<ObjDesc>     m_objDesc;    // Model description for device access
+  std::vector<ObjInstance> m_instances;  // Scene model instances
 
   // Array of lanterns in scene. Not modifiable after acceleration structure build.
   std::vector<Lantern> m_lanterns;
@@ -136,8 +131,8 @@ public:
   VkDescriptorSetLayout       m_descSetLayout;
   VkDescriptorSet             m_descSet;
 
-  nvvk::Buffer m_cameraMat;  // Device-Host of the camera matrices
-  nvvk::Buffer m_sceneDesc;  // Device buffer of the OBJ instances
+  nvvk::Buffer m_bGlobals;  // Device-Host of the camera matrices
+  nvvk::Buffer m_bObjDesc;  // Device buffer of the OBJ descriptions
 
   std::vector<nvvk::Texture> m_textures;  // vector of all textures of the scene
 
@@ -146,7 +141,7 @@ public:
   nvvk::DebugUtil            m_debug;  // Utility to name objects
 
 
-  // #Post
+  // #Post - Draw the rendered image on a quad using a tonemapper
   void createOffscreenRender();
   void createPostPipeline();
   void createPostDescriptor();
@@ -219,29 +214,9 @@ public:
   VkDeviceSize m_lanternCount = 0;  // Set to actual lantern count after TLAS build, as
                                     // that is the point no more lanterns may be added.
 
-  // Push constant for ray trace pipeline.
-  struct RtPushConstant
-  {
-    // Background color
-    nvmath::vec4f clearColor;
+  // Push constant for ray tracer.
+  PushConstantRay m_pcRay{};
 
-    // Information on the light in the sky used when lanternPassNumber = -1.
-    nvmath::vec3f lightPosition;
-    float         lightIntensity;
-    int32_t       lightType;
-
-    // -1 if this is the full-screen pass. Otherwise, this pass is to add light
-    // from lantern number lanternPassNumber. We use this to lookup trace indirect
-    // parameters in m_lanternIndirectBuffer.
-    int32_t lanternPassNumber;
-
-    // Pixel dimensions of the output image.
-    int32_t screenX;
-    int32_t screenY;
-
-    // See m_lanternDebug.
-    int32_t lanternDebug;
-  } m_rtPushConstants;
 
   // Copied to RtPushConstant::lanternDebug. If true,
   // make lantern produce constant light regardless of distance
@@ -253,18 +228,18 @@ public:
   // Barely fits in 128-byte push constant limit guaranteed by spec.
   struct LanternIndirectPushConstants
   {
-    nvmath::vec4 viewRowX;  // First 3 rows of view matrix.
-    nvmath::vec4 viewRowY;  // Set w=1 implicitly in shader.
-    nvmath::vec4 viewRowZ;
+    nvmath::vec4f viewRowX;  // First 3 rows of view matrix.
+    nvmath::vec4f viewRowY;  // Set w=1 implicitly in shader.
+    nvmath::vec4f viewRowZ;
 
-    nvmath::mat4 proj;   // Perspective matrix
-    float        nearZ;  // Near plane used to create projection matrix.
+    nvmath::mat4f proj{};   // Perspective matrix
+    float         nearZ{};  // Near plane used to create projection matrix.
 
     // Pixel dimensions of output image (needed to scale NDC to screen coordinates).
-    int32_t screenX;
-    int32_t screenY;
+    int32_t screenX{};
+    int32_t screenY{};
 
     // Length of the LanternIndirectEntry array.
-    int32_t lanternCount;
+    int32_t lanternCount{};
   } m_lanternIndirectPushConstants;
 };

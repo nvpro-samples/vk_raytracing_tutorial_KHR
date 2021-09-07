@@ -19,6 +19,8 @@
 
 #pragma once
 
+#include "shaders/host_device.h"
+
 #include "nvvk/appbase_vk.hpp"
 #include "nvvk/debug_util_vk.hpp"
 #include "nvvk/descriptorsets_vk.hpp"
@@ -52,25 +54,6 @@ public:
   void destroyResources();
   void rasterize(const VkCommandBuffer& cmdBuff);
 
-  // Structure used for retrieving the primitive information in the closest hit
-  // The gl_InstanceCustomIndexNV
-  struct RtPrimitiveLookup
-  {
-    uint32_t indexOffset;
-    uint32_t vertexOffset;
-    int      materialIndex;
-  };
-
-  struct SceneDescription
-  {
-    uint64_t vertexAddress;
-    uint64_t normalAddress;
-    uint64_t uvAddress;
-    uint64_t indexAddress;
-    uint64_t materialAddress;
-    uint64_t matrixAddress;
-    uint64_t rtPrimAddress;
-  };
 
   nvh::GltfScene m_gltfScene;
   nvvk::Buffer   m_vertexBuffer;
@@ -78,20 +61,18 @@ public:
   nvvk::Buffer   m_uvBuffer;
   nvvk::Buffer   m_indexBuffer;
   nvvk::Buffer   m_materialBuffer;
-  nvvk::Buffer   m_matrixBuffer;
-  nvvk::Buffer   m_rtPrimLookup;
+  nvvk::Buffer   m_primInfo;
   nvvk::Buffer   m_sceneDesc;
 
   // Information pushed at each draw call
-  struct ObjPushConstant
-  {
-    nvmath::vec3f lightPosition{0.f, 4.5f, 0.f};
-    int           instanceId{0};  // To retrieve the transformation matrix
-    float         lightIntensity{10.f};
-    int           lightType{0};  // 0: point, 1: infinite
-    int           materialId{0};
+  PushConstantRaster m_pcRaster{
+      {1},               // Identity matrix
+      {0.f, 4.5f, 0.f},  // light position
+      0,                 // instance Id
+      10.f,              // light intensity
+      0,                 // light type
+      0                  // material id
   };
-  ObjPushConstant m_pushConstant;
 
   // Graphic pipeline
   VkPipelineLayout            m_pipelineLayout;
@@ -101,13 +82,14 @@ public:
   VkDescriptorSetLayout       m_descSetLayout;
   VkDescriptorSet             m_descSet;
 
-  nvvk::Buffer               m_cameraMat;  // Device-Host of the camera matrices
-  std::vector<nvvk::Texture> m_textures;   // vector of all textures of the scene
+  nvvk::Buffer               m_bGlobals;  // Device-Host of the camera matrices
+  std::vector<nvvk::Texture> m_textures;  // vector of all textures of the scene
 
   nvvk::ResourceAllocatorDma m_alloc;  // Allocator for buffer, images, acceleration structures
   nvvk::DebugUtil            m_debug;  // Utility to name objects
 
-  // #Post
+
+  // #Post - Draw the rendered image on a quad using a tonemapper
   void createOffscreenRender();
   void createPostPipeline();
   void createPostDescriptor();
@@ -128,8 +110,8 @@ public:
   VkFormat                    m_offscreenDepthFormat{VK_FORMAT_X8_D24_UNORM_PACK32};
 
   // #VKRay
-  auto primitiveToGeometry(const nvh::GltfPrimMesh& prim);
   void initRayTracing();
+  auto primitiveToVkGeometry(const nvh::GltfPrimMesh& prim);
   void createBottomLevelAS();
   void createTopLevelAS();
   void createRtDescriptorSet();
@@ -150,12 +132,5 @@ public:
   VkPipeline                                        m_rtPipeline;
   nvvk::SBTWrapper                                  m_sbtWrapper;
 
-  struct RtPushConstant
-  {
-    nvmath::vec4f clearColor;
-    nvmath::vec3f lightPosition;
-    float         lightIntensity;
-    int           lightType;
-    int           frame{0};
-  } m_rtPushConstants;
+  PushConstantRay m_pcRay{};
 };

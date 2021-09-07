@@ -56,12 +56,12 @@ void renderUI(HelloVulkan& helloVk)
   ImGuiH::CameraWidget();
   if(ImGui::CollapsingHeader("Light"))
   {
-    ImGui::RadioButton("Point", &helloVk.m_pushConstant.lightType, 0);
+    ImGui::RadioButton("Point", &helloVk.m_pcRaster.lightType, 0);
     ImGui::SameLine();
-    ImGui::RadioButton("Infinite", &helloVk.m_pushConstant.lightType, 1);
+    ImGui::RadioButton("Infinite", &helloVk.m_pcRaster.lightType, 1);
 
-    ImGui::SliderFloat3("Position", &helloVk.m_pushConstant.lightPosition.x, -20.f, 20.f);
-    ImGui::SliderFloat("Intensity", &helloVk.m_pushConstant.lightIntensity, 0.f, 150.f);
+    ImGui::SliderFloat3("Position", &helloVk.m_pcRaster.lightPosition.x, -20.f, 20.f);
+    ImGui::SliderFloat("Intensity", &helloVk.m_pcRaster.lightIntensity, 0.f, 150.f);
   }
 }
 
@@ -159,10 +159,8 @@ int main(int argc, char** argv)
   helloVk.loadModel(nvh::findFile("media/scenes/wuson.obj", defaultSearchPaths, true),
                     nvmath::translation_mat4(nvmath::vec3f(-1, 0, 0)));
 
-  HelloVulkan::ObjInstance inst = helloVk.m_objInstance[0];  // Instance the Wuson object
-  inst.transform                = nvmath::translation_mat4(nvmath::vec3f(1, 0, 0));
-  inst.transformIT              = nvmath::transpose(nvmath::invert(inst.transform));
-  helloVk.m_objInstance.push_back(inst);  // Adding an instance of the Wuson
+  helloVk.m_instances.push_back({nvmath::translation_mat4(nvmath::vec3f(1, 0, 0)), 0});  // Adding an instance of the Wuson
+
 
   helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
 
@@ -170,14 +168,15 @@ int main(int argc, char** argv)
   helloVk.m_hitShaderRecord.resize(2);
   helloVk.m_hitShaderRecord[0].color = nvmath::vec4f(0, 1, 0, 0);  // Green
   helloVk.m_hitShaderRecord[1].color = nvmath::vec4f(0, 1, 1, 0);  // Cyan
-  helloVk.m_objInstance[0].hitgroup  = 1;                          // Wuson 0
-  helloVk.m_objInstance[1].hitgroup  = 2;                          // Wuson 1
+  helloVk.m_instances[0].hitgroup    = 1;                          // Wuson 0
+  helloVk.m_instances[1].hitgroup    = 2;                          // Wuson 1
+  helloVk.m_instances[2].hitgroup    = 0;                          // Plane
 
   helloVk.createOffscreenRender();
   helloVk.createDescriptorSetLayout();
   helloVk.createGraphicsPipeline();
   helloVk.createUniformBuffer();
-  helloVk.createSceneDescriptionBuffer();
+  helloVk.createObjDescriptionBuffer();
   helloVk.updateDescriptorSet();
 
   // #VKRay

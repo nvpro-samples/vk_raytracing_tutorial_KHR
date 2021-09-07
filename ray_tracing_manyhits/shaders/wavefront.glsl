@@ -17,41 +17,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-struct Vertex
-{
-  vec3 pos;
-  vec3 nrm;
-  vec3 color;
-  vec2 texCoord;
-};
-
-struct WaveFrontMaterial
-{
-  vec3  ambient;
-  vec3  diffuse;
-  vec3  specular;
-  vec3  transmittance;
-  vec3  emission;
-  float shininess;
-  float ior;       // index of refraction
-  float dissolve;  // 1 == opaque; 0 == fully transparent
-  int   illum;     // illumination model (see http://www.fileformat.info/format/material/)
-  int   textureId;
-};
-
-struct SceneDesc
-{
-  mat4     transfo;
-  mat4     transfoIT;
-  int      objId;
-  int      txtOffset;
-  uint64_t vertexAddress;
-  uint64_t indexAddress;
-  uint64_t materialAddress;
-  uint64_t materialIndexAddress;
-  int      hitGroup;
-};
-
+#include "host_device.h"
 
 vec3 computeDiffuse(WaveFrontMaterial mat, vec3 lightDir, vec3 normal)
 {

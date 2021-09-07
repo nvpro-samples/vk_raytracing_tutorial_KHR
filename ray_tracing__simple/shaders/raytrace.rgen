@@ -20,21 +20,21 @@
 #version 460
 #extension GL_EXT_ray_tracing : require
 #extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+
+
 #include "raycommon.glsl"
+#include "host_device.h"
 
-layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
-layout(binding = 1, set = 0, rgba32f) uniform image2D image;
-
+// clang-format off
 layout(location = 0) rayPayloadEXT hitPayload prd;
 
-layout(binding = 0, set = 1) uniform CameraProperties
-{
-  mat4 view;
-  mat4 proj;
-  mat4 viewInverse;
-  mat4 projInverse;
-}
-cam;
+layout(set = 0, binding = eTlas) uniform accelerationStructureEXT topLevelAS;
+layout(set = 0, binding = eOutImage, rgba32f) uniform image2D image;
+layout(set = 1, binding = eGlobals) uniform _GlobalUniforms { GlobalUniforms uni; };
+layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
+// clang-format on
+
 
 void main()
 {
@@ -42,9 +42,9 @@ void main()
   const vec2 inUV        = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
   vec2       d           = inUV * 2.0 - 1.0;
 
-  vec4 origin    = cam.viewInverse * vec4(0, 0, 0, 1);
-  vec4 target    = cam.projInverse * vec4(d.x, d.y, 1, 1);
-  vec4 direction = cam.viewInverse * vec4(normalize(target.xyz), 0);
+  vec4 origin    = uni.viewInverse * vec4(0, 0, 0, 1);
+  vec4 target    = uni.projInverse * vec4(d.x, d.y, 1, 1);
+  vec4 direction = uni.viewInverse * vec4(normalize(target.xyz), 0);
 
   uint  rayFlags = gl_RayFlagsOpaqueEXT;
   float tMin     = 0.001;
