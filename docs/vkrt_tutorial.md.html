@@ -1444,81 +1444,156 @@ group for that instance. The needed stride between entries is calculated from
 
 ## Handles
 
-The SBT is a collection of up to four arrays containing the handles to the shader groups used in the ray tracing pipeline, one
-array each for ray generation shader groups, miss shader groups, hit groups, and callable shader groups (not used here).
-In our example, we will create a buffer storing arrays for the first three groups. For now, we
-have only one shader group of each type, so each "array" is just one shader group handle.
+The SBT is a collection of up to four arrays containing the handles of the shader groups used in the ray tracing pipeline, one array for each of the **ray generation**, **miss**, **hit** and **callable** (not used here) shader groups. In our example, we will create a buffer storing the arrays for the first three groups. Right now, we only have one shader of each type, so each "array" is just a handle to a group of shaders.
 
-The buffer will have the following structure, which will later be used when calling `vkCmdTraceRaysKHR`:
+The buffer will have the following structure, which will be used later when calling `vkCmdTraceRaysKHR`:
 
-******************
-*+--------------+*
-*| RayGen       |*
-*| Handle       |*
-*+--------------+*
-*| Miss         |*
-*| Handle       |*
-*+--------------+*
-*| HitGroup     |*
-*| Handle       |*
-*+--------------+*
-******************
+![](images/sbt_0.png)
+
+We will ensure that all starting groups start with an address aligned to `shaderGroupBaseAlignment` and that each entry in the group is aligned to `shaderGroupHandleAlignment` bytes. 
+All group entries are aligned with `shaderGroupHandleAlignment`. 
+
+!!! Warning Size and Alignment Gotcha
+    Pay close attention that the alignment corresponds to the handle or group size.
+    There is no guarantee that the alignment corresponds to the handle or group size, so rounding up is necessary.
+    Using `groupHandleSize` as the stride may coincidentally work on your hardware, but not all hardware.
+    On hardware with a smaller handle size than alignment, it is possible to interleave some shaderRecordEXT data without additional memory usage.
+    
+    Round up sizes to the next alignment using the formula
+    
+    $alignedSize = [size + (alignment - 1)]\ \texttt{&}\ \texttt{~}(alignment - 1)$
+
+
+!!! Note Special Case
+    RayGen size and stride need to have the same value. 
 
 We first add the declarations of the SBT creation method and the SBT buffer itself in the `HelloVulkan` class:
 
 ~~~~ C
 void           createRtShaderBindingTable();
-nvvkBuffer     m_rtSBTBuffer;
+
+nvvk::Buffer                    m_rtSBTBuffer;
+VkStridedDeviceAddressRegionKHR m_rgenRegion{};
+VkStridedDeviceAddressRegionKHR m_missRegion{};
+VkStridedDeviceAddressRegionKHR m_hitRegion{};
+VkStridedDeviceAddressRegionKHR m_callRegion{};
 ~~~~
 
-In this function, we start by computing the size of the binding table from the number of groups and the
-aligned handle size so that we can allocate the SBT buffer.
+At the beginning of `createRtShaderBindingTable()` we collect information about the groups. There is always one and only one raygen, so we add the constant **1**.
 
 ~~~~ C
 //--------------------------------------------------------------------------------------------------
 // The Shader Binding Table (SBT)
 // - getting all shader handles and write them in a SBT buffer
 // - Besides exception, this could be always done like this
-//   See how the SBT buffer is used in run()
 //
 void HelloVulkan::createRtShaderBindingTable()
 {
-  auto     groupCount      = static_cast<uint32_t>(m_rtShaderGroups.size());  // 4 shaders: raygen, 2 miss, chit
-  uint32_t groupHandleSize = m_rtProperties.shaderGroupHandleSize;            // Size of a program identifier
-  // Compute the actual size needed per SBT entry (round-up to alignment needed).
-  uint32_t groupSizeAligned = nvh::align_up(groupHandleSize, m_rtProperties.shaderGroupBaseAlignment);
-  // Bytes needed for the SBT.
-  uint32_t sbtSize = groupCount * groupSizeAligned;
+  uint32_t missCount{1};
+  uint32_t hitCount{1};
+  auto     handleCount = 1 + missCount + hitCount;
+  uint32_t handleSize  = m_rtProperties.shaderGroupHandleSize;
 ~~~~
 
-We then fetch the handles to the shader groups of the pipeline, and let the allocator 
-allocate the device memory and copy the handles into the SBT. Note that SBT buffer need the
-`VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR` flag and since we will need the address
-of SBT buffer, therefore the buffer need also the `VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT` flag.
+The following sets the stride and size for each group. With the exception of RayGen, the stride will be the size of the handle aligned to the `shaderGroupHandleAlignment`. And the size of each group, is the number of elements in the group aligned to the `shaderGroupBaseAlignment`.
 
 ~~~~ C
-  // Fetch all the shader handles used in the pipeline. This is opaque data,
-  // so we store it in a vector of bytes.
-  std::vector<uint8_t> shaderHandleStorage(sbtSize);
-  auto                 result = vkGetRayTracingShaderGroupHandlesKHR(m_device, m_rtPipeline, 0, groupCount, sbtSize, shaderHandleStorage.data());
+// The SBT (buffer) need to have starting groups to be aligned and handles in the group to be aligned.
+uint32_t handleSizeAligned = nvh::align_up(handleSize, m_rtProperties.shaderGroupHandleAlignment);
 
-  assert(result == VK_SUCCESS);
+m_rgenRegion.stride = nvh::align_up(handleSizeAligned, m_rtProperties.shaderGroupBaseAlignment);
+m_rgenRegion.size   = m_rgenRegion.stride;  // The size member of pRayGenShaderBindingTable must be equal to its stride member
+m_missRegion.stride = handleSizeAligned;
+m_missRegion.size   = nvh::align_up(missCount * handleSizeAligned, m_rtProperties.shaderGroupBaseAlignment);
+m_hitRegion.stride  = handleSizeAligned;
+m_hitRegion.size    = nvh::align_up(hitCount * handleSizeAligned, m_rtProperties.shaderGroupBaseAlignment);
+~~~~
 
-  // Allocate a buffer for storing the SBT. Give it a debug name for NSight.
-  m_rtSBTBuffer = m_alloc.createBuffer(sbtSize,
-                                       VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
-                                           | VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR,
-                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-  m_debug.setObjectName(m_rtSBTBuffer.buffer, std::string("SBT").c_str());
+We then fetch the handles to the shader groups of the pipeline.
 
-  // Map the SBT buffer and write in the handles.
-  void* mapped = m_alloc.map(m_rtSBTBuffer);
-  auto* pData  = reinterpret_cast<uint8_t*>(mapped);
-  for(uint32_t g = 0; g < groupCount; g++)
-  {
-    memcpy(pData, shaderHandleStorage.data() + g * groupHandleSize, groupHandleSize);
-    pData += groupSizeAligned;
-  }
+~~~~ C
+// Get the shader group handles
+uint32_t             dataSize = handleCount * handleSize;
+std::vector<uint8_t> handles(dataSize);
+auto result = vkGetRayTracingShaderGroupHandlesKHR(m_device, m_rtPipeline, 0, handleCount, dataSize, handles.data());
+assert(result == VK_SUCCESS);
+~~~~
+
+The following will allocate the buffer that will hold the handle data. Note that the SBT buffer needs the `VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR` flag. In order to trace rays we will also need the address of the SBT, which requires the `VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT` flag.
+
+~~~~ C
+// Allocate a buffer for storing the SBT.
+VkDeviceSize sbtSize = m_rgenRegion.size + m_missRegion.size + m_hitRegion.size + m_callRegion.size;
+m_rtSBTBuffer        = m_alloc.createBuffer(sbtSize,
+                                     VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+                                         | VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR,
+                                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+m_debug.setObjectName(m_rtSBTBuffer.buffer, std::string("SBT"));  // Give it a debug name for NSight.
+~~~~
+
+In the next section, we store the device address of each shader group. Since we do not use callables, we leave it at 0.
+
+~~~~ C
+// Find the SBT addresses of each group
+VkBufferDeviceAddressInfo info{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, m_rtSBTBuffer.buffer};
+VkDeviceAddress           sbtAddress = vkGetBufferDeviceAddress(m_device, &info);
+m_rgenRegion.deviceAddress           = sbtAddress;
+m_missRegion.deviceAddress           = sbtAddress + m_rgenRegion.size;
+m_hitRegion.deviceAddress            = sbtAddress + m_rgenRegion.size + m_missRegion.size;
+~~~~
+
+This lambda function will return the pointer to the previously retrieved handle. We will use this function to copy the data from the handle into the SBT buffer.
+
+~~~~ C
+// Helper to retrieve the handle data
+auto getHandle = [&] (int i) { return handles.data() + i * handleSize; };
+~~~~
+
+Since our buffer is visible to the host, we will map its memory in preparation for the data copy. 
+
+~~~~ C
+// Map the SBT buffer and write in the handles.
+auto*    pSBTBuffer = reinterpret_cast<uint8_t*>(m_alloc.map(m_rtSBTBuffer));
+uint8_t* pData{nullptr};
+uint32_t handleIdx{0};
+~~~~ 
+
+Copy the RayGen handle. Only the handle data is copied, even if the stride and size are larger.
+
+~~~~ C
+// Raygen
+pData = pSBTBuffer;
+memcpy(pData, getHandle(handleIdx++), handleSize);
+~~~~
+
+Set the pointer to the beginning of the miss group and copy all the miss handles.
+We only have one miss group for now, but this for-loop will work when we add more missed shaders. 
+
+~~~~ C 
+// Miss
+pData = pSBTBuffer + m_rgenRegion.size;
+for(uint32_t c = 0; c < missCount; c++)
+{
+  memcpy(pData, getHandle(handleIdx++), handleSize);
+  pData += m_missRegion.stride;
+}
+~~~~
+
+In the same way, copy the handles for the hit group.
+
+~~~~ C
+// Hit
+pData = pSBTBuffer + m_rgenRegion.size + m_missRegion.size;
+for(uint32_t c = 0; c < hitCount; c++)
+{
+  memcpy(pData, getHandle(handleIdx++), handleSize);
+  pData += m_hitRegion.stride;
+}
+~~~~ 
+
+Finalize and Clean up.
+
+~~~~ C
   m_alloc.unmap(m_rtSBTBuffer);
   m_alloc.finalizeAndReleaseStaging();
 }
@@ -1531,19 +1606,7 @@ As with other resources, we destroy the SBT in `destroyResources`:
   m_alloc.destroy(m_rtSBTBuffer);
 ~~~~
 
-!!! Warning Size and Alignment Gotcha
-    Pay close attention to the calculation of `groupSizeAligned` (the stride used for array entries).
-    There is no guarantee that the alignment divides the group size, so rounding up is necessary.
-    Using `groupHandleSize` as the stride may coincidentally work on your hardware, but not all hardware.
-    On hardware with a smaller handle size than alignment, you can get some `shaderRecordEXT` data "for free",
-    but naïve stride calculation fails. For those with long memories, this is similar to the problem created
-    by OpenGL std140 alignment rules for `vec3`.
-    
-    Round up sizes to the next alignment using the formula
-    
-    $alignedSize = [size + (alignment - 1)]\ \texttt{&}\ \texttt{~}(alignment - 1)$
-    
-    <b>Learn from our hard experience</b>, don't find out the hard way!!!
+
 
 !!! Tip Shader order
     As with the pipeline, there is no requirement that raygen, miss, and hit groups come
@@ -1552,11 +1615,11 @@ As with other resources, we destroy the SBT in `destroyResources`:
     array used to build the pipeline. In general though, the order of the SBT need not match
     the pipeline shader stage order.
 
-!!! Tip SBTWrapper
-    To avoid potential issues in the contruction of the SBT, we have a wrapper that uses the information 
-    sent to the creation of the ray tracing pipeline to allocate the SBT. In further tutorials 
-    we might use the [`nnvk::SBTWrapper`](https://github.com/nvpro-samples/nvpro_core/tree/master/nvvk#sbtwrapper_vkhpp) 
-    instead of manually describing all steps. 
+!!! Tip SBT Wrapper
+    The number of entries per group can be retrieved from the `VkPhysicalDeviceRayTracingPipelinePropertiesKHR` that we used to create the ray tracing pipeline. The advantage of retrieving information from this structure, is that we don't have to follow a specific order. It goes beyond this tutorial, but we have a wrapper class that does all of the above automatically. You can find its implementation in 
+    [`nnvk::SBTWrapper`](https://github.com/nvpro-samples/nvpro_core/tree/master/nvvk#sbtwrapper_vkhpp).
+    Some of the extra samples will be using this class. 
+
 
 
 ## main
@@ -1578,10 +1641,6 @@ void       raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearCol
 We first bind the pipeline and its layout, and set the push constants that will be available throughout the pipeline:
 
 ~~~~ C
-m_alloc.unmap(m_rtSBTBuffer);
-m_alloc.finalizeAndReleaseStaging();
-}
-
 //--------------------------------------------------------------------------------------------------
 // Ray Tracing the scene
 //
@@ -1603,39 +1662,7 @@ void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& c
                      0, sizeof(PushConstantRay), &m_pcRay);
 ~~~~
   
-Since the structure of the Shader Binding Table is up to the developer, we need to indicate the ray tracing pipeline how
-to interpret it. In particular we compute the offsets in the SBT where the ray generation shader, miss shaders and hit
-groups can be found. We stored miss shaders and hit groups contiguously, hence we also compute the stride separating
-each shader. In our case the stride is simply the size of a shader group handle (plus padding for alignment as mentioned in the warning),
-but more advanced uses may embed shader-group-specific data within the SBT, resulting in a larger stride.
-
-The location for each array of the SBT is passed as a `VkStridedDeviceAddressRegionKHR` struct, consisting of:
-
-* The device address where the array starts
-
-* The stride in bytes between consecutive array entries
-
-* The size in bytes of the entire array
-
-~~~~ C  
-// Size of a program identifier
-uint32_t groupSize   = nvh::align_up(m_rtProperties.shaderGroupHandleSize, m_rtProperties.shaderGroupBaseAlignment);
-uint32_t groupStride = groupSize;
-
-VkBufferDeviceAddressInfo info{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, m_rtSBTBuffer.buffer};
-VkDeviceAddress           sbtAddress = vkGetBufferDeviceAddress(m_device, &info);
-
-using Stride = VkStridedDeviceAddressRegionKHR;
-std::array<Stride, 4> strideAddresses{Stride{sbtAddress + 0u * groupSize, groupStride, groupSize * 1},  // raygen
-                                      Stride{sbtAddress + 1u * groupSize, groupStride, groupSize * 1},  // miss
-                                      Stride{sbtAddress + 2u * groupSize, groupStride, groupSize * 1},  // hit
-                                      Stride{0u, 0u, 0u}};                                              // callable
-~~~~
-
-!!! NOTE Separate Arrays
-    For this simple example, as we are not storing user data in the SBT, each array of the SBT has the same stride.
-    This allows us to treat the entire SBT as a single array, but in general, different arrays within the SBT may
-    have different strides.
+Fortunately, all information about each `VkStridedDeviceAddressRegionKHR` was created in the `createRtShaderBindingTable()`.
 
 We can finally call `traceRaysKHR` that will add the ray tracing launch in the command buffer. Note that the SBT buffer
 address is mentioned several times. This is due to the possibility of separating the SBT into several buffers, one for each
@@ -1644,19 +1671,16 @@ three parameters are equivalent to the grid size of a compute launch, and repres
 we want to trace one ray per pixel, the grid size has the width and height of the output image, and a depth of 1.
 
 ~~~~ C  
-  vkCmdTraceRaysKHR(cmdBuf, &strideAddresses[0], &strideAddresses[1], &strideAddresses[2], &strideAddresses[3],
-                    m_size.width, m_size.height, 1);
-
+  vkCmdTraceRaysKHR(cmdBuf, &m_rgenRegion, &m_missRegion, &m_hitRegion, &m_callRegion, m_size.width, m_size.height, 1);
   m_debug.endLabel(cmdBuf);
 }
 ~~~~
-
 !!! TIP Raygen shader selection
     If you built a pipeline with multiple raygen shaders, the raygen shader can be selected by changing the
-    device address of the first `VkStridedDeviceAddressRegionKHR` structure (change the `0u` in `sbtAddress + 0u * groupSize`).
+    device address.
 
 !!! TIP SBTWrapper 
-    When using the SBTWrapper, the above could be replaced by
+    When using the SBTWrapper, the above could be replaced by folowing.
     ```
     auto& regions = m_stbWrapper.getRegions();
     vkCmdTraceRaysKHR(cmdBuf, &regions[0], &regions[1], &regions[2], &regions[3], size.width, size.height, 1);
@@ -1893,18 +1917,21 @@ fact that `clearColor` is the first member in the struct, and do not even declar
 
 ~~~~ C
 #extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+
 #include "raycommon.glsl"
+#include "wavefront.glsl"
 
 layout(location = 0) rayPayloadInEXT hitPayload prd;
 
-layout(push_constant) uniform Constants
+layout(push_constant) uniform _PushConstantRay
 {
-  vec4 clearColor;
+  PushConstantRay pcRay;
 };
 
 void main()
 {
-  prd.hitValue = clearColor.xyz * 0.8;
+  prd.hitValue = pcRay.clearColor.xyz * 0.8;
 }
 ~~~~
 
@@ -2192,32 +2219,16 @@ The pipeline now has to allow shooting rays from the closest hit program, which 
     
     Recall that `m_rtProperties` was filled in in `HelloVulkan::initRayTracing`.
 
-## `traceRaysKHR`
+## `createRtShaderBindingTable`
 
 The addition of the new miss shader group has modified our shader binding table, which now looks like:
 
-******************
-*+--------------+*
-*| RayGen       |*
-*| Handle       |*
-*+--------------+*
-*| Miss         |*
-*| Handle (0)   |*
-*+··············+*
-*| ShadowMiss   |*
-*| Handle (1)   |*
-*+--------------+*
-*| HitGroup     |*
-*| Handle       |*
-*+--------------+*
-******************
+![](images/sbt_1.png)
 
-Therefore, we have to change `HelloVulkan::raytrace` to adjust the the closest hit offset before calling `traceRaysKHR`.
-This also points out that in real-world applications the SBT should be embedded so that it can handle those offsets
-automatically.
+Therefore, we have to change `HelloVulkan::createRtShaderBindingTable` to indicate that there are two miss shaders. 
 
 ~~~~ C
-Stride{sbtAddress + 3u * groupSize, groupStride, groupSize * 1},  // hit - Jump over the raygen and 2 miss shaders
+uint32_t missCount{2};
 ~~~~
 
 ## `createRtDescriptorSet`
