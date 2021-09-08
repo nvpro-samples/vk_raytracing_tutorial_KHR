@@ -1448,7 +1448,7 @@ The SBT is a collection of up to four arrays containing the handles of the shade
 
 The buffer will have the following structure, which will be used later when calling `vkCmdTraceRaysKHR`:
 
-![](images/sbt_0.png)
+![](Images/sbt_0.png)
 
 We will ensure that all starting groups start with an address aligned to `shaderGroupBaseAlignment` and that each entry in the group is aligned to `shaderGroupHandleAlignment` bytes. 
 All group entries are aligned with `shaderGroupHandleAlignment`. 
@@ -2223,7 +2223,7 @@ The pipeline now has to allow shooting rays from the closest hit program, which 
 
 The addition of the new miss shader group has modified our shader binding table, which now looks like:
 
-![](images/sbt_1.png)
+![](Images/sbt_1.png)
 
 Therefore, we have to change `HelloVulkan::createRtShaderBindingTable` to indicate that there are two miss shaders. 
 
