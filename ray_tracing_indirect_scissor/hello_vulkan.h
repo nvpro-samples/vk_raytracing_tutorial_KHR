@@ -206,7 +206,12 @@ public:
   VkDescriptorSet                                   m_lanternIndirectDescSet;
   VkPipelineLayout                                  m_lanternIndirectCompPipelineLayout;
   VkPipeline                                        m_lanternIndirectCompPipeline;
-  nvvk::Buffer                                      m_rtSBTBuffer;
+
+  nvvk::Buffer                    m_rtSBTBuffer;
+  VkStridedDeviceAddressRegionKHR m_rgenRegion{};
+  VkStridedDeviceAddressRegionKHR m_missRegion{};
+  VkStridedDeviceAddressRegionKHR m_hitRegion{};
+  VkStridedDeviceAddressRegionKHR m_callRegion{};
 
   // Buffer to source vkCmdTraceRaysIndirectKHR indirect parameters and lantern color,
   // position, etc. from when doing lantern lighting passes.

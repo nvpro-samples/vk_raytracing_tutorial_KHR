@@ -133,16 +133,10 @@ This information can be used to pass extra information to a shader, for each ent
  **:warning: Note:**
     Since each entry in an SBT group must have the same size, each entry of the group has to have enough space to accommodate the largest element in the entire group.
 
-The following diagram represents our current SBT, with the addition of some data to `HitGroup1`. As mentioned in the **note**, even if
-`HitGroup0` doesn't have any shader record data, it still needs to have the same size as `HitGroup1`, the largest of the hit group.
+The following diagram represents our current SBT, with some data added to `HitGroup1`. As mentioned in the **note**, even though `HitGroup0` has no shader record data, it still needs to be the same size as `HitGroup1`, the largest of the hit group and aligned to the Handle alignment.
 
-|Group|Handle|
-| ------ | ------ |
-| RayGen    | Handle 0 |
-| Miss0      | Handle 1 |
-| Miss1      | Handle 2 |
-| HitGroup0 | Handle 3 </br>-Empty-   |
-| HitGroup1 | Handle 4 </br> Data 0   |
+![](images/sbt_0.png)
+
 
 ## `hello_vulkan.h`
 
@@ -200,15 +194,8 @@ data `m_hitShaderRecord` to the Hit group.
   // Find handle indices and add data
   m_sbtWrapper.addIndices(rayPipelineInfo);
   m_sbtWrapper.addData(SBTWrapper::eHit, 1, m_hitShaderRecord[0]);
-  m_sbtWrapper.addData(SBTWrapper::eHit, 2, m_hitShaderRecord[1]);
   m_sbtWrapper.create(m_rtPipeline);
 ````
-
-The buffer for Hit will have the following layout
-
-```
-| handle       | handle,data  | handle,data   |
-```
 
 The wrapper will make sure the stride covers the largest data and is aligned
 based on the GPU properties.
@@ -217,96 +204,27 @@ based on the GPU properties.
 
 ~~Since we are no longer compacting all handles in a continuous buffer, we need to fill the SBT as described above.~~
 
-~~After retrieving the handles of all 5 groups (raygen, miss, miss shadow, hit0, and hit1)
-using `getRayTracingShaderGroupHandlesKHR`, store the pointers to easily retrieve them.~~
-
 ~~~~ C++
-  // Retrieve the handle pointers
-  std::vector<uint8_t*> handles(groupCount);
-  for(uint32_t i = 0; i < groupCount; i++)
-  {
-    handles[i] = &shaderHandleStorage[i * groupHandleSize];
-  }
-~~~~
-
-~~The size of each group can be described as follows:~~
-
-~~~~ C++
-  // Sizes
-  uint32_t rayGenSize = baseAlignment;
-  uint32_t missSize   = baseAlignment;
-  uint32_t hitSize =
-      ROUND_UP(groupHandleSize + static_cast<int>(sizeof(HitRecordBuffer)), baseAlignment);
-  uint32_t newSbtSize = rayGenSize + 2 * missSize + 2 * hitSize;
+  m_hitRegion.stride  = nvh::align_up(handleSize + sizeof(HitRecordBuffer), m_rtProperties.shaderGroupHandleAlignment);
 ~~~~
 
 ~~Then write the new SBT like this, where only Hit 1 has extra data.~~
 
 ~~~~ C++
-  std::vector<uint8_t> sbtBuffer(newSbtSize);
-  {
-    uint8_t* pBuffer = sbtBuffer.data();
+  // Hit
+  pData = pSBTBuffer + m_rgenRegion.size + m_missRegion.size;
+  memcpy(pData, getHandle(handleIdx++), handleSize);
 
-    memcpy(pBuffer, handles[0], groupHandleSize);  // Raygen
-    pBuffer += rayGenSize;
-    memcpy(pBuffer, handles[1], groupHandleSize);  // Miss 0
-    pBuffer += missSize;
-    memcpy(pBuffer, handles[2], groupHandleSize);  // Miss 1
-    pBuffer += missSize;
-
-    uint8_t* pHitBuffer = pBuffer;
-    memcpy(pHitBuffer, handles[3], groupHandleSize);  // Hit 0
-    // No data
-    pBuffer += hitSize;
-
-    pHitBuffer = pBuffer;
-    memcpy(pHitBuffer, handles[4], groupHandleSize);  // Hit 1
-    pHitBuffer += groupHandleSize;
-    memcpy(pHitBuffer, &m_hitShaderRecord[0], sizeof(HitRecordBuffer));  // Hit 1 data
-    pBuffer += hitSize;
-  }
+  // hit 1
+  pData = pSBTBuffer + m_rgenRegion.size + m_missRegion.size + m_hitRegion.stride;
+  memcpy(pData, getHandle(handleIdx++), handleSize);
+  pData += handleSize;
+  memcpy(pData, &m_hitShaderRecord[0], sizeof(HitRecordBuffer));  // Hit 1 data
 ~~~~
 
-~~Then change the call to `m_alloc.createBuffer` to create the SBT buffer from `sbtBuffer`:~~
+## Ray Trace
 
-~~~~ C++
-  m_rtSBTBuffer = m_alloc.createBuffer(cmdBuf, sbtBuffer, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR);
-~~~~
-
-### `raytrace`
-
-**:star:NEW:star:**
-
-The mvvk::SBTWrapper gives use the information without having to compute the `VkStridedDeviceAddressRegionKHR`
-
-``` C
-  auto& regions = m_sbtWrapper.getRegions();
-  vkCmdTraceRaysKHR(cmdBuf, &regions[0], &regions[1], &regions[2], &regions[3], m_size.width, m_size.height, 1);
-```
-
-**OLD**
-
-~~Finally, since the size of the hit group is now larger than just the handle, we need to set the new value of the hit group stride in `HelloVulkan::raytrace`.~~
-
-~~~~ C++
-  VkDeviceSize hitGroupSize =
-      nvh::align_up(m_rtProperties.shaderGroupHandleSize + sizeof(HitRecordBuffer),
-                    m_rtProperties.shaderGroupBaseAlignment);
-~~~~
-
-~~The stride device address will be modified like this:~~
-
-~~~~ C++
-  using Stride = VkStridedDeviceAddressRegionKHR;
-  std::array<Stride, 4> strideAddresses{
-      Stride{sbtAddress + 0u * groupSize, groupStride, groupSize * 1},      // raygen
-      Stride{sbtAddress + 1u * groupSize, groupStride, groupSize * 2},      // miss
-      Stride{sbtAddress + 3u * groupSize, hitGroupSize, hitGroupSize * 3},  // hit
-      Stride{0u, 0u, 0u}};                                                  // callable
-~~~~
-
-~~**Note:**
-    The result should now show both `wuson` models with a yellow color.~~
+The result should now show both `wuson` models with a yellow color.~~
 
 ![](images/manyhits4.png)
 
@@ -316,14 +234,8 @@ The SBT can be larger than the number of shading models, which could then be use
 
 The following modification will add another entry to the SBT with a different color per instance. The new SBT hit group (2) will use the same CHIT handle (4) as hit group 1.
 
-|Group|Handle|
-| ------ | ------ |
-| RayGen    | Handle 0 |
-| Miss0      | Handle 1 |
-| Miss1      | Handle 2 |
-| HitGroup0 | Handle 3 </br>-Empty-   |
-| HitGroup1 | Handle 4 </br> Data 0   |
-| HitGroup1 | Handle 4 </br> Data 1   |
+![](images/sbt_1.png)
+
 
 ### `main.cpp`
 
@@ -342,25 +254,24 @@ In the description of the scene in `main`, we will tell the `wuson` models to us
 
 **:star:NEW:star:** 
 
-If you are using the SBT wrapper, this part is automatically handled.
+If you are using the SBT wrapper, make sure to add the data to the third Hit (2).
+
+~~~~ C
+  // Find handle indices and add data
+  m_sbtWrapper.addIndices(rayPipelineInfo);
+  m_sbtWrapper.addData(nvvk::SBTWrapper::eHit, 1, m_hitShaderRecord[0]);
+  m_sbtWrapper.addData(nvvk::SBTWrapper::eHit, 2, m_hitShaderRecord[1]);
+  m_sbtWrapper.create(m_rtPipeline);
+~~~~
 
 **OLD**
 
-
-~~The size of the SBT will now account for its 3 hit groups:~~
-
 ~~~~ C++
- uint32_t newSbtSize = rayGenSize + 2 * missSize + 3 * hitSize;
-~~~~
-
-~~Finally, we need to add the new entry as well at the end of the buffer, reusing the handle of the second Hit Group and setting a different color.~~
-
-~~~~ C++
-    pHitBuffer = pBuffer;
-    memcpy(pHitBuffer, handles[4], groupHandleSize);  // Hit 2
-    pHitBuffer += groupHandleSize;
-    memcpy(pHitBuffer, &m_hitShaderRecord[1], sizeof(HitRecordBuffer));  // Hit 2 data
-    pBuffer += hitSize;
+  // hit 2
+  pData = pSBTBuffer + m_rgenRegion.size + m_missRegion.size + (2 * m_hitRegion.stride);
+  memcpy(pData, getHandle(handleIdx++), handleSize);
+  pData += handleSize;
+  memcpy(pData, &m_hitShaderRecord[1], sizeof(HitRecordBuffer));  // Hit 2 data
 ~~~~
 
 ~~**Note:**

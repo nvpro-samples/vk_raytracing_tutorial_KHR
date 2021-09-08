@@ -145,8 +145,14 @@ public:
   std::vector<VkRayTracingShaderGroupCreateInfoKHR> m_rtShaderGroups;
   VkPipelineLayout                                  m_rtPipelineLayout;
   VkPipeline                                        m_rtPipeline;
-  nvvk::Buffer                                      m_rtSBTBuffer;
-  int                                               m_maxFrames{10000};
+
+  nvvk::Buffer                    m_rtSBTBuffer;
+  VkStridedDeviceAddressRegionKHR m_rgenRegion{};
+  VkStridedDeviceAddressRegionKHR m_missRegion{};
+  VkStridedDeviceAddressRegionKHR m_hitRegion{};
+  VkStridedDeviceAddressRegionKHR m_callRegion{};
+
+  int m_maxFrames{10000};
 
   // Push constant for ray tracer
   PushConstantRay m_pcRay{};

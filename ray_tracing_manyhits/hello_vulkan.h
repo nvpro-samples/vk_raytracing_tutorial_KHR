@@ -28,8 +28,12 @@
 
 // #VKRay
 #include "nvvk/raytraceKHR_vk.hpp"
+
+
+#define USE_SBT_WRAPPER
+#ifdef USE_SBT_WRAPPER
 #include "nvvk/sbtwrapper_vk.hpp"
-using nvvk::SBTWrapper;
+#endif
 
 //--------------------------------------------------------------------------------------------------
 // Simple rasterizer of OBJ objects
@@ -147,7 +151,16 @@ public:
   std::vector<VkRayTracingShaderGroupCreateInfoKHR> m_rtShaderGroups;
   VkPipelineLayout                                  m_rtPipelineLayout;
   VkPipeline                                        m_rtPipeline;
-  nvvk::Buffer                                      m_rtSBTBuffer;
+
+#ifdef USE_SBT_WRAPPER
+  nvvk::SBTWrapper m_sbtWrapper;
+#else
+  nvvk::Buffer                    m_rtSBTBuffer;
+  VkStridedDeviceAddressRegionKHR m_rgenRegion{};
+  VkStridedDeviceAddressRegionKHR m_missRegion{};
+  VkStridedDeviceAddressRegionKHR m_hitRegion{};
+  VkStridedDeviceAddressRegionKHR m_callRegion{};
+#endif
 
   // Push constant for ray tracer
   PushConstantRay m_pcRay{};
@@ -157,6 +170,4 @@ public:
     nvmath::vec4f color;
   };
   std::vector<HitRecordBuffer> m_hitShaderRecord;
-
-  nvvk::SBTWrapper m_sbtWrapper;
 };
