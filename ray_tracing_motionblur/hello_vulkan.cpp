@@ -663,13 +663,18 @@ void HelloVulkan::createBottomLevelAS()
 }
 
 
+//--------------------------------------------------------------------------------------------------
+//
+//
 void HelloVulkan::createTopLevelAS()
 {
-  // This is to fix a padding issue 2021.08.13
+  // VkAccelerationStructureMotionInstanceNV must have a stride of 160 bytes.
+  // See https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkAccelerationStructureGeometryInstancesDataKHR.html
   struct VkAccelerationStructureMotionInstanceNVPad : VkAccelerationStructureMotionInstanceNV
   {
-    short _pad;
+    uint64_t _pad{0};
   };
+  static_assert((sizeof(VkAccelerationStructureMotionInstanceNVPad) == 160));
 
   // #NV_Motion_blur
   uint32_t                                                objId;
@@ -679,7 +684,7 @@ void HelloVulkan::createTopLevelAS()
   objId = 0;
   {
     // Position of the instance at T0 and T1
-    nvmath::mat4f matT0 = m_instances[0].transform;  // Identity
+    nvmath::mat4f matT0 = m_instances[0].transform;
     nvmath::mat4f matT1 = nvmath::translation_mat4(nvmath::vec3f(0.30f, 0.0f, 0.0f)) * matT0;
 
     VkAccelerationStructureMatrixMotionInstanceNV data;
