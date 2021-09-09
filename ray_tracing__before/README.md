@@ -5,6 +5,8 @@ It is the starting point of the [ray tracing tutorial](https://nvpro-samples.git
 the source of the application where ray tracing will be added.
 ![](images/vk_ray_tracing__before.png)
 
+![](images/vk_ray_tracing__before.png)
+
 Before starting the tutorial and adding what is necessary to enable ray tracing, here is a brief description of how this basic example was created.
 ## Structure
 
