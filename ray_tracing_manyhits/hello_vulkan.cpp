@@ -890,13 +890,13 @@ void HelloVulkan::createRtShaderBindingTable()
 
   // The SBT (buffer) need to have starting groups to be aligned and handles in the group to be aligned.
   uint32_t handleSizeAligned = nvh::align_up(handleSize, m_rtProperties.shaderGroupHandleAlignment);
-  
+
   m_rgenRegion.stride = nvh::align_up(handleSizeAligned, m_rtProperties.shaderGroupBaseAlignment);
-  m_rgenRegion.size   = m_rgenRegion.stride;  // The size member of pRayGenShaderBindingTable must be equal to its stride member
+  m_rgenRegion.size = m_rgenRegion.stride;  // The size member of pRayGenShaderBindingTable must be equal to its stride member
   m_missRegion.stride = handleSizeAligned;
-  m_missRegion.size   = nvh::align_up(missCount * handleSizeAligned, m_rtProperties.shaderGroupBaseAlignment);
+  m_missRegion.size   = nvh::align_up(missCount * m_missRegion.stride, m_rtProperties.shaderGroupBaseAlignment);
   m_hitRegion.stride  = nvh::align_up(handleSize + sizeof(HitRecordBuffer), m_rtProperties.shaderGroupHandleAlignment);
-  m_hitRegion.size    = nvh::align_up(hitCount * handleSizeAligned, m_rtProperties.shaderGroupBaseAlignment);
+  m_hitRegion.size    = nvh::align_up(hitCount * m_hitRegion.stride, m_rtProperties.shaderGroupBaseAlignment);
 
   // Allocate a buffer for storing the SBT.
   VkDeviceSize sbtSize = m_rgenRegion.size + m_missRegion.size + m_hitRegion.size + m_callRegion.size;
@@ -934,17 +934,18 @@ void HelloVulkan::createRtShaderBindingTable()
   pData = pSBTBuffer + m_rgenRegion.size + m_missRegion.size;
   memcpy(pData, getHandle(handleIdx++), handleSize);
 
+  auto recordDataSize = sizeof(HitRecordBuffer);
   // hit 1
   pData = pSBTBuffer + m_rgenRegion.size + m_missRegion.size + m_hitRegion.stride;
   memcpy(pData, getHandle(handleIdx++), handleSize);
   pData += handleSize;
-  memcpy(pData, &m_hitShaderRecord[0], sizeof(HitRecordBuffer));  // Hit 1 data
+  memcpy(pData, &m_hitShaderRecord[0], recordDataSize);  // Hit 1 data
 
   // hit 2
   pData = pSBTBuffer + m_rgenRegion.size + m_missRegion.size + (2 * m_hitRegion.stride);
   memcpy(pData, getHandle(handleIdx++), handleSize);
   pData += handleSize;
-  memcpy(pData, &m_hitShaderRecord[1], sizeof(HitRecordBuffer));  // Hit 2 data
+  memcpy(pData, &m_hitShaderRecord[1], recordDataSize);  // Hit 2 data
 
 
   m_alloc.unmap(m_rtSBTBuffer);
