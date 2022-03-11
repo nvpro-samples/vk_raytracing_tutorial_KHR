@@ -54,7 +54,7 @@ static void onErrorCallback(int error, const char* description)
 void renderUI(HelloVulkan& helloVk)
 {
   ImGuiH::CameraWidget();
-  ImGui::SetNextTreeNodeOpen(true, ImGuiCond_Once);
+  ImGui::SetNextItemOpen(true, ImGuiCond_Once);
   if(ImGui::CollapsingHeader("Light"))
   {
     ImGui::RadioButton("Point", &helloVk.m_pcRaster.lightType, 0);

@@ -34,7 +34,7 @@ public:
   void setup(const VkDevice& device, const VkPhysicalDevice& physicalDevice, nvvk::ResourceAllocator* allocator, uint32_t queueFamily);
   void destroy();
 
-  void createFramebuffer(VkExtent2D& size);
+  void createFramebuffer(const VkExtent2D& size);
   void createPipeline(VkRenderPass& renderPass);
   void createDescriptor();
   void updateDescriptorSet();

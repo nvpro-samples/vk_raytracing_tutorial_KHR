@@ -76,8 +76,8 @@ public:
       {1},                    // model identity
       {10.f, 15.f, 8.f},      // lightPosition
       {0},                    // instanceId to retrieve the transformation matrix
-      {100.f},                // lightIntensity
       {-1.f, -1.f, -1.f},     // lightDirection
+      {100.f},                // lightIntensity
       {cos(deg2rad(12.5f))},  // lightSpotCutoff
       {cos(deg2rad(17.5f))},  // lightSpotOuterCutoff
       {0}                     // lightType 0: point, 1: infinite

@@ -63,7 +63,7 @@ void renderUI(HelloVulkan& helloVk)
     ImGui::SliderFloat3("Position", &helloVk.m_pcRaster.lightPosition.x, -20.f, 20.f);
     ImGui::SliderFloat("Intensity", &helloVk.m_pcRaster.lightIntensity, 0.f, 150.f);
   }
-  ImGui::Text("Nb Spheres and Cubes: %llu", helloVk.m_spheres.size());
+  ImGui::Text("Nb Spheres and Cubes: %lu", helloVk.m_spheres.size());
 }
 
 //////////////////////////////////////////////////////////////////////////

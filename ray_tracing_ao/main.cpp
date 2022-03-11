@@ -216,7 +216,7 @@ int main(int argc, char** argv)
         ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
 
         renderUI(helloVk);
-        ImGui::SetNextTreeNodeOpen(true, ImGuiCond_Once);
+        ImGui::SetNextItemOpen(true, ImGuiCond_Once);
         if(ImGui::CollapsingHeader("Ambient Occlusion"))
         {
           bool changed{false};

@@ -56,7 +56,7 @@ void Offscreen::destroy()
 //--------------------------------------------------------------------------------------------------
 // Creating an offscreen frame buffer and the associated render pass
 //
-void Offscreen::createFramebuffer(VkExtent2D& size)
+void Offscreen::createFramebuffer(const VkExtent2D& size)
 {
   m_alloc->destroy(m_colorTexture);
   m_alloc->destroy(m_depthTexture);
