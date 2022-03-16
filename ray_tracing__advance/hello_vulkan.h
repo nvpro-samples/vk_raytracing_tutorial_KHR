@@ -79,14 +79,14 @@ public:
 
   // Information pushed at each draw call
   PushConstantRaster m_pcRaster{
-      {1},                    // Identity matrix
-      {10.f, 15.f, 8.f},      // light position
-      0,                      // instance Id
-      {1, 0, 0},              // lightDirection;
-      {cos(deg2rad(12.5f))},  // lightSpotCutoff;
-      {cos(deg2rad(17.5f))},  // lightSpotOuterCutoff;
-      100.f,                  // light intensity
-      0                       // light type
+      {1},                 // Identity matrix
+      {10.f, 15.f, 8.f},   // light position
+      0,                   // instance Id
+      {-1.f, -1.f, -.4f},  // lightDirection;
+      0.939692621f,        // {cos(deg2rad(20.0f))},  // lightSpotCutoff;
+      0.866025404f,        // {cos(deg2rad(30.0f))},  // lightSpotOuterCutoff;
+      100.f,               // light intensity
+      0                    // light type
   };
 
   // Array of objects and instances in the scene
