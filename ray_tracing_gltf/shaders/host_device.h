@@ -23,6 +23,7 @@
 
 #ifdef __cplusplus
 #include "nvmath/nvmath.h"
+#include <stdint.h> /* for uint64_t */
 // GLSL Type
 using vec2 = nvmath::vec2f;
 using vec3 = nvmath::vec3f;
