@@ -1,4 +1,5 @@
 **/spv/*.spv
 /build/*
 /out/build/x64-Debug
+/out/install/x64-Debug
 /.vs
