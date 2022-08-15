@@ -725,7 +725,6 @@ void HelloVulkan::createRtPipeline()
   {
     eRaygen,
     eMiss,
-    eMiss2,
     eClosestHit,
     eShaderGroupCount
   };
@@ -742,11 +741,6 @@ void HelloVulkan::createRtPipeline()
   stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/pathtrace.rmiss.spv", true, defaultSearchPaths, true));
   stage.stage   = VK_SHADER_STAGE_MISS_BIT_KHR;
   stages[eMiss] = stage;
-  // The second miss shader is invoked when a shadow ray misses the geometry. It simply indicates that no occlusion has been found
-  stage.module =
-      nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytraceShadow.rmiss.spv", true, defaultSearchPaths, true));
-  stage.stage    = VK_SHADER_STAGE_MISS_BIT_KHR;
-  stages[eMiss2] = stage;
   // Hit Group - Closest Hit
   stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/pathtrace.rchit.spv", true, defaultSearchPaths, true));
   stage.stage         = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
@@ -768,11 +762,6 @@ void HelloVulkan::createRtPipeline()
   // Miss
   group.type          = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
   group.generalShader = eMiss;
-  m_rtShaderGroups.push_back(group);
-
-  // Shadow Miss
-  group.type          = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-  group.generalShader = eMiss2;
   m_rtShaderGroups.push_back(group);
 
   // closest hit shader
