@@ -61,6 +61,8 @@ add_subdirectory(ray_tracing_specialization)
 add_subdirectory(ray_tracing_advanced_compilation)
 add_subdirectory(ray_tracing_motionblur)
 
+add_subdirectory(photon_beam)
+
 
 #--------------------------------------------------------------------------------------------------
 # Install - copying the media directory
