@@ -183,16 +183,16 @@ void HelloVulkan::createGraphicsPipeline()
 
 void HelloVulkan::createBeamBoundingBox()
 {
-  std::vector<vec3> verticies;
+  std::vector<nvmath::vec3f> verticies;
   verticies.resize(m_beamBoxLength * 4 + 1);
 
   std::vector<uint32_t> indices;
   indices.resize(6 + m_beamBoxLength * 24);
 
-  verticies.push_back(vec3(m_beamRadius, m_beamRadius, 0.0f));
-  verticies.push_back(vec3(m_beamRadius, -m_beamRadius, 0.0f));
-  verticies.push_back(vec3(-m_beamRadius, -m_beamRadius, 0.0f));
-  verticies.push_back(vec3(-m_beamRadius, m_beamRadius, 0.0f));
+  verticies.push_back(nvmath::vec3f(m_beamRadius, m_beamRadius, 0.0f));
+  verticies.push_back(nvmath::vec3f(m_beamRadius, -m_beamRadius, 0.0f));
+  verticies.push_back(nvmath::vec3f(-m_beamRadius, -m_beamRadius, 0.0f));
+  verticies.push_back(nvmath::vec3f(-m_beamRadius, m_beamRadius, 0.0f));
 
   // indeices for the first square
   indices.push_back(0);
@@ -205,10 +205,10 @@ void HelloVulkan::createBeamBoundingBox()
 
   for(int i=0; i < m_beamBoxLength; ++i)
   {
-    verticies.push_back(vec3(m_beamRadius, m_beamRadius, (i + 1) * 2.0 * m_beamRadius));
-    verticies.push_back(vec3(m_beamRadius, -m_beamRadius, (i + 1) * 2.0 * m_beamRadius));
-    verticies.push_back(vec3(-m_beamRadius, -m_beamRadius, (i + 1) * 2.0 * m_beamRadius));
-    verticies.push_back(vec3(-m_beamRadius, m_beamRadius, (i + 1) * 2.0 * m_beamRadius));
+    verticies.push_back(nvmath::vec3f(m_beamRadius, m_beamRadius, (i + 1) * 2.0 * m_beamRadius));
+    verticies.push_back(nvmath::vec3f(m_beamRadius, -m_beamRadius, (i + 1) * 2.0 * m_beamRadius));
+    verticies.push_back(nvmath::vec3f(-m_beamRadius, -m_beamRadius, (i + 1) * 2.0 * m_beamRadius));
+    verticies.push_back(nvmath::vec3f(-m_beamRadius, m_beamRadius, (i + 1) * 2.0 * m_beamRadius));
 
     for(int j = 0; j < 4; ++j)
     {
@@ -668,6 +668,42 @@ void HelloVulkan::initRayTracing()
   m_sbtWrapper.setup(m_device, m_graphicsQueueIndex, &m_alloc, m_rtProperties);
 }
 
+auto HelloVulkan::getBeamBoxVkGeometry() 
+{
+  VkDeviceAddress vertexAddress = nvvk::getBufferDeviceAddress(m_device, m_beamBoxVertexBuffer.buffer);
+  VkDeviceAddress indexAddress  = nvvk::getBufferDeviceAddress(m_device, m_beamBoxIndexBuffer.buffer);
+
+  uint32_t maxPrimitiveCount = m_beamBoxLength * 8  + 4;
+
+  VkAccelerationStructureGeometryTrianglesDataKHR triangles{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR};
+  triangles.vertexFormat             = VK_FORMAT_R32G32B32_SFLOAT; 
+  triangles.vertexData.deviceAddress = vertexAddress;
+  triangles.vertexStride             = sizeof(nvmath::vec3f);
+  triangles.indexType               = VK_INDEX_TYPE_UINT32;
+  triangles.indexData.deviceAddress = indexAddress;
+
+  triangles.maxVertex = m_beamBoxLength * 4 + 4;
+
+  // Identify the above data as containing opaque triangles.
+  VkAccelerationStructureGeometryKHR asGeom{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
+  asGeom.geometryType       = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+  asGeom.flags              = VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR;  // For AnyHit
+  asGeom.geometry.triangles = triangles;
+
+  VkAccelerationStructureBuildRangeInfoKHR offset;
+  offset.firstVertex     = 0;
+  offset.primitiveCount  = maxPrimitiveCount;
+  offset.primitiveOffset = 0;
+  offset.transformOffset = 0;
+
+  // Our blas is made from only one geometry, but could be made of many geometries
+  nvvk::RaytracingBuilderKHR::BlasInput input;
+  input.asGeometry.emplace_back(asGeom);
+  input.asBuildOffsetInfo.emplace_back(offset);
+
+  return input;
+}
+
 //--------------------------------------------------------------------------------------------------
 // Converting a GLTF primitive in the Raytracing Geometry used for the BLAS
 //
@@ -718,12 +754,14 @@ void HelloVulkan::createBottomLevelAS()
 {
   // BLAS - Storing each primitive in a geometry
   std::vector<nvvk::RaytracingBuilderKHR::BlasInput> allBlas;
-  allBlas.reserve(m_gltfScene.m_primMeshes.size());
+  allBlas.reserve(m_gltfScene.m_primMeshes.size() + 1);
   for(auto& primMesh : m_gltfScene.m_primMeshes)
   {
     auto geo = primitiveToVkGeometry(primMesh);
     allBlas.push_back({geo});
   }
+  auto beamBoxGeo = getBeamBoxVkGeometry();
+  allBlas.push_back({beamBoxGeo});
   m_rtBuilder.buildBlas(allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 }
 

@@ -118,6 +118,7 @@ public:
 
   // #VKRay
   void initRayTracing();
+  auto getBeamBoxVkGeometry();
   auto primitiveToVkGeometry(const nvh::GltfPrimMesh& prim);
   void createBottomLevelAS();
   void createTopLevelAS();
