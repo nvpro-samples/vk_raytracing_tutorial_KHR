@@ -65,6 +65,9 @@ public:
   nvvk::Buffer   m_primInfo;
   nvvk::Buffer   m_sceneDesc;
 
+  nvvk::Buffer m_beamBoxVertexBuffer;
+  nvvk::Buffer m_beamBoxIndexBuffer;
+
   float m_beamRadius{16.0f};
   int   m_beamBoxLength{8};
 

@@ -181,7 +181,7 @@ void HelloVulkan::createGraphicsPipeline()
   m_debug.setObjectName(m_graphicsPipeline, "Graphics");
 }
 
-void HelloVulkan::createBeamBoundingBox() 
+void HelloVulkan::createBeamBoundingBox()
 {
   std::vector<vec3> verticies;
   verticies.resize(m_beamBoxLength * 4 + 1);
@@ -240,6 +240,25 @@ void HelloVulkan::createBeamBoundingBox()
   indices.push_back(m_beamBoxLength * 4 - 1);
   indices.push_back(m_beamBoxLength * 4 - 4);
 
+  nvvk::CommandPool cmdBufGet(m_device, m_graphicsQueueIndex);
+  VkCommandBuffer   cmdBuf = cmdBufGet.createCommandBuffer();
+
+  m_beamBoxVertexBuffer = m_alloc.createBuffer(
+      cmdBuf, 
+      verticies,
+      VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
+  );
+  m_beamBoxIndexBuffer  = m_alloc.createBuffer(
+      cmdBuf, 
+      indices, 
+      VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
+  );
+
+  cmdBufGet.submitAndWait(cmdBuf);
+  m_alloc.finalizeAndReleaseStaging();
+
+  NAME_VK(m_beamBoxVertexBuffer.buffer);
+  NAME_VK(m_beamBoxIndexBuffer.buffer);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -409,6 +428,9 @@ void HelloVulkan::destroyResources()
   m_alloc.destroy(m_materialBuffer);
   m_alloc.destroy(m_primInfo);
   m_alloc.destroy(m_sceneDesc);
+
+  m_alloc.destroy(m_beamBoxVertexBuffer);
+  m_alloc.destroy(m_beamBoxIndexBuffer);
 
   for(auto& t : m_textures)
   {
