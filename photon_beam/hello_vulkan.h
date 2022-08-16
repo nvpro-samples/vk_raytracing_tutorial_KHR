@@ -125,6 +125,11 @@ public:
   void createRtDescriptorSet();
   void updateRtDescriptorSet();
   void createRtPipeline();
+
+  void createPbDescriptorSet();
+  void updatePbDescriptorSet();
+  void createPbPipeline();
+
   void raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor);
   void updateFrame();
   void resetFrame();
