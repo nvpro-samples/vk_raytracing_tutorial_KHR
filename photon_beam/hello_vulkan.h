@@ -45,6 +45,7 @@ public:
   void setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t queueFamily) override;
   void createDescriptorSetLayout();
   void createGraphicsPipeline();
+  void createBeamBoundingBox();
   void loadScene(const std::string& filename);
   void updateDescriptorSet();
   void createUniformBuffer();
@@ -63,6 +64,9 @@ public:
   nvvk::Buffer   m_materialBuffer;
   nvvk::Buffer   m_primInfo;
   nvvk::Buffer   m_sceneDesc;
+
+  float m_beamRadius{16.0f};
+  int   m_beamBoxLength{8};
 
   // Information pushed at each draw call
   PushConstantRaster m_pcRaster{

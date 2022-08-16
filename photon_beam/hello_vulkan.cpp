@@ -181,6 +181,67 @@ void HelloVulkan::createGraphicsPipeline()
   m_debug.setObjectName(m_graphicsPipeline, "Graphics");
 }
 
+void HelloVulkan::createBeamBoundingBox() 
+{
+  std::vector<vec3> verticies;
+  verticies.resize(m_beamBoxLength * 4 + 1);
+
+  std::vector<uint32_t> indices;
+  indices.resize(6 + m_beamBoxLength * 24);
+
+  verticies.push_back(vec3(m_beamRadius, m_beamRadius, 0.0f));
+  verticies.push_back(vec3(m_beamRadius, -m_beamRadius, 0.0f));
+  verticies.push_back(vec3(-m_beamRadius, -m_beamRadius, 0.0f));
+  verticies.push_back(vec3(-m_beamRadius, m_beamRadius, 0.0f));
+
+  // indeices for the first square
+  indices.push_back(0);
+  indices.push_back(1);
+  indices.push_back(2);
+
+  indices.push_back(2);
+  indices.push_back(3);
+  indices.push_back(0);
+
+  for(int i=0; i < m_beamBoxLength; ++i)
+  {
+    verticies.push_back(vec3(m_beamRadius, m_beamRadius, (i + 1) * 2.0 * m_beamRadius));
+    verticies.push_back(vec3(m_beamRadius, -m_beamRadius, (i + 1) * 2.0 * m_beamRadius));
+    verticies.push_back(vec3(-m_beamRadius, -m_beamRadius, (i + 1) * 2.0 * m_beamRadius));
+    verticies.push_back(vec3(-m_beamRadius, m_beamRadius, (i + 1) * 2.0 * m_beamRadius));
+
+    for(int j = 0; j < 4; ++j)
+    {
+      // indices of verticies created_in previous iteration  
+      uint32_t vertex_old_1 = i * 4 + j;
+      uint32_t vertex_old_2 = i * 4 + ((j + 1) % 4); 
+
+      // indices of verticies created_in current iteration  
+      uint32_t vertex_new_1 = (i + 1) * 4 + j;
+      uint32_t vertex_new_2 = (i + 1) * 4 + ((j + 1) % 4); 
+        
+      indices.push_back(vertex_old_1);
+      indices.push_back(vertex_old_2);
+      indices.push_back(vertex_new_1);
+
+      indices.push_back(vertex_new_1);
+      indices.push_back(vertex_new_2);
+      indices.push_back(vertex_old_2);
+    }
+
+  }
+
+  // seal the box 
+  indices.push_back(m_beamBoxLength * 4 - 4);
+  indices.push_back(m_beamBoxLength * 4 - 3);
+  indices.push_back(m_beamBoxLength * 4 - 2);
+
+  indices.push_back(m_beamBoxLength * 4 - 2);
+  indices.push_back(m_beamBoxLength * 4 - 1);
+  indices.push_back(m_beamBoxLength * 4 - 4);
+
+}
+
 //--------------------------------------------------------------------------------------------------
 // Loading the OBJ file and setting up all buffers
 //
