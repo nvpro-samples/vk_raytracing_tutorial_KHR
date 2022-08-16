@@ -449,6 +449,7 @@ void HelloVulkan::destroyResources()
 
   // #VKRay
   m_rtBuilder.destroy();
+  m_pbBuilder.destroy();
   m_sbtWrapper.destroy();
   vkDestroyPipeline(m_device, m_rtPipeline, nullptr);
   vkDestroyPipelineLayout(m_device, m_rtPipelineLayout, nullptr);
@@ -665,10 +666,11 @@ void HelloVulkan::initRayTracing()
   vkGetPhysicalDeviceProperties2(m_physicalDevice, &prop2);
 
   m_rtBuilder.setup(m_device, &m_alloc, m_graphicsQueueIndex);
+  m_pbBuilder.setup(m_device, &m_alloc, m_graphicsQueueIndex);
   m_sbtWrapper.setup(m_device, m_graphicsQueueIndex, &m_alloc, m_rtProperties);
 }
 
-auto HelloVulkan::getBeamBoxVkGeometry() 
+void HelloVulkan::createBeamBoxBlas() 
 {
   VkDeviceAddress vertexAddress = nvvk::getBufferDeviceAddress(m_device, m_beamBoxVertexBuffer.buffer);
   VkDeviceAddress indexAddress  = nvvk::getBufferDeviceAddress(m_device, m_beamBoxIndexBuffer.buffer);
@@ -701,7 +703,12 @@ auto HelloVulkan::getBeamBoxVkGeometry()
   input.asGeometry.emplace_back(asGeom);
   input.asBuildOffsetInfo.emplace_back(offset);
 
-  return input;
+    // Add Blas for the beam box
+  std::vector<nvvk::RaytracingBuilderKHR::BlasInput> allBlas;
+  allBlas.reserve(1);
+  allBlas.push_back({input});
+
+  m_pbBuilder.buildBlas(allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -754,16 +761,12 @@ void HelloVulkan::createBottomLevelAS()
 {
   // BLAS - Storing each primitive in a geometry
   std::vector<nvvk::RaytracingBuilderKHR::BlasInput> allBlas;
-  allBlas.reserve(m_gltfScene.m_primMeshes.size() + 1);
+  allBlas.reserve(m_gltfScene.m_primMeshes.size());
   for(auto& primMesh : m_gltfScene.m_primMeshes)
   {
     auto geo = primitiveToVkGeometry(primMesh);
     allBlas.push_back({geo});
   }
-
-  // Add Blas for the beam box
-  auto beamBoxGeo = getBeamBoxVkGeometry();
-  allBlas.push_back({beamBoxGeo});
 
   m_rtBuilder.buildBlas(allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 }

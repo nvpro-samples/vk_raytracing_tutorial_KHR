@@ -118,10 +118,10 @@ public:
 
   // #VKRay
   void initRayTracing();
-  auto getBeamBoxVkGeometry();
   auto primitiveToVkGeometry(const nvh::GltfPrimMesh& prim);
   void createBottomLevelAS();
   void createTopLevelAS();
+  void createBeamBoxBlas();
   void createRtDescriptorSet();
   void updateRtDescriptorSet();
   void createRtPipeline();
@@ -141,4 +141,6 @@ public:
   nvvk::SBTWrapper                                  m_sbtWrapper;
 
   PushConstantRay m_pcRay{};
+
+  nvvk::RaytracingBuilderKHR m_pbBuilder;
 };
