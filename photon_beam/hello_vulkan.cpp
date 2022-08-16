@@ -760,8 +760,11 @@ void HelloVulkan::createBottomLevelAS()
     auto geo = primitiveToVkGeometry(primMesh);
     allBlas.push_back({geo});
   }
+
+  // Add Blas for the beam box
   auto beamBoxGeo = getBeamBoxVkGeometry();
   allBlas.push_back({beamBoxGeo});
+
   m_rtBuilder.buildBlas(allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 }
 
