@@ -52,6 +52,12 @@ START_BINDING(RtxBindings)
   eOutImage   = 1,  // Ray tracer output image
   ePrimLookup = 2   // Lookup of objects
 END_BINDING();
+
+START_BINDING(PbBindings)
+  eTlas       = 0,  // Top-level acceleration structure
+  ePhtonBeam  = 1,  // Ray tracer output image
+  ePrimLookup = 2   // Lookup of objects
+END_BINDING();
 // clang-format on
 
 // Scene buffer addresses
