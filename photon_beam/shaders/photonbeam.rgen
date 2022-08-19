@@ -1,0 +1,111 @@
+
+
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_ARB_shader_clock : enable
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+
+
+#include "raycommon.glsl"
+#include "sampling.glsl"
+#include "host_device.h"
+
+// clang-format off
+layout(location = 0) rayPayloadEXT hitPayload prd;
+
+layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
+
+layout(std430, set = 0, binding = 1) restrict buffer PhotonBeams{
+
+    uint beamCount;
+    uint _padding_beams[3];
+	PhotonBeam beams[];
+};
+
+layout(set = 1, binding = 0) uniform _GlobalUniforms { GlobalUniforms uni; };
+layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
+// clang-format on
+
+void main()
+{
+  // Initialize the random number
+  uint seed = tea(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, int(clockARB()));
+
+  const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
+  const vec2 inUV        = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
+  vec2       d           = inUV * 2.0 - 1.0;
+
+  vec4 origin    = uni.viewInverse * vec4(0, 0, 0, 1);
+  vec4 target    = uni.projInverse * vec4(d.x, d.y, 1, 1);
+  vec4 direction = uni.viewInverse * vec4(normalize(target.xyz), 0);
+
+  uint  rayFlags = gl_RayFlagsOpaqueEXT;
+  float tMin     = 0.001;
+  float tMax     = 10000.0;
+
+  float minmumLightIntensitySquare = 0.00001
+
+  prd.hitValue     = vec3(0);
+  prd.seed         = seed;
+  prd.depth        = 0;
+  prd.rayOrigin    = origin.xyz;
+  prd.rayDirection = direction.xyz;
+  prd.weight       = vec3(0);
+
+  uint beamIndex;
+  vec3 beamColor = vec3(pcRay.lightIntensity);
+  vec3 prevRayOrigin = pcRay.lightPosition;
+
+  for(; prd.depth < 10; prd.depth++)
+  {
+    traceRayEXT(topLevelAS,        // acceleration structure
+                rayFlags,          // rayFlags
+                0xFF,              // cullMask
+                0,                 // sbtRecordOffset
+                0,                 // sbtRecordStride
+                0,                 // missIndex
+                prd.rayOrigin,     // ray origin
+                tMin,              // ray min range
+                prd.rayDirection,  // ray direction
+                tMax,              // ray max range
+                0                  // payload (location = 0)
+    );
+
+    PhotonBeam newBeam();
+    newBeam.startPos = prevRayOrigin;
+    newBeam.endPos = prd.rayOrigin;
+    newBeam.mediaIndex = 0;
+    newBeam.radius = 0;
+    newBeam.lightColor = beamColor;
+
+    beamIndex = atomicAdd(beamCount, 1);
+    if (beamIndex >= pcRay.newBeams)
+        break;
+
+    beams[beamIndex] = newBeam;
+    prevRayOrigin = prd.prevRayOrigin;
+    beamColor *= prd.weight;
+
+    // if light intensity is weak, assume the light has been absored and make a new light
+    if (dot(beamColor, beamColor) < minmumLightIntensitySquare){
+        beamColor = vec3(pcRay.lightIntensity);
+        prevRayOrigin = pcRay.lightPosition;
+        prd.rayDirection = direction.xyz;
+    }
+
+  }
+
+  // Do accumulation over time
+  if(pcRay.frame > 0)
+  {
+    float a         = 1.0f / float(pcRay.frame + 1);
+    vec3  old_color = imageLoad(image, ivec2(gl_LaunchIDEXT.xy)).xyz;
+    imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(mix(old_color, hitValue, a), 1.f));
+  }
+  else
+  {
+    // First frame, replace the value in the buffer
+    imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(hitValue, 1.f));
+  }
+}

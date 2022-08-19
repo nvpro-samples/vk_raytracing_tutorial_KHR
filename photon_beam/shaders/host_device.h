@@ -119,10 +119,11 @@ struct GltfShadeMaterial
 
 struct PhotonBeam
 {
-  vec4  clearColor;
-  float lightIntensity;
-  vec3  lightOrigin;
-  vec3  lightEnd;
+  vec3  startPos;
+  uint	mediaIndex;
+  vec3  endPos;
+  float radius;
+  vec3  lightColor;
+  uint  padding;
 };
-
 #endif

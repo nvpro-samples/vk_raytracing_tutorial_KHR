@@ -150,4 +150,8 @@ public:
   PushConstantRay m_pcRay{};
 
   nvvk::RaytracingBuilderKHR m_pbBuilder;
+  nvvk::DescriptorSetBindings m_pbDescSetLayoutBind;
+  VkDescriptorPool            m_pbDescPool;
+  VkDescriptorSetLayout       m_pbDescSetLayout;
+  VkDescriptorSet             m_pbDescSet;
 };
