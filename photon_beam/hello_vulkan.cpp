@@ -317,6 +317,10 @@ void HelloVulkan::loadScene(const std::string& filename)
   }
   m_primInfo = m_alloc.createBuffer(cmdBuf, primLookup, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 
+  m_beamBuffer = m_alloc.createBuffer(
+      cmdBuf, m_numBeams * sizeof(PhotonBeam), nullptr, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+  );
+
 
   SceneDesc sceneDesc;
   sceneDesc.vertexAddress   = nvvk::getBufferDeviceAddress(m_device, m_vertexBuffer.buffer);
@@ -341,6 +345,8 @@ void HelloVulkan::loadScene(const std::string& filename)
   NAME_VK(m_materialBuffer.buffer);
   NAME_VK(m_primInfo.buffer);
   NAME_VK(m_sceneDesc.buffer);
+
+  NAME_VK(m_beamBuffer.buffer);
 }
 
 
@@ -429,6 +435,7 @@ void HelloVulkan::destroyResources()
   m_alloc.destroy(m_primInfo);
   m_alloc.destroy(m_sceneDesc);
 
+  m_alloc.destroy(m_beamBuffer);
   m_alloc.destroy(m_beamBoxVertexBuffer);
   m_alloc.destroy(m_beamBoxIndexBuffer);
 
@@ -796,11 +803,11 @@ void HelloVulkan::createTopLevelAS()
 void HelloVulkan::createPbDescriptorSet()
 {
   // Top-level acceleration structure, usable by both the ray generation and the closest hit (to shoot shadow rays)
-  m_rtDescSetLayoutBind.addBinding(PbBindings::eTlas, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1,
+  m_rtDescSetLayoutBind.addBinding(PbBindings::ePbTlas, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1,
                                    VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);  // TLAS
-  m_rtDescSetLayoutBind.addBinding(PbBindings::ePhtonBeam, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
+  m_rtDescSetLayoutBind.addBinding(PbBindings::ePbPhotonBeam, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
                                    VK_SHADER_STAGE_RAYGEN_BIT_KHR);  // photon beam data
-  m_rtDescSetLayoutBind.addBinding(PbBindings::ePrimLookup, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
+  m_rtDescSetLayoutBind.addBinding(PbBindings::ePbPrimLookup, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
                                    VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR);  // Primitive info
 
   m_rtDescPool      = m_rtDescSetLayoutBind.createPool(m_device);
@@ -817,13 +824,13 @@ void HelloVulkan::createPbDescriptorSet()
   VkWriteDescriptorSetAccelerationStructureKHR descASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
   descASInfo.accelerationStructureCount = 1;
   descASInfo.pAccelerationStructures    = &tlas;
-  VkDescriptorBufferInfo beamInfo{};
+  VkDescriptorBufferInfo beamInfo{m_beamBuffer.buffer, 0, VK_WHOLE_SIZE};
   VkDescriptorBufferInfo primitiveInfoDesc{m_primInfo.buffer, 0, VK_WHOLE_SIZE};
 
   std::vector<VkWriteDescriptorSet> writes;
-  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eTlas, &descASInfo));
-  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eOutImage, &beamInfo));
-  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::ePrimLookup, &primitiveInfoDesc));
+  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, PbBindings::ePbTlas, &descASInfo));
+  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, PbBindings::ePbPhotonBeam, &beamInfo));
+  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, PbBindings::ePbPrimLookup, &primitiveInfoDesc));
   vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
 

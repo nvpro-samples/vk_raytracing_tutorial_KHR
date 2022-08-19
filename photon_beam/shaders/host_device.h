@@ -54,9 +54,9 @@ START_BINDING(RtxBindings)
 END_BINDING();
 
 START_BINDING(PbBindings)
-  eTlas       = 0,  // Top-level acceleration structure
-  ePhtonBeam  = 1,  // Ray tracer output image
-  ePrimLookup = 2   // Lookup of objects
+  ePbTlas       = 0,  // Top-level acceleration structure
+  ePbPhotonBeam  = 1,  // Ray tracer output image
+  ePbPrimLookup = 2   // Lookup of objects
 END_BINDING();
 // clang-format on
 
@@ -114,6 +114,15 @@ struct GltfShadeMaterial
   vec4 pbrBaseColorFactor;
   vec3 emissiveFactor;
   int  pbrBaseColorTexture;
+};
+
+struct PhotonBeam
+{
+  vec4  clearColor;
+  float lightIntensity;
+  vec3  lightOrigin;
+  vec3  lightEnd;
+  
 };
 
 #endif
