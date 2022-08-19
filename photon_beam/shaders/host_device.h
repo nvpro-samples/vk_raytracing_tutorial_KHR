@@ -99,6 +99,7 @@ struct PushConstantRay
   float lightIntensity;
   int   lightType;
   int   frame;
+  int   numBeams;
 };
 
 // Structure used for retrieving the primitive information in the closest hit
@@ -122,7 +123,6 @@ struct PhotonBeam
   float lightIntensity;
   vec3  lightOrigin;
   vec3  lightEnd;
-  
 };
 
 #endif

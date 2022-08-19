@@ -998,6 +998,7 @@ void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& c
   m_pcRay.lightPosition  = m_pcRaster.lightPosition;
   m_pcRay.lightIntensity = m_pcRaster.lightIntensity;
   m_pcRay.lightType      = m_pcRaster.lightType;
+  m_pcRay.numBeams       = m_numBeams;
 
 
   std::vector<VkDescriptorSet> descSets{m_rtDescSet, m_descSet};
