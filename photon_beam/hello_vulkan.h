@@ -69,9 +69,9 @@ public:
   nvvk::Buffer m_beamBoxIndexBuffer;
   nvvk::Buffer m_beamBuffer;
 
-  float m_beamRadius{16.0f};
-  int   m_beamBoxLength{8};
-  VkDeviceSize m_numBeams{5000};
+  float m_beamRadius{1.0f};
+  int   m_beamBoxLength{1};
+  VkDeviceSize m_numBeams{4096};
 
   // Information pushed at each draw call
   PushConstantRaster m_pcRaster{
