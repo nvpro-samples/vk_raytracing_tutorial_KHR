@@ -29,6 +29,7 @@ layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 
 void main()
 {
+  float numLightSourceBeams = gl_LaunchSizeEXT.x * gl_LaunchSizeEXT.y * gl_LaunchSizeEXT.z;
   // Initialize the random number
   uint seed = tea(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, int(clockARB()));
 
@@ -75,7 +76,7 @@ void main()
     newBeam.endPos = prd.rayOrigin;
     newBeam.mediaIndex = 0;
     newBeam.radius = 0;
-    newBeam.lightColor = beamColor;
+    newBeam.lightColor = beamColor / numLightSourceBeams;
 
     beamIndex = atomicAdd(beamCount, 1);
     if (beamIndex >= pcRay.numBeams)
@@ -87,9 +88,7 @@ void main()
 
     // if light intensity is weak, assume the light has been absored and make a new light
     if (dot(beamColor, beamColor) < minmumLightIntensitySquare){
-        beamColor = vec3(pcRay.lightIntensity);
-        prevRayOrigin = pcRay.lightPosition;
-        prd.rayDirection = direction.xyz;
+        break;
     }
 
   }
