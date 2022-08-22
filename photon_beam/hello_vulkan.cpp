@@ -900,7 +900,7 @@ void HelloVulkan::createPbPipeline()
   VkPipelineShaderStageCreateInfo stage{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
   stage.pName = "main";  // All the same entry point
   // Raygen
-  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/pathtrace.rgen.spv", true, defaultSearchPaths, true));
+  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/photonbeam.rgen.spv", true, defaultSearchPaths, true));
   stage.stage     = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
   stages[eRaygen] = stage;
   // Miss
