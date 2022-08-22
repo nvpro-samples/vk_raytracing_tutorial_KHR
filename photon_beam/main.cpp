@@ -174,6 +174,10 @@ int main(int argc, char** argv)
   helloVk.initRayTracing();
   helloVk.createBottomLevelAS();
   helloVk.createTopLevelAS();
+
+  helloVk.createPbDescriptorSet();
+  //helloVk.createPbPipeline();
+
   helloVk.createBeamBoxBlas();
   helloVk.createRtDescriptorSet();
   helloVk.createRtPipeline();

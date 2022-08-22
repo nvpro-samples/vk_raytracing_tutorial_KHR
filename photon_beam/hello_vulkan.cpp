@@ -460,9 +460,17 @@ void HelloVulkan::destroyResources()
   vkDestroyFramebuffer(m_device, m_offscreenFramebuffer, nullptr);
 
   // #VKRay
-  m_rtBuilder.destroy();
   m_pbBuilder.destroy();
+  m_pbSbtWrapper.destroy();
+
+  m_rtBuilder.destroy();
   m_sbtWrapper.destroy();
+
+  vkDestroyPipeline(m_device, m_pbPipeline, nullptr);
+  vkDestroyPipelineLayout(m_device, m_pbPipelineLayout, nullptr);
+  vkDestroyDescriptorPool(m_device, m_pbDescPool, nullptr);
+  vkDestroyDescriptorSetLayout(m_device, m_pbDescSetLayout, nullptr);
+
   vkDestroyPipeline(m_device, m_rtPipeline, nullptr);
   vkDestroyPipelineLayout(m_device, m_rtPipelineLayout, nullptr);
   vkDestroyDescriptorPool(m_device, m_rtDescPool, nullptr);
@@ -680,6 +688,7 @@ void HelloVulkan::initRayTracing()
   m_rtBuilder.setup(m_device, &m_alloc, m_graphicsQueueIndex);
   m_pbBuilder.setup(m_device, &m_alloc, m_graphicsQueueIndex);
   m_sbtWrapper.setup(m_device, m_graphicsQueueIndex, &m_alloc, m_rtProperties);
+  m_pbSbtWrapper.setup(m_device, m_graphicsQueueIndex, &m_alloc, m_rtProperties);
 }
 
 void HelloVulkan::createBeamBoxBlas() 
@@ -815,14 +824,14 @@ void HelloVulkan::createPbDescriptorSet()
   m_pbDescSetLayoutBind.addBinding(PbBindings::ePbPrimLookup, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
                                    VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR);  // Primitive info
 
-  m_pbDescPool      = m_rtDescSetLayoutBind.createPool(m_device);
-  m_pbDescSetLayout = m_rtDescSetLayoutBind.createLayout(m_device);
+  m_pbDescPool      = m_pbDescSetLayoutBind.createPool(m_device);
+  m_pbDescSetLayout = m_pbDescSetLayoutBind.createLayout(m_device);
 
   VkDescriptorSetAllocateInfo allocateInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
   allocateInfo.descriptorPool     = m_pbDescPool;
   allocateInfo.descriptorSetCount = 1;
   allocateInfo.pSetLayouts        = &m_pbDescSetLayout;
-  vkAllocateDescriptorSets(m_device, &allocateInfo, &m_rtDescSet);
+  vkAllocateDescriptorSets(m_device, &allocateInfo, &m_pbDescSet);
 
 
   VkAccelerationStructureKHR                   tlas = m_rtBuilder.getAccelerationStructure();
@@ -833,9 +842,9 @@ void HelloVulkan::createPbDescriptorSet()
   VkDescriptorBufferInfo primitiveInfoDesc{m_primInfo.buffer, 0, VK_WHOLE_SIZE};
 
   std::vector<VkWriteDescriptorSet> writes;
-  writes.emplace_back(m_pbDescSetLayoutBind.makeWrite(m_rtDescSet, PbBindings::ePbTlas, &descASInfo));
-  writes.emplace_back(m_pbDescSetLayoutBind.makeWrite(m_rtDescSet, PbBindings::ePbPhotonBeam, &beamInfo));
-  writes.emplace_back(m_pbDescSetLayoutBind.makeWrite(m_rtDescSet, PbBindings::ePbPrimLookup, &primitiveInfoDesc));
+  writes.emplace_back(m_pbDescSetLayoutBind.makeWrite(m_pbDescSet, PbBindings::ePbTlas, &descASInfo));
+  writes.emplace_back(m_pbDescSetLayoutBind.makeWrite(m_pbDescSet, PbBindings::ePbPhotonBeam, &beamInfo));
+  writes.emplace_back(m_pbDescSetLayoutBind.makeWrite(m_pbDescSet, PbBindings::ePbPrimLookup, &primitiveInfoDesc));
   vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
 

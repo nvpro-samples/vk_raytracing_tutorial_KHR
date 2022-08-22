@@ -154,4 +154,8 @@ public:
   VkDescriptorPool            m_pbDescPool;
   VkDescriptorSetLayout       m_pbDescSetLayout;
   VkDescriptorSet             m_pbDescSet;
+  std::vector<VkRayTracingShaderGroupCreateInfoKHR> m_pbShaderGroups;
+  VkPipelineLayout                                  m_pbPipelineLayout;
+  VkPipeline                                        m_pbPipeline;
+  nvvk::SBTWrapper                                  m_pbSbtWrapper;
 };
