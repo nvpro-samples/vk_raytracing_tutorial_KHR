@@ -128,7 +128,7 @@ void main()
 
   // using russian roulette method from A Practical Guide to "Global Illumination using Photon Maps" by Jensen
   // Probability of reflection(diffuse and specular) = max(diffuse.r + spec.r, diffuse.g + spec.g, diffuse.b + spec.b)
-  float reflection_prob = max(max(albedo.x, albedo.y), albedo.z)
+  float reflection_prob = max(max(albedo.x, albedo.y), albedo.z);
   if (rnd(prd.seed) >= reflection_prob)
   {
     BRDF = vec3(0);

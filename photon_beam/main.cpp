@@ -176,7 +176,7 @@ int main(int argc, char** argv)
   helloVk.createTopLevelAS();
 
   helloVk.createPbDescriptorSet();
-  //helloVk.createPbPipeline();
+  helloVk.createPbPipeline();
 
   helloVk.createBeamBoxBlas();
   helloVk.createRtDescriptorSet();

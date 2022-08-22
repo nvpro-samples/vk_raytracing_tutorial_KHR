@@ -43,7 +43,7 @@ void main()
   float tMin     = 0.001;
   float tMax     = 10000.0;
 
-  float minmumLightIntensitySquare = 0.00001
+  float minmumLightIntensitySquare = 0.00001;
 
   prd.hitValue     = vec3(0);
   prd.seed         = seed;
@@ -71,7 +71,7 @@ void main()
                 0                  // payload (location = 0)
     );
 
-    PhotonBeam newBeam();
+    PhotonBeam newBeam;
     newBeam.startPos = prevRayOrigin;
     newBeam.endPos = prd.rayOrigin;
     newBeam.mediaIndex = 0;
@@ -83,7 +83,7 @@ void main()
         break;
 
     beams[beamIndex] = newBeam;
-    prevRayOrigin = prd.prevRayOrigin;
+    prevRayOrigin = prd.rayOrigin;
     beamColor *= prd.weight;
 
     // if light intensity is weak, assume the light has been absored and make a new light
