@@ -190,11 +190,14 @@ void HelloVulkan::createBeamBoundingBox()
   indices.resize(6 + m_beamBoxLength * 24);
 
   verticies.push_back(nvmath::vec3f(m_beamRadius, m_beamRadius, 0.0f));
-  verticies.push_back(nvmath::vec3f(m_beamRadius, -m_beamRadius, 0.0f));
-  verticies.push_back(nvmath::vec3f(-m_beamRadius, -m_beamRadius, 0.0f));
   verticies.push_back(nvmath::vec3f(-m_beamRadius, m_beamRadius, 0.0f));
+  verticies.push_back(nvmath::vec3f(-m_beamRadius, -m_beamRadius, 0.0f));
+  verticies.push_back(nvmath::vec3f(m_beamRadius, -m_beamRadius, 0.0f));
+  
+  
 
   // indeices for the first square
+  // pushing in counter clock wise order for face culling
   indices.push_back(0);
   indices.push_back(1);
   indices.push_back(2);
@@ -206,9 +209,10 @@ void HelloVulkan::createBeamBoundingBox()
   for(int i=0; i < m_beamBoxLength; ++i)
   {
     verticies.push_back(nvmath::vec3f(m_beamRadius, m_beamRadius, (i + 1) * 2.0 * m_beamRadius));
-    verticies.push_back(nvmath::vec3f(m_beamRadius, -m_beamRadius, (i + 1) * 2.0 * m_beamRadius));
-    verticies.push_back(nvmath::vec3f(-m_beamRadius, -m_beamRadius, (i + 1) * 2.0 * m_beamRadius));
     verticies.push_back(nvmath::vec3f(-m_beamRadius, m_beamRadius, (i + 1) * 2.0 * m_beamRadius));
+    verticies.push_back(nvmath::vec3f(-m_beamRadius, -m_beamRadius, (i + 1) * 2.0 * m_beamRadius));
+    verticies.push_back(nvmath::vec3f(m_beamRadius, -m_beamRadius, (i + 1) * 2.0 * m_beamRadius));
+    
 
     for(int j = 0; j < 4; ++j)
     {
@@ -220,10 +224,11 @@ void HelloVulkan::createBeamBoundingBox()
       uint32_t vertex_new_1 = (i + 1) * 4 + j;
       uint32_t vertex_new_2 = (i + 1) * 4 + ((j + 1) % 4); 
         
-      indices.push_back(vertex_old_1);
-      indices.push_back(vertex_old_2);
+      // pushing in counter clock wise order for face culling
       indices.push_back(vertex_new_1);
-
+      indices.push_back(vertex_old_2);
+      indices.push_back(vertex_old_1);
+      
       indices.push_back(vertex_new_1);
       indices.push_back(vertex_new_2);
       indices.push_back(vertex_old_2);
