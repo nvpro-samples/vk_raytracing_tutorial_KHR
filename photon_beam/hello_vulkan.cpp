@@ -101,6 +101,34 @@ void HelloVulkan::updateUniformBuffer(const VkCommandBuffer& cmdBuf)
                        nullptr, 1, &afterBarrier, 0, nullptr);
 }
 
+void HelloVulkan::resetBeamBuffer(const VkCommandBuffer& cmdBuf)
+{
+
+  VkBuffer beamBuffer     = m_beamBuffer.buffer;
+  auto     beamUsageStages = VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR;
+
+  VkBufferMemoryBarrier beforeBarrier{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
+  beforeBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+  beforeBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  beforeBarrier.buffer        = beamBuffer;
+  beforeBarrier.offset        = 0;
+  beforeBarrier.size          = sizeof(uint);
+  vkCmdPipelineBarrier(cmdBuf, beamUsageStages, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 0,
+                       nullptr, 1, &beforeBarrier, 0, nullptr);
+
+  uint beamCount = 0;
+  vkCmdUpdateBuffer(cmdBuf, beamBuffer, 0, sizeof(uint), &beamCount);
+
+  VkBufferMemoryBarrier afterBarrier{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
+  afterBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  afterBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+  afterBarrier.buffer        = beamBuffer;
+  afterBarrier.offset        = 0;
+  afterBarrier.size          = sizeof(uint);
+  vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_TRANSFER_BIT, beamUsageStages, VK_DEPENDENCY_DEVICE_GROUP_BIT, 0,
+                       nullptr, 1, &afterBarrier, 0, nullptr);
+}
+
 //--------------------------------------------------------------------------------------------------
 // Describing the layout pushed when rendering
 //
@@ -323,7 +351,9 @@ void HelloVulkan::loadScene(const std::string& filename)
   m_primInfo = m_alloc.createBuffer(cmdBuf, primLookup, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 
   m_beamBuffer = m_alloc.createBuffer(
-      cmdBuf, m_numBeams * sizeof(PhotonBeam), nullptr, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+      cmdBuf, m_numBeams * sizeof(PhotonBeam) + 4 * sizeof(uint), 
+      nullptr, 
+      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
   );
 
 

@@ -51,6 +51,7 @@ public:
   void createUniformBuffer();
   void createTextureImages(const VkCommandBuffer& cmdBuf, tinygltf::Model& gltfModel);
   void updateUniformBuffer(const VkCommandBuffer& cmdBuf);
+  void resetBeamBuffer(const VkCommandBuffer& cmdBuf);
   void onResize(int /*w*/, int /*h*/) override;
   void destroyResources();
   void rasterize(const VkCommandBuffer& cmdBuff);
