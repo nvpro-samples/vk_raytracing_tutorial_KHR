@@ -1047,7 +1047,7 @@ void HelloVulkan::createPbPipeline()
 
 
   // Creating the SBT
-  m_sbtWrapper.create(m_pbPipeline, rayPipelineInfo);
+  m_pbSbtWrapper.create(m_pbPipeline, rayPipelineInfo);
 
 
   for(auto& s : stages)
