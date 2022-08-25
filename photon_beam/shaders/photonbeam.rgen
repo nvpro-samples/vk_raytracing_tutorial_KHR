@@ -106,8 +106,8 @@ void main()
         asInfo.matrix[1][3] = splitStart.y;
         asInfo.matrix[2][0] = 0.0;
         asInfo.matrix[2][1] = 0.0;
-        asInfo.matrix[2][2] = rayDirection.y;
-        asInfo.matrix[2][3] = splitStart.y;
+        asInfo.matrix[2][2] = rayDirection.z;
+        asInfo.matrix[2][3] = splitStart.z;
 
     }
 
