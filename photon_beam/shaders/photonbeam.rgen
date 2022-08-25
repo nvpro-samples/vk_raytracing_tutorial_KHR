@@ -64,7 +64,7 @@ void main()
   vec3 beamColor = vec3(pcRay.lightIntensity);
   vec3 rayOrigin = pcRay.lightPosition;
 
-  for(; prd.depth < 10; prd.depth++)
+  while(true)
   {
     traceRayEXT(topLevelAS,        // acceleration structure
                 rayFlags,          // rayFlags
