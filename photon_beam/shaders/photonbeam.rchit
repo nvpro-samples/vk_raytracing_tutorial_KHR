@@ -39,7 +39,7 @@ layout(location = 0) rayPayloadInEXT hitPayload prd;
 layout(location = 1) rayPayloadEXT bool isShadowed;
 
 layout(set = 0, binding = 0 ) uniform accelerationStructureEXT topLevelAS;
-layout(set = 0, binding = 2) readonly buffer _InstanceInfo {PrimMeshInfo primInfo[];};
+layout(set = 0, binding = 1) readonly buffer _InstanceInfo {PrimMeshInfo primInfo[];};
 
 
 layout(buffer_reference, scalar) readonly buffer Vertices  { vec3  v[]; };

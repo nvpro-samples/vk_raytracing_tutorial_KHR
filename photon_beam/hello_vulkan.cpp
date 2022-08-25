@@ -886,10 +886,13 @@ void HelloVulkan::createPbDescriptorSet()
   // Top-level acceleration structure, usable by both the ray generation and the closest hit (to shoot shadow rays)
   m_pbDescSetLayoutBind.addBinding(PbBindings::ePbTlas, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1,
                                    VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);  // TLAS
-  m_pbDescSetLayoutBind.addBinding(PbBindings::ePbPhotonBeam, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
-                                   VK_SHADER_STAGE_RAYGEN_BIT_KHR);  // photon beam data
   m_pbDescSetLayoutBind.addBinding(PbBindings::ePbPrimLookup, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
                                    VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR);  // Primitive info
+
+  m_pbDescSetLayoutBind.addBinding(PbBindings::ePbPhotonBeam, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
+                                VK_SHADER_STAGE_RAYGEN_BIT_KHR);  // photon beam data
+  m_pbDescSetLayoutBind.addBinding(PbBindings::ePbPhotonBeamAs, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
+                                   VK_SHADER_STAGE_RAYGEN_BIT_KHR);  // photon beam data
 
   m_pbDescPool      = m_pbDescSetLayoutBind.createPool(m_device);
   m_pbDescSetLayout = m_pbDescSetLayoutBind.createLayout(m_device);
@@ -905,13 +908,15 @@ void HelloVulkan::createPbDescriptorSet()
   VkWriteDescriptorSetAccelerationStructureKHR descASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
   descASInfo.accelerationStructureCount = 1;
   descASInfo.pAccelerationStructures    = &tlas;
-  VkDescriptorBufferInfo beamInfo{m_beamBuffer.buffer, 0, VK_WHOLE_SIZE};
   VkDescriptorBufferInfo primitiveInfoDesc{m_primInfo.buffer, 0, VK_WHOLE_SIZE};
+  VkDescriptorBufferInfo beamInfo{m_beamBuffer.buffer, 0, VK_WHOLE_SIZE};
+  VkDescriptorBufferInfo beamAsInfo{m_beamAsInfoBuffer.buffer, 0, VK_WHOLE_SIZE};
 
   std::vector<VkWriteDescriptorSet> writes;
   writes.emplace_back(m_pbDescSetLayoutBind.makeWrite(m_pbDescSet, PbBindings::ePbTlas, &descASInfo));
-  writes.emplace_back(m_pbDescSetLayoutBind.makeWrite(m_pbDescSet, PbBindings::ePbPhotonBeam, &beamInfo));
   writes.emplace_back(m_pbDescSetLayoutBind.makeWrite(m_pbDescSet, PbBindings::ePbPrimLookup, &primitiveInfoDesc));
+  writes.emplace_back(m_pbDescSetLayoutBind.makeWrite(m_pbDescSet, PbBindings::ePbPhotonBeam, &beamInfo));
+  writes.emplace_back(m_pbDescSetLayoutBind.makeWrite(m_pbDescSet, PbBindings::ePbPhotonBeamAs, &beamAsInfo));
   vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
 

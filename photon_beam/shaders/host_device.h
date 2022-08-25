@@ -55,8 +55,9 @@ END_BINDING();
 
 START_BINDING(PbBindings)
   ePbTlas       = 0,  // Top-level acceleration structure
-  ePbPhotonBeam  = 1,  // Ray tracer output image
-  ePbPrimLookup = 2   // Lookup of objects
+  ePbPrimLookup = 1,   // Lookup of objects
+  ePbPhotonBeam  = 2,  
+  ePbPhotonBeamAs  = 3 
 END_BINDING();
 // clang-format on
 

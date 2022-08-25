@@ -16,11 +16,18 @@ layout(location = 0) rayPayloadEXT hitPayload prd;
 
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
 
-layout(std430, set = 0, binding = 1) restrict buffer PhotonBeams{
+layout(std430, set = 0, binding = 2) restrict buffer PhotonBeams{
 
     uint beamCount;
     uint _padding_beams[3];
 	PhotonBeam beams[];
+};
+
+layout(std430, set = 0, binding = 3) restrict buffer PhotonBeamsAs{
+
+    uint subBeamCount;
+    uint _padding_subbeams[3];
+	ShaderVkAccelerationStructureInstanceKHR subBeams[];
 };
 
 layout(set = 1, binding = 0) uniform _GlobalUniforms { GlobalUniforms uni; };
@@ -53,6 +60,7 @@ void main()
   prd.weight       = vec3(0);
 
   uint beamIndex;
+  uint subBeamIndex;
   vec3 beamColor = vec3(pcRay.lightIntensity);
   vec3 rayOrigin = pcRay.lightPosition;
 
@@ -89,6 +97,10 @@ void main()
     float beamLength = sqrt(dot(beamVec, beamVec));
     uint num_split = uint(beamLength / pcRay.beamRadius + 1.0);
 
+    subBeamIndex = atomicAdd(subBeamCount, num_split);
+    if (subBeamIndex >= pcRay.numSubBeams)
+        break;
+
     for(uint i=0; i < num_split; i++)
     {
         vec3 splitStart = newBeam.startPos + pcRay.beamRadius * float(i) * rayDirection;
@@ -108,6 +120,8 @@ void main()
         asInfo.matrix[2][1] = 0.0;
         asInfo.matrix[2][2] = rayDirection.z;
         asInfo.matrix[2][3] = splitStart.z;
+
+        subBeams[subBeamIndex + i] = asInfo;
 
     }
 
