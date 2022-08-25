@@ -384,7 +384,7 @@ void HelloVulkan::loadScene(const std::string& filename)
       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
   );
 
-  m_beamBuffer = m_alloc.createBuffer(
+  m_beamAsInfoBuffer = m_alloc.createBuffer(
       cmdBuf, 
       m_numSubBeams * sizeof(VkAccelerationStructureInstanceKHR) + 4 * sizeof(uint), 
       nullptr,
@@ -506,6 +506,7 @@ void HelloVulkan::destroyResources()
   m_alloc.destroy(m_sceneDesc);
 
   m_alloc.destroy(m_beamBuffer);
+  m_alloc.destroy(m_beamAsInfoBuffer);
   m_alloc.destroy(m_beamBoxVertexBuffer);
   m_alloc.destroy(m_beamBoxIndexBuffer);
 
