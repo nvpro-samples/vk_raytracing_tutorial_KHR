@@ -760,6 +760,7 @@ void HelloVulkan::createBeamBoxBlas()
   allBlas.push_back({input});
 
   m_pbBuilder.buildBlas(allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
+  m_pcRay.beamBlasAddres = m_pbBuilder.getBlasDeviceAddress(0);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -1137,6 +1138,7 @@ void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& c
   // Initializing push constant values
   m_pcRay.clearColor     = clearColor;
   m_pcRay.lightPosition  = m_pcRaster.lightPosition;
+  m_pcRay.beamRadius     = m_beamRadius;
   m_pcRay.lightIntensity = m_pcRaster.lightIntensity;
   m_pcRay.lightType      = m_pcRaster.lightType;
   m_pcRay.numBeams       = m_numBeams;

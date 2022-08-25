@@ -97,9 +97,11 @@ struct PushConstantRay
   vec4  clearColor;
   vec3  lightPosition;
   float lightIntensity;
+  float beamRadius;
   int   lightType;
   int   frame;
   uint64_t   numBeams;
+  uint64_t beamBlasAddres;
 };
 
 // Structure used for retrieving the primitive information in the closest hit
@@ -125,5 +127,13 @@ struct PhotonBeam
   float radius;
   vec3  lightColor;
   uint  padding;
+};
+
+struct ShaderVkAccelerationStructureInstanceKHR
+{
+  float                      matrix[3][4];
+  uint                   instanceCustomIndexAndmask;
+  uint                   instanceShaderBindingTableRecordOffsetAndflags;
+  uint64_t                   accelerationStructureReference;
 };
 #endif

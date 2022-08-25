@@ -54,7 +54,7 @@ void main()
 
   uint beamIndex;
   vec3 beamColor = vec3(pcRay.lightIntensity);
-  vec3 prevRayOrigin = pcRay.lightPosition;
+  vec3 rayOrigin = pcRay.lightPosition;
 
   for(; prd.depth < 10; prd.depth++)
   {
@@ -72,9 +72,10 @@ void main()
     );
 
     PhotonBeam newBeam;
-    newBeam.startPos = prevRayOrigin;
+    newBeam.startPos = rayOrigin;
     newBeam.endPos = prd.rayOrigin;
     newBeam.mediaIndex = 0;
+    // newBeam.radius = pcRay.beamRadius;
     newBeam.radius = 0;
     newBeam.lightColor = beamColor / numLightSourceBeams;
 
@@ -83,8 +84,36 @@ void main()
         break;
 
     beams[beamIndex] = newBeam;
-    prevRayOrigin = prd.rayOrigin;
+
+    vec3 beamVec = newBeam.endPos - newBeam.startPos;
+    float beamLength = sqrt(dot(beamVec, beamVec));
+    uint num_split = uint(beamLength / pcRay.beamRadius + 1.0);
+
+    for(uint i=0; i < num_split; i++)
+    {
+        vec3 splitStart = newBeam.startPos + pcRay.beamRadius * float(i) * rayDirection;
+        ShaderVkAccelerationStructureInstanceKHR asInfo;
+        asInfo.instanceCustomIndexAndmask = (beamIndex << 8) | 0xFF;
+        asInfo.instanceShaderBindingTableRecordOffsetAndflags = (0 << 24) | 0x00000001; // use the same hit group 0
+        asInfo.accelerationStructureReference = pcRay.beamBlasAddres;
+        asInfo.matrix[0][0] = 0.0;
+        asInfo.matrix[0][1] = 0.0;
+        asInfo.matrix[0][2] = rayDirection.x;
+        asInfo.matrix[0][3] = splitStart.x;
+        asInfo.matrix[1][0] = 0.0;
+        asInfo.matrix[1][1] = 0.0;
+        asInfo.matrix[1][2] = rayDirection.y;
+        asInfo.matrix[1][3] = splitStart.y;
+        asInfo.matrix[2][0] = 0.0;
+        asInfo.matrix[2][1] = 0.0;
+        asInfo.matrix[2][2] = rayDirection.y;
+        asInfo.matrix[2][3] = splitStart.y;
+
+    }
+
     beamColor *= prd.weight;
+    rayOrigin = prd.rayOrigin;
+    rayDirection = prd.rayDirection;
 
     // if light intensity is weak, assume the light has been absored and make a new light
     if (dot(beamColor, beamColor) < minmumLightIntensitySquare){
