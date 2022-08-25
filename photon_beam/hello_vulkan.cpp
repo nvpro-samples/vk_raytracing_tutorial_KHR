@@ -351,8 +351,16 @@ void HelloVulkan::loadScene(const std::string& filename)
   m_primInfo = m_alloc.createBuffer(cmdBuf, primLookup, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 
   m_beamBuffer = m_alloc.createBuffer(
-      cmdBuf, m_numBeams * sizeof(PhotonBeam) + 4 * sizeof(uint), 
+      cmdBuf, 
+      m_numBeams * sizeof(PhotonBeam) + 4 * sizeof(uint), 
       nullptr, 
+      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+  );
+
+  m_beamBuffer = m_alloc.createBuffer(
+      cmdBuf, 
+      m_numSubBeams * sizeof(VkAccelerationStructureInstanceKHR) + 4 * sizeof(uint), 
+      nullptr,
       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
   );
 
