@@ -136,6 +136,7 @@ public:
   void createPbPipeline();
 
   void raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor);
+  void beamtrace(const nvmath::vec4f& clearColor);
   void updateFrame();
   void resetFrame();
 

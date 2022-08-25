@@ -1054,6 +1054,41 @@ void HelloVulkan::createPbPipeline()
     vkDestroyShaderModule(m_device, s.module, nullptr);
 }
 
+void HelloVulkan::beamtrace(const nvmath::vec4f& clearColor)
+{
+
+  nvvk::CommandPool cmdBufGet(m_device, m_graphicsQueueIndex);
+  VkCommandBuffer   cmdBuf = cmdBufGet.createCommandBuffer();
+
+  m_debug.beginLabel(cmdBuf, "Beam trace");
+  // Initializing push constant values
+  m_pcRay.clearColor     = clearColor;
+  m_pcRay.lightPosition  = m_pcRaster.lightPosition;
+  m_pcRay.beamRadius     = m_beamRadius;
+  m_pcRay.lightIntensity = m_pcRaster.lightIntensity;
+  m_pcRay.lightType      = m_pcRaster.lightType;
+  m_pcRay.numBeams       = m_numBeams;
+  m_pcRay.numSubBeams    = m_numSubBeams;
+
+
+  std::vector<VkDescriptorSet> descSets{m_pbDescSet, m_descSet};
+
+
+  vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pbPipeline);
+  vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pbPipelineLayout, 0,
+                          (uint32_t)descSets.size(), descSets.data(), 0, nullptr);
+  vkCmdPushConstants(cmdBuf, m_pbPipelineLayout,
+                     VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
+                     0, sizeof(PushConstantRay), &m_pcRay);
+
+
+  auto& regions = m_pbSbtWrapper.getRegions();
+  vkCmdTraceRaysKHR(cmdBuf, &regions[0], &regions[1], &regions[2], &regions[3], 1, 1, 256);
+
+  m_debug.endLabel(cmdBuf);
+  cmdBufGet.submitAndWait(cmdBuf);
+}
+
 
 //--------------------------------------------------------------------------------------------------
 // Writes the output image to the descriptor set

@@ -190,6 +190,11 @@ int main(int argc, char** argv)
   nvmath::vec4f clearColor   = nvmath::vec4f(1, 1, 1, 1.00f);
   bool          useRaytracer = true;
 
+  if(useRaytracer)
+  {
+    helloVk.beamtrace(clearColor);
+  }
+
 
   helloVk.setupGlfwCallbacks(window);
   ImGui_ImplGlfw_InitForVulkan(window, true);
