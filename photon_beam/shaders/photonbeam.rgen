@@ -19,14 +19,12 @@ layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
 layout(std430, set = 0, binding = 2) restrict buffer PhotonBeams{
 
     uint beamCount;
-    uint _padding_beams[3];
+    uint subBeamCount;
+    uint _padding_beams[2];
 	PhotonBeam beams[];
 };
 
 layout(std430, set = 0, binding = 3) restrict buffer PhotonBeamsAs{
-
-    uint subBeamCount;
-    uint _padding_subbeams[3];
 	ShaderVkAccelerationStructureInstanceKHR subBeams[];
 };
 
@@ -98,7 +96,7 @@ void main()
     uint num_split = uint(beamLength / pcRay.beamRadius + 1.0);
 
     subBeamIndex = atomicAdd(subBeamCount, num_split);
-    if (subBeamIndex >= pcRay.numSubBeams)
+    if (subBeamIndex + num_split >= pcRay.numSubBeams)
         break;
 
     for(uint i=0; i < num_split; i++)

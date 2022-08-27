@@ -386,7 +386,7 @@ void HelloVulkan::loadScene(const std::string& filename)
 
   m_beamAsInfoBuffer = m_alloc.createBuffer(
       cmdBuf, 
-      m_numSubBeams * sizeof(VkAccelerationStructureInstanceKHR) + 4 * sizeof(uint), 
+      m_numSubBeams * sizeof(VkAccelerationStructureInstanceKHR), 
       nullptr,
       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
   );
@@ -506,7 +506,7 @@ void HelloVulkan::destroyResources()
   m_alloc.destroy(m_sceneDesc);
 
   m_alloc.destroy(m_beamBuffer);
-  m_alloc.destroy(m_beamAsInfoBuffer);
+  // m_alloc.destroy(m_beamAsInfoBuffer);
   m_alloc.destroy(m_beamBoxVertexBuffer);
   m_alloc.destroy(m_beamBoxIndexBuffer);
 
@@ -1083,10 +1083,45 @@ void HelloVulkan::beamtrace(const nvmath::vec4f& clearColor)
 
 
   auto& regions = m_pbSbtWrapper.getRegions();
-  vkCmdTraceRaysKHR(cmdBuf, &regions[0], &regions[1], &regions[2], &regions[3], 1, 1, 256);
+  vkCmdTraceRaysKHR(
+      cmdBuf, 
+      &regions[0], 
+      &regions[1], 
+      &regions[2], 
+      &regions[3], 
+      1, 1, 256
+  );
 
   m_debug.endLabel(cmdBuf);
+
+  VkBuildAccelerationStructureFlagsKHR flags  = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+  bool                                 update = false;
+  bool                                 motion = false;
+
+  VkBufferDeviceAddressInfo bufferInfo{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, m_beamAsInfoBuffer.buffer};
+  VkDeviceAddress           instBufferAddr = vkGetBufferDeviceAddress(m_device, &bufferInfo);
+
+  // Make sure the copy of the instance buffer are copied before triggering the acceleration structure build
+  VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+  barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
+  barrier.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
+  vkCmdPipelineBarrier(
+      cmdBuf, 
+      VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+      VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+      0, 1, &barrier, 0, nullptr, 0, nullptr
+  );
+
+  // Creating the TLAS
+  nvvk::Buffer scratchBuffer;
+  m_pbBuilder.cmdCreateTlas(cmdBuf, countInstance, instBufferAddr, scratchBuffer, flags, update, motion);
+
+  // Finalizing and destroying temporary data
   cmdBufGet.submitAndWait(cmdBuf);
+  m_alloc.finalizeAndReleaseStaging();
+  m_alloc.destroy(scratchBuffer);
+  m_alloc.destroy(m_beamAsInfoBuffer);
+  
 }
 
 
