@@ -107,28 +107,14 @@ void HelloVulkan::resetBeamBuffer(const VkCommandBuffer& cmdBuf)
   VkBuffer beamBuffer     = m_beamBuffer.buffer;
   auto     beamUsageStages = VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR;
 
-  VkBufferMemoryBarrier beforeBarrier{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
-  beforeBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
-  beforeBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-  beforeBarrier.buffer        = beamBuffer;
-  beforeBarrier.offset        = 0;
-  beforeBarrier.size          = sizeof(uint);
-
   VkBufferMemoryBarrier afterBarrier{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
   afterBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-  afterBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+  afterBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
   afterBarrier.buffer        = beamBuffer;
   afterBarrier.offset        = 0;
   afterBarrier.size          = sizeof(uint);
 
   uint beamCount = 0;
-  vkCmdPipelineBarrier(
-      cmdBuf, 
-      beamUsageStages, 
-      VK_PIPELINE_STAGE_TRANSFER_BIT, 
-      VK_DEPENDENCY_DEVICE_GROUP_BIT, 
-      0, nullptr, 1, &beforeBarrier, 0, nullptr
-  );
   vkCmdUpdateBuffer(cmdBuf, beamBuffer, 0, sizeof(uint), &beamCount);
   vkCmdPipelineBarrier(
       cmdBuf, 
@@ -139,13 +125,6 @@ void HelloVulkan::resetBeamBuffer(const VkCommandBuffer& cmdBuf)
   );
 
   beamBuffer = m_beamAsInfoBuffer.buffer;
-  vkCmdPipelineBarrier(
-      cmdBuf, 
-      beamUsageStages, 
-      VK_PIPELINE_STAGE_TRANSFER_BIT, 
-      VK_DEPENDENCY_DEVICE_GROUP_BIT, 
-      0, nullptr, 1, &beforeBarrier, 0, nullptr
-  );
   vkCmdUpdateBuffer(cmdBuf, beamBuffer, 0, sizeof(uint), &beamCount);
   vkCmdPipelineBarrier(
       cmdBuf, 
@@ -379,16 +358,24 @@ void HelloVulkan::loadScene(const std::string& filename)
 
   m_beamBuffer = m_alloc.createBuffer(
       cmdBuf, 
-      m_numBeams * sizeof(PhotonBeam) + 4 * sizeof(uint), 
+      m_maxNumBeams * sizeof(PhotonBeam) + 4 * sizeof(uint), 
       nullptr, 
-      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT
   );
 
   m_beamAsInfoBuffer = m_alloc.createBuffer(
       cmdBuf, 
-      m_numSubBeams * sizeof(VkAccelerationStructureInstanceKHR), 
+      m_maxNumSubBeams * sizeof(VkAccelerationStructureInstanceKHR), 
       nullptr,
-      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
+  );
+
+  m_beamAsCountReadBuffer = m_alloc.createBuffer(
+      cmdBuf, 
+      1 * sizeof(uint64_t), 
+      nullptr,
+      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
   );
 
 
@@ -417,6 +404,8 @@ void HelloVulkan::loadScene(const std::string& filename)
   NAME_VK(m_sceneDesc.buffer);
 
   NAME_VK(m_beamBuffer.buffer);
+  NAME_VK(m_beamAsInfoBuffer.buffer);
+  NAME_VK(m_beamAsCountReadBuffer.buffer);
 }
 
 
@@ -1067,9 +1056,8 @@ void HelloVulkan::beamtrace(const nvmath::vec4f& clearColor)
   m_pcRay.beamRadius     = m_beamRadius;
   m_pcRay.lightIntensity = m_pcRaster.lightIntensity;
   m_pcRay.lightType      = m_pcRaster.lightType;
-  m_pcRay.numBeams       = m_numBeams;
-  m_pcRay.numSubBeams    = m_numSubBeams;
-
+  m_pcRay.maxNumBeams       = m_maxNumBeams;
+  m_pcRay.maxNumSubBeams    = m_maxNumSubBeams;
 
   std::vector<VkDescriptorSet> descSets{m_pbDescSet, m_descSet};
 
@@ -1081,6 +1069,7 @@ void HelloVulkan::beamtrace(const nvmath::vec4f& clearColor)
                      VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
                      0, sizeof(PushConstantRay), &m_pcRay);
 
+  resetBeamBuffer(cmdBuf);
 
   auto& regions = m_pbSbtWrapper.getRegions();
   vkCmdTraceRaysKHR(
@@ -1089,10 +1078,52 @@ void HelloVulkan::beamtrace(const nvmath::vec4f& clearColor)
       &regions[1], 
       &regions[2], 
       &regions[3], 
-      1, 1, 256
+      1, 1, 2
   );
 
   m_debug.endLabel(cmdBuf);
+
+  cmdBufGet.submitAndWait(cmdBuf);
+  cmdBuf = cmdBufGet.createCommandBuffer();
+
+  // Make sure the copy of the instance buffer are copied before triggering the acceleration structure build
+  /*
+    VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+  barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+  barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+  vkCmdPipelineBarrier(
+      cmdBuf, 
+      VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,           
+      VK_PIPELINE_STAGE_TRANSFER_BIT, 
+      0, 1, &barrier, 0, nullptr, 0, nullptr);
+  */
+
+  VkBufferCopy cpy;
+  cpy.size      = sizeof(uint32_t);
+  cpy.srcOffset = 0;
+  cpy.dstOffset = 0;
+
+  vkCmdCopyBuffer(cmdBuf, m_beamBuffer.buffer, m_beamAsCountReadBuffer.buffer, 1, &cpy);
+
+  VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+  barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  barrier.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+  vkCmdPipelineBarrier(
+      cmdBuf, 
+      VK_PIPELINE_STAGE_TRANSFER_BIT, 
+      VK_PIPELINE_STAGE_HOST_BIT, 
+      0, 
+      1, &barrier, 0, nullptr, 0, nullptr
+  );
+  cmdBufGet.submitAndWait(cmdBuf);
+
+  void*    numBeamAsdata = m_alloc.map(m_beamAsCountReadBuffer);
+  uint32_t numBeamAs = *(reinterpret_cast<uint32_t*>(numBeamAsdata));
+  m_alloc.unmap(m_beamAsCountReadBuffer);
+
+  numBeamAs = numBeamAs > m_maxNumSubBeams ? m_maxNumBeams : numBeamAs;
+
+  cmdBuf = cmdBufGet.createCommandBuffer();
 
   VkBuildAccelerationStructureFlagsKHR flags  = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
   bool                                 update = false;
@@ -1101,26 +1132,16 @@ void HelloVulkan::beamtrace(const nvmath::vec4f& clearColor)
   VkBufferDeviceAddressInfo bufferInfo{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, m_beamAsInfoBuffer.buffer};
   VkDeviceAddress           instBufferAddr = vkGetBufferDeviceAddress(m_device, &bufferInfo);
 
-  // Make sure the copy of the instance buffer are copied before triggering the acceleration structure build
-  VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
-  barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
-  barrier.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
-  vkCmdPipelineBarrier(
-      cmdBuf, 
-      VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
-      VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
-      0, 1, &barrier, 0, nullptr, 0, nullptr
-  );
-
   // Creating the TLAS
   nvvk::Buffer scratchBuffer;
-  m_pbBuilder.cmdCreateTlas(cmdBuf, countInstance, instBufferAddr, scratchBuffer, flags, update, motion);
+  m_pbBuilder.cmdCreateTlas(cmdBuf, numBeamAs, instBufferAddr, scratchBuffer, flags, update, motion);
 
   // Finalizing and destroying temporary data
   cmdBufGet.submitAndWait(cmdBuf);
   m_alloc.finalizeAndReleaseStaging();
   m_alloc.destroy(scratchBuffer);
   m_alloc.destroy(m_beamAsInfoBuffer);
+  m_alloc.destroy(m_beamAsCountReadBuffer);
   
 }
 
@@ -1252,8 +1273,8 @@ void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& c
   m_pcRay.beamRadius     = m_beamRadius;
   m_pcRay.lightIntensity = m_pcRaster.lightIntensity;
   m_pcRay.lightType      = m_pcRaster.lightType;
-  m_pcRay.numBeams       = m_numBeams;
-  m_pcRay.numSubBeams    = m_numSubBeams;
+  m_pcRay.maxNumBeams       = m_maxNumBeams;
+  m_pcRay.maxNumSubBeams    = m_maxNumSubBeams;
 
 
   std::vector<VkDescriptorSet> descSets{m_rtDescSet, m_descSet};

@@ -101,8 +101,8 @@ struct PushConstantRay
   float beamRadius;
   int   lightType;
   int   frame;
-  uint64_t   numBeams;
-  uint64_t numSubBeams;
+  uint   maxNumBeams;
+  uint maxNumSubBeams;
   uint64_t beamBlasAddres;
 };
 

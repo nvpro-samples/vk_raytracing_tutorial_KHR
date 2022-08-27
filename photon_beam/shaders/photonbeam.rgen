@@ -18,8 +18,8 @@ layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
 
 layout(std430, set = 0, binding = 2) restrict buffer PhotonBeams{
 
-    uint beamCount;
     uint subBeamCount;
+    uint beamCount;
     uint _padding_beams[2];
 	PhotonBeam beams[];
 };
@@ -86,22 +86,34 @@ void main()
     newBeam.lightColor = beamColor / numLightSourceBeams;
 
     beamIndex = atomicAdd(beamCount, 1);
-    if (beamIndex >= pcRay.numBeams)
+    if (beamIndex >= pcRay.maxNumBeams)
         break;
 
     beams[beamIndex] = newBeam;
 
     vec3 beamVec = newBeam.endPos - newBeam.startPos;
     float beamLength = sqrt(dot(beamVec, beamVec));
+
+    // make beam boxes to overlap a little
     uint num_split = uint(beamLength / pcRay.beamRadius + 1.0);
+    float stride = beamLength / float(num_split);
 
     subBeamIndex = atomicAdd(subBeamCount, num_split);
-    if (subBeamIndex + num_split >= pcRay.numSubBeams)
-        break;
 
+    // Not using min function with subtraction operator to simplify the if statement
+    // because subtraction between unsinged integer values can cause overflow.
+    if (subBeamIndex > pcRay.maxNumBeams)
+    {
+        num_split = 0;
+    }
+    else if (num_split + subBeamIndex > pcRay.maxNumSubBeams)
+    {
+        num_split = (pcRay.maxNumSubBeams - subBeamIndex);
+    }
+   
     for(uint i=0; i < num_split; i++)
     {
-        vec3 splitStart = newBeam.startPos + pcRay.beamRadius * float(i) * rayDirection;
+        vec3 splitStart = newBeam.startPos + stride * float(i) * rayDirection;
         ShaderVkAccelerationStructureInstanceKHR asInfo;
         asInfo.instanceCustomIndexAndmask = (beamIndex << 8) | 0xFF;
         asInfo.instanceShaderBindingTableRecordOffsetAndflags = (0 << 24) | 0x00000001; // use the same hit group 0
@@ -120,8 +132,10 @@ void main()
         asInfo.matrix[2][3] = splitStart.z;
 
         subBeams[subBeamIndex + i] = asInfo;
-
     }
+
+    if (subBeamIndex + num_split >= pcRay.maxNumSubBeams)
+        break;
 
     beamColor *= prd.weight;
     rayOrigin = prd.rayOrigin;
