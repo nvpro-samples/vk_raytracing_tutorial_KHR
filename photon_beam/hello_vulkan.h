@@ -73,15 +73,14 @@ public:
   nvvk::Buffer m_beamAsCountReadBuffer;
   nvvk::Buffer m_beamAsDebugReadBuffer;
 
-  float m_beamRadius{1.0f};
-  int   m_beamBoxLength{1};
+  float m_beamRadius{0.5f};
   uint32_t m_maxNumBeams{4096};
   uint32_t m_maxNumSubBeams{4096 * 8};
 
   // Information pushed at each draw call
   PushConstantRaster m_pcRaster{
       {1},               // Identity matrix
-      {0.f, 4.5f, 0.f},  // light position
+      {0.f, 0.f, 0.f},  // light position
       0,                 // instance Id
       10.f,              // light intensity
       0,                 // light type

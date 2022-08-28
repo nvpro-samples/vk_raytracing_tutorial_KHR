@@ -70,6 +70,8 @@ struct SceneDesc
   uint64_t indexAddress;     // Address of the triangle indices buffer
   uint64_t materialAddress;  // Address of the Materials buffer (GltfShadeMaterial)
   uint64_t primInfoAddress;  // Address of the mesh primitives buffer (PrimMeshInfo)
+  uint64_t beamBoxVertexAddress;    // Address of the beam box Vertex buffer
+  uint64_t beamBoxIndexAddress;       // Address of the beam box triangle indices buffer
 };
 
 // Uniform buffer set at each frame

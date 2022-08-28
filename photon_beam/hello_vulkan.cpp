@@ -218,66 +218,47 @@ void HelloVulkan::createGraphicsPipeline()
 void HelloVulkan::createBeamBoundingBox()
 {
   std::vector<nvmath::vec3f> verticies;
-  verticies.resize(m_beamBoxLength * 4 + 1);
+  verticies.reserve(8);
 
   std::vector<uint32_t> indices;
-  indices.resize(6 + m_beamBoxLength * 24);
+  indices.reserve(3 * 2 * 6);
 
   verticies.push_back(nvmath::vec3f(m_beamRadius, m_beamRadius, 0.0f));
   verticies.push_back(nvmath::vec3f(-m_beamRadius, m_beamRadius, 0.0f));
   verticies.push_back(nvmath::vec3f(-m_beamRadius, -m_beamRadius, 0.0f));
   verticies.push_back(nvmath::vec3f(m_beamRadius, -m_beamRadius, 0.0f));
-  
-  
 
-  // indeices for the first square
-  // pushing in counter clock wise order for face culling
+  verticies.push_back(nvmath::vec3f(m_beamRadius, m_beamRadius,  2.0 * m_beamRadius));
+  verticies.push_back(nvmath::vec3f(-m_beamRadius, m_beamRadius, 2.0 * m_beamRadius));
+  verticies.push_back(nvmath::vec3f(-m_beamRadius, -m_beamRadius, 2.0 * m_beamRadius));
+  verticies.push_back(nvmath::vec3f(m_beamRadius, -m_beamRadius, 2.0 * m_beamRadius));
+  
+  // front
   indices.push_back(0);
   indices.push_back(1);
   indices.push_back(2);
-
   indices.push_back(2);
   indices.push_back(3);
   indices.push_back(0);
 
-  for(int i=0; i < m_beamBoxLength; ++i)
+  //back
+  indices.push_back(4);
+  indices.push_back(7);
+  indices.push_back(6);
+  indices.push_back(6);
+  indices.push_back(5);
+  indices.push_back(4);
+  
+  for(int i = 0; i < 4; i++)
   {
-    verticies.push_back(nvmath::vec3f(m_beamRadius, m_beamRadius, (i + 1) * 2.0 * m_beamRadius));
-    verticies.push_back(nvmath::vec3f(-m_beamRadius, m_beamRadius, (i + 1) * 2.0 * m_beamRadius));
-    verticies.push_back(nvmath::vec3f(-m_beamRadius, -m_beamRadius, (i + 1) * 2.0 * m_beamRadius));
-    verticies.push_back(nvmath::vec3f(m_beamRadius, -m_beamRadius, (i + 1) * 2.0 * m_beamRadius));
-    
-
-    for(int j = 0; j < 4; ++j)
-    {
-      // indices of verticies created_in previous iteration  
-      uint32_t vertex_old_1 = i * 4 + j;
-      uint32_t vertex_old_2 = i * 4 + ((j + 1) % 4); 
-
-      // indices of verticies created_in current iteration  
-      uint32_t vertex_new_1 = (i + 1) * 4 + j;
-      uint32_t vertex_new_2 = (i + 1) * 4 + ((j + 1) % 4); 
-        
-      // pushing in counter clock wise order for face culling
-      indices.push_back(vertex_new_1);
-      indices.push_back(vertex_old_2);
-      indices.push_back(vertex_old_1);
-      
-      indices.push_back(vertex_new_1);
-      indices.push_back(vertex_new_2);
-      indices.push_back(vertex_old_2);
-    }
-
+    indices.push_back(4+i);
+    indices.push_back(4 + ((1 + i) % 4));
+    indices.push_back((1 + i) % 4);
+    indices.push_back((1 + i) % 4);
+    indices.push_back(i);
+    indices.push_back(4 + i);
   }
 
-  // seal the box 
-  indices.push_back(m_beamBoxLength * 4 - 4);
-  indices.push_back(m_beamBoxLength * 4 - 3);
-  indices.push_back(m_beamBoxLength * 4 - 2);
-
-  indices.push_back(m_beamBoxLength * 4 - 2);
-  indices.push_back(m_beamBoxLength * 4 - 1);
-  indices.push_back(m_beamBoxLength * 4 - 4);
 
   nvvk::CommandPool cmdBufGet(m_device, m_graphicsQueueIndex);
   VkCommandBuffer   cmdBuf = cmdBufGet.createCommandBuffer();
@@ -365,7 +346,7 @@ void HelloVulkan::loadScene(const std::string& filename)
 
   m_beamAsInfoBuffer = m_alloc.createBuffer(
       cmdBuf, 
-      m_maxNumSubBeams * sizeof(VkAccelerationStructureInstanceKHR), 
+      m_maxNumSubBeams * sizeof(ShaderVkAccelerationStructureInstanceKHR), 
       nullptr,
       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
                                                 | VK_BUFFER_USAGE_TRANSFER_SRC_BIT
@@ -379,9 +360,12 @@ void HelloVulkan::loadScene(const std::string& filename)
       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
   );
 
-  m_beamAsDebugReadBuffer = m_alloc.createBuffer(cmdBuf, 1 * sizeof(ShaderVkAccelerationStructureInstanceKHR), nullptr,
-                                                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                                                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+  m_beamAsDebugReadBuffer = m_alloc.createBuffer(
+      cmdBuf, m_maxNumSubBeams * sizeof(ShaderVkAccelerationStructureInstanceKHR), 
+      nullptr, 
+      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 
+      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+  );
 
 
   SceneDesc sceneDesc;
@@ -391,6 +375,8 @@ void HelloVulkan::loadScene(const std::string& filename)
   sceneDesc.uvAddress       = nvvk::getBufferDeviceAddress(m_device, m_uvBuffer.buffer);
   sceneDesc.materialAddress = nvvk::getBufferDeviceAddress(m_device, m_materialBuffer.buffer);
   sceneDesc.primInfoAddress = nvvk::getBufferDeviceAddress(m_device, m_primInfo.buffer);
+  sceneDesc.beamBoxVertexAddress = nvvk::getBufferDeviceAddress(m_device, m_beamBoxVertexBuffer.buffer);
+  sceneDesc.beamBoxIndexAddress  = nvvk::getBufferDeviceAddress(m_device, m_beamBoxIndexBuffer.buffer);
   m_sceneDesc               = m_alloc.createBuffer(cmdBuf, sizeof(SceneDesc), &sceneDesc,
                                      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 
@@ -756,7 +742,7 @@ void HelloVulkan::createBeamBoxBlas()
   VkDeviceAddress vertexAddress = nvvk::getBufferDeviceAddress(m_device, m_beamBoxVertexBuffer.buffer);
   VkDeviceAddress indexAddress  = nvvk::getBufferDeviceAddress(m_device, m_beamBoxIndexBuffer.buffer);
 
-  uint32_t maxPrimitiveCount = m_beamBoxLength * 8  + 4;
+  uint32_t maxPrimitiveCount = 12;
 
   VkAccelerationStructureGeometryTrianglesDataKHR triangles{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR};
   triangles.vertexFormat             = VK_FORMAT_R32G32B32_SFLOAT; 
@@ -765,7 +751,7 @@ void HelloVulkan::createBeamBoxBlas()
   triangles.indexType               = VK_INDEX_TYPE_UINT32;
   triangles.indexData.deviceAddress = indexAddress;
 
-  triangles.maxVertex = m_beamBoxLength * 4 + 4;
+  triangles.maxVertex = 8;
 
   // Identify the above data as containing opaque triangles.
   VkAccelerationStructureGeometryKHR asGeom{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
@@ -1109,7 +1095,7 @@ void HelloVulkan::beamtrace(const nvmath::vec4f& clearColor)
   cpy.dstOffset = 0;
 
   vkCmdCopyBuffer(cmdBuf, m_beamBuffer.buffer, m_beamAsCountReadBuffer.buffer, 1, &cpy);
-  cpy.size = sizeof(ShaderVkAccelerationStructureInstanceKHR);
+  cpy.size = m_maxNumSubBeams * sizeof(ShaderVkAccelerationStructureInstanceKHR);
   vkCmdCopyBuffer(cmdBuf, m_beamAsInfoBuffer.buffer, m_beamAsDebugReadBuffer.buffer, 1, &cpy);
   
 
@@ -1130,14 +1116,26 @@ void HelloVulkan::beamtrace(const nvmath::vec4f& clearColor)
   m_alloc.unmap(m_beamAsCountReadBuffer);
 
   void* beamAsdata = m_alloc.map(m_beamAsDebugReadBuffer);
-  ShaderVkAccelerationStructureInstanceKHR test1 = *(reinterpret_cast<ShaderVkAccelerationStructureInstanceKHR*>(beamAsdata));
+  ShaderVkAccelerationStructureInstanceKHR* test1 = reinterpret_cast<ShaderVkAccelerationStructureInstanceKHR*>(beamAsdata);
 
-  VkAccelerationStructureInstanceKHR test2 = *(reinterpret_cast<VkAccelerationStructureInstanceKHR*>(beamAsdata));
+  VkAccelerationStructureInstanceKHR* test2 = reinterpret_cast<VkAccelerationStructureInstanceKHR*>(beamAsdata);
 
   int a     = sizeof(ShaderVkAccelerationStructureInstanceKHR);
   int b     = sizeof(VkAccelerationStructureInstanceKHR);
   numBeamAs = numBeamAs > m_maxNumSubBeams ? m_maxNumBeams : numBeamAs;
 
+  std::vector<VkAccelerationStructureInstanceKHR> tlas;
+  tlas.reserve(numBeamAs);
+  for(uint i = 0; i < 5; i++)
+  {
+    tlas.emplace_back(*(test2 + i));
+
+  }
+  m_alloc.unmap(m_beamAsDebugReadBuffer);
+
+  m_pbBuilder.buildTlas(tlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
+
+  /*
   cmdBuf = cmdBufGet.createCommandBuffer();
 
   VkBuildAccelerationStructureFlagsKHR flags  = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
@@ -1155,6 +1153,9 @@ void HelloVulkan::beamtrace(const nvmath::vec4f& clearColor)
   cmdBufGet.submitAndWait(cmdBuf);
   m_alloc.finalizeAndReleaseStaging();
   m_alloc.destroy(scratchBuffer);
+  */
+  
+
   m_alloc.destroy(m_beamAsInfoBuffer);
   m_alloc.destroy(m_beamAsCountReadBuffer);
   m_alloc.destroy(m_beamAsDebugReadBuffer);

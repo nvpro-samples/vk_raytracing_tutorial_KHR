@@ -179,6 +179,15 @@ int main(int argc, char** argv)
   helloVk.createPbPipeline();
 
   helloVk.createBeamBoxBlas();
+
+   nvmath::vec4f clearColor   = nvmath::vec4f(1, 1, 1, 1.00f);
+  bool          useRaytracer = true;
+
+  if(useRaytracer)
+  {
+    helloVk.beamtrace(clearColor);
+  }
+
   helloVk.createRtDescriptorSet();
   helloVk.createRtPipeline();
 
@@ -187,13 +196,7 @@ int main(int argc, char** argv)
   helloVk.updatePostDescriptorSet();
 
 
-  nvmath::vec4f clearColor   = nvmath::vec4f(1, 1, 1, 1.00f);
-  bool          useRaytracer = true;
-
-  if(useRaytracer)
-  {
-    helloVk.beamtrace(clearColor);
-  }
+ 
 
 
   helloVk.setupGlfwCallbacks(window);

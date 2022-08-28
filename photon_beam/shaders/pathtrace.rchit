@@ -57,8 +57,6 @@ layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 
 void main()
 {
-    prd.hitValue = vec3(gl_HitTEXT/10.0);
-  return;
 
   // Retrieve the Primitive mesh buffer information
   PrimMeshInfo pinfo = primInfo[gl_InstanceCustomIndexEXT];
@@ -69,8 +67,10 @@ void main()
   uint matIndex     = max(0, pinfo.materialIndex);  // material of primitive mesh
 
   Materials gltfMat   = Materials(sceneDesc.materialAddress);
-  Vertices  vertices  = Vertices(sceneDesc.vertexAddress);
-  Indices   indices   = Indices(sceneDesc.indexAddress);
+  //Vertices  vertices  = Vertices(sceneDesc.vertexAddress);
+  //Indices   indices   = Indices(sceneDesc.indexAddress);
+  Vertices  vertices  = Vertices(sceneDesc.beamBoxVertexAddress);
+  Indices   indices   = Indices(sceneDesc.beamBoxIndexAddress);
   Normals   normals   = Normals(sceneDesc.normalAddress);
   TexCoords texCoords = TexCoords(sceneDesc.uvAddress);
   Materials materials = Materials(sceneDesc.materialAddress);
@@ -87,6 +87,9 @@ void main()
   const vec3 pos2           = vertices.v[triangleIndex.z];
   const vec3 position       = pos0 * barycentrics.x + pos1 * barycentrics.y + pos2 * barycentrics.z;
   const vec3 world_position = vec3(gl_ObjectToWorldEXT * vec4(position, 1.0));
+
+  prd.hitValue = vec3(0.0, 0.0, world_position.z/10.0);
+  return;
 
   // Normal
   const vec3 nrm0         = normals.n[triangleIndex.x];
