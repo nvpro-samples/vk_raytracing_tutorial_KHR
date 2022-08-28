@@ -50,7 +50,8 @@ END_BINDING();
 START_BINDING(RtxBindings)
   eTlas       = 0,  // Top-level acceleration structure
   eOutImage   = 1,  // Ray tracer output image
-  eBeamLookup = 2   // Lookup of objects
+  eBeamLookup = 2,   // Lookup of objects
+  eSurfaceAs  = 3
 END_BINDING();
 
 START_BINDING(PbBindings)

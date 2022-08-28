@@ -31,8 +31,9 @@
 // clang-format off
 layout(location = 0) rayPayloadEXT hitPayload prd;
 
-layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
+layout(set = 0, binding = 0) uniform accelerationStructureEXT beamAS;
 layout(set = 0, binding = 1, rgba32f) uniform image2D image;
+layout(set = 0, binding = 3) uniform accelerationStructureEXT surfaceAS;
 
 layout(set = 1, binding = 0) uniform _GlobalUniforms { GlobalUniforms uni; };
 layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
@@ -67,7 +68,7 @@ void main()
 
   for(; prd.depth < 10; prd.depth++)
   {
-    traceRayEXT(topLevelAS,        // acceleration structure
+    traceRayEXT(beamAS,        // acceleration structure
                 rayFlags,          // rayFlags
                 0xFF,              // cullMask
                 0,                 // sbtRecordOffset
