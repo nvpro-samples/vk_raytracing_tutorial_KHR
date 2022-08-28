@@ -68,15 +68,16 @@ void main()
   vec3 curWeight = vec3(1);
   vec3 hitValue  = vec3(0);
 
+  // get the t value to surface
   rayQueryEXT rayQuery;
     rayQueryInitializeEXT(rayQuery,              // Ray query
-                          surfaceAS,                  // Top-level acceleration structure
-                          gl_RayFlagsOpaqueEXT,  // Ray flags, here saying "treat all geometry as opaque"
-                          0xFF,                  // 8-bit instance mask, here saying "trace against all instances"
-                          prd.rayOrigin,             // Ray origin
-                          0.0,                   // Minimum t-value
-                          prd.rayDirection,          // Ray direction
-                          tMax);              // Maximum t-value
+                            surfaceAS,                  // Top-level acceleration structure
+                            gl_RayFlagsOpaqueEXT,  // Ray flags, here saying "treat all geometry as opaque"
+                            0xFF,                  // 8-bit instance mask, here saying "trace against all instances"
+                            prd.rayOrigin,             // Ray origin
+                            0.0,                   // Minimum t-value
+                            prd.rayDirection,          // Ray direction
+                            tMax);              // Maximum t-value
 
     // Start traversal, and loop over all ray-scene intersections. When this finishes,
     // rayQuery stores a "committed" intersection, the closest intersection (if any).
