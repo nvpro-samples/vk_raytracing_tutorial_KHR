@@ -158,9 +158,11 @@ int main(int argc, char** argv)
   // Setup Imgui
   helloVk.initGUI(0);  // Using sub-pass 0
 
+  helloVk.createBeamBoundingBox();
 
   // Creation of the example
   helloVk.loadScene(nvh::findFile("media/scenes/cornellBox.gltf", defaultSearchPaths, true));
+
 
   helloVk.createOffscreenRender();
   helloVk.createDescriptorSetLayout();
@@ -173,12 +175,12 @@ int main(int argc, char** argv)
   helloVk.createBottomLevelAS();
   helloVk.createTopLevelAS();
 
-  helloVk.createBeamBoxBlas();
-
   helloVk.createPbDescriptorSet();
   helloVk.createPbPipeline();
 
-  nvmath::vec4f clearColor   = nvmath::vec4f(1, 1, 1, 1.00f);
+  helloVk.createBeamBoxBlas();
+
+   nvmath::vec4f clearColor   = nvmath::vec4f(1, 1, 1, 1.00f);
   bool          useRaytracer = true;
 
   if(useRaytracer)

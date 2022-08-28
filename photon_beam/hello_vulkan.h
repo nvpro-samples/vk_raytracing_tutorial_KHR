@@ -45,7 +45,7 @@ public:
   void setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t queueFamily) override;
   void createDescriptorSetLayout();
   void createGraphicsPipeline();
-  void createBeamBoundingBox(const VkCommandBuffer& cmdBuf);
+  void createBeamBoundingBox();
   void loadScene(const std::string& filename);
   void updateDescriptorSet();
   void createUniformBuffer();
@@ -74,8 +74,8 @@ public:
   nvvk::Buffer m_beamAsDebugReadBuffer;
 
   float m_beamRadius{0.5f};
-  uint32_t m_maxNumBeams{4};
-  uint32_t m_maxNumSubBeams{4};
+  uint32_t m_maxNumBeams{4096};
+  uint32_t m_maxNumSubBeams{4096 * 8};
 
   // Information pushed at each draw call
   PushConstantRaster m_pcRaster{
