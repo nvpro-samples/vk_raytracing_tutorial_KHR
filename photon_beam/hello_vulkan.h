@@ -71,6 +71,7 @@ public:
   nvvk::Buffer m_beamBuffer;
   nvvk::Buffer m_beamAsInfoBuffer;
   nvvk::Buffer m_beamAsCountReadBuffer;
+  nvvk::Buffer m_beamAsDebugReadBuffer;
 
   float m_beamRadius{1.0f};
   int   m_beamBoxLength{1};

@@ -115,8 +115,8 @@ void main()
     {
         vec3 splitStart = newBeam.startPos + stride * float(i) * rayDirection;
         ShaderVkAccelerationStructureInstanceKHR asInfo;
-        asInfo.instanceCustomIndexAndmask = (beamIndex << 8) | 0xFF;
-        asInfo.instanceShaderBindingTableRecordOffsetAndflags = (0 << 24) | 0x00000001; // use the same hit group 0
+        asInfo.instanceCustomIndexAndmask = beamIndex | (0xFF << 24);
+        asInfo.instanceShaderBindingTableRecordOffsetAndflags = (0) | (0x00000001 << 24); // use the same hit group 0
         asInfo.accelerationStructureReference = pcRay.beamBlasAddres;
         asInfo.matrix[0][0] = 0.0;
         asInfo.matrix[0][1] = 0.0;

@@ -57,6 +57,9 @@ layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 
 void main()
 {
+    prd.hitValue = vec3(gl_HitTEXT/10.0);
+  return;
+
   // Retrieve the Primitive mesh buffer information
   PrimMeshInfo pinfo = primInfo[gl_InstanceCustomIndexEXT];
 
@@ -127,30 +130,6 @@ void main()
   prd.rayDirection = rayDirection;
   prd.hitValue     = emittance;
   prd.weight       = BRDF * cos_theta / p;
-  return;
 
-  // Recursively trace reflected light sources.
-  if(prd.depth < 10)
-  {
-    prd.depth++;
-    float tMin  = 0.001;
-    float tMax  = 100000000.0;
-    uint  flags = gl_RayFlagsOpaqueEXT;
-    traceRayEXT(topLevelAS,    // acceleration structure
-                flags,         // rayFlags
-                0xFF,          // cullMask
-                0,             // sbtRecordOffset
-                0,             // sbtRecordStride
-                0,             // missIndex
-                rayOrigin,     // ray origin
-                tMin,          // ray min range
-                rayDirection,  // ray direction
-                tMax,          // ray max range
-                0              // payload (location = 0)
-    );
-  }
-  vec3 incoming = prd.hitValue;
 
-  // Apply the Rendering Equation here.
-  prd.hitValue = emittance + (BRDF * incoming * cos_theta / p);
 }

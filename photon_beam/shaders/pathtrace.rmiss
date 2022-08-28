@@ -36,4 +36,6 @@ void main()
   else
     prd.hitValue = vec3(0.01);  // No contribution from environment
   prd.depth = 100;              // Ending trace
+
+  prd.hitValue = vec3(gl_RayTmaxEXT/10.0);
 }

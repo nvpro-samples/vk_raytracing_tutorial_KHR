@@ -368,15 +368,20 @@ void HelloVulkan::loadScene(const std::string& filename)
       m_maxNumSubBeams * sizeof(VkAccelerationStructureInstanceKHR), 
       nullptr,
       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
+                                                | VK_BUFFER_USAGE_TRANSFER_SRC_BIT
   );
 
   m_beamAsCountReadBuffer = m_alloc.createBuffer(
       cmdBuf, 
-      1 * sizeof(uint64_t), 
+      1 * sizeof(uint32_t), 
       nullptr,
       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
   );
+
+  m_beamAsDebugReadBuffer = m_alloc.createBuffer(cmdBuf, 1 * sizeof(ShaderVkAccelerationStructureInstanceKHR), nullptr,
+                                                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
 
   SceneDesc sceneDesc;
@@ -932,7 +937,7 @@ void HelloVulkan::createRtDescriptorSet()
   vkAllocateDescriptorSets(m_device, &allocateInfo, &m_rtDescSet);
 
 
-  VkAccelerationStructureKHR                   tlas = m_rtBuilder.getAccelerationStructure();
+  VkAccelerationStructureKHR                   tlas = m_pbBuilder.getAccelerationStructure();
   VkWriteDescriptorSetAccelerationStructureKHR descASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
   descASInfo.accelerationStructureCount = 1;
   descASInfo.pAccelerationStructures    = &tlas;
@@ -1104,6 +1109,9 @@ void HelloVulkan::beamtrace(const nvmath::vec4f& clearColor)
   cpy.dstOffset = 0;
 
   vkCmdCopyBuffer(cmdBuf, m_beamBuffer.buffer, m_beamAsCountReadBuffer.buffer, 1, &cpy);
+  cpy.size = sizeof(ShaderVkAccelerationStructureInstanceKHR);
+  vkCmdCopyBuffer(cmdBuf, m_beamAsInfoBuffer.buffer, m_beamAsDebugReadBuffer.buffer, 1, &cpy);
+  
 
   VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
   barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -1121,6 +1129,13 @@ void HelloVulkan::beamtrace(const nvmath::vec4f& clearColor)
   uint32_t numBeamAs = *(reinterpret_cast<uint32_t*>(numBeamAsdata));
   m_alloc.unmap(m_beamAsCountReadBuffer);
 
+  void* beamAsdata = m_alloc.map(m_beamAsDebugReadBuffer);
+  ShaderVkAccelerationStructureInstanceKHR test1 = *(reinterpret_cast<ShaderVkAccelerationStructureInstanceKHR*>(beamAsdata));
+
+  VkAccelerationStructureInstanceKHR test2 = *(reinterpret_cast<VkAccelerationStructureInstanceKHR*>(beamAsdata));
+
+  int a     = sizeof(ShaderVkAccelerationStructureInstanceKHR);
+  int b     = sizeof(VkAccelerationStructureInstanceKHR);
   numBeamAs = numBeamAs > m_maxNumSubBeams ? m_maxNumBeams : numBeamAs;
 
   cmdBuf = cmdBufGet.createCommandBuffer();
@@ -1142,6 +1157,7 @@ void HelloVulkan::beamtrace(const nvmath::vec4f& clearColor)
   m_alloc.destroy(scratchBuffer);
   m_alloc.destroy(m_beamAsInfoBuffer);
   m_alloc.destroy(m_beamAsCountReadBuffer);
+  m_alloc.destroy(m_beamAsDebugReadBuffer);
   
 }
 
