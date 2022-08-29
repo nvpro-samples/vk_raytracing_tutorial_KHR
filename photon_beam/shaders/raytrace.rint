@@ -92,7 +92,7 @@ void main()
     }
 
     // return none if the distance between the nearest points is longer than the beam radius
-    if(length(beamPoint - rayPoint) <  pcRay.beamRadius)
+    if(length(beamPoint - rayPoint) >  pcRay.beamRadius)
     {
         reportIntersectionEXT(-1, 0);
         return;
