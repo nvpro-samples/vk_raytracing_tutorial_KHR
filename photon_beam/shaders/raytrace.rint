@@ -24,38 +24,18 @@ layout(std430, set = 0, binding = 2) readonly buffer PhotonBeams{
 	PhotonBeam beams[];
 };
 
-
-layout(buffer_reference, scalar) readonly buffer Vertices  { vec3  v[]; };
-layout(buffer_reference, scalar) readonly buffer Indices   { ivec3 i[]; };
-
-layout(set = 1, binding = eSceneDesc ) readonly buffer SceneDesc_ { SceneDesc sceneDesc; };
-
 layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 // clang-format on
 
 
 void main()
 {
-
     vec3 rayOrigin    = gl_WorldRayOriginEXT;
     vec3 rayDirection = gl_WorldRayDirectionEXT;
     const vec3 rayEnd = rayOrigin + rayDirection * gl_RayTmaxEXT;
     float rayLength = gl_RayTmaxEXT;
 
     PhotonBeam beam = beams[gl_InstanceCustomIndexEXT];
-
-    Vertices  vertices  = Vertices(sceneDesc.beamBoxVertexAddress);
-    Indices   indices   = Indices(sceneDesc.beamBoxIndexAddress);
-
-    ivec3 triangleIndex = indices.i[gl_PrimitiveID];
-
-    const vec3 barycentrics = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
-
-    const vec3 pos0           = vertices.v[triangleIndex.x];
-    const vec3 pos1           = vertices.v[triangleIndex.y];
-    const vec3 pos2           = vertices.v[triangleIndex.z];
-    const vec3 position       = pos0 * barycentrics.x + pos1 * barycentrics.y + pos2 * barycentrics.z;
-    const vec3 world_position = vec3(gl_ObjectToWorldEXT * vec4(position, 1.0));
 
     vec3 beamDirection = normalize(beam.endPos - beam.startPos);
     float beamLength = length(beam.endPos - beam.startPos);
