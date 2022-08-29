@@ -54,7 +54,7 @@ void main()
     vec4 target    = uni.projInverse * vec4(d.x, d.y, 1, 1);
     vec4 direction = uni.viewInverse * vec4(normalize(target.xyz), 0);
 
-    uint  rayFlags = gl_RayFlagsOpaqueEXT;
+    uint  rayFlags = gl_RayFlagsNoneEXT;
     float tMin     = 0.001;
     float tMax     = 10000.0;
 

@@ -31,6 +31,7 @@ layout(push_constant) uniform Constants
 
 void main()
 {
+return;
   if(prd.depth == 0)
     prd.hitValue = clearColor.xyz * 0.8;
   else

@@ -696,7 +696,7 @@ void HelloVulkan::createBeamBoxBlas()
 
   VkAccelerationStructureGeometryKHR asGeom{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
   asGeom.geometryType   = VK_GEOMETRY_TYPE_AABBS_KHR;
-  asGeom.flags          = VK_GEOMETRY_OPAQUE_BIT_KHR;
+  asGeom.flags          = VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR;
   asGeom.geometry.aabbs = aabbs;
 
   VkAccelerationStructureBuildRangeInfoKHR offset{};
@@ -938,8 +938,11 @@ void HelloVulkan::createPbPipeline()
 
 
   // Push constant: we want to be able to update constants used by the shaders
-  VkPushConstantRange pushConstant{VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
-                                   0, sizeof(PushConstantRay)};
+  VkPushConstantRange pushConstant{
+      VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
+      0, 
+      sizeof(PushConstantRay)
+  };
 
 
   VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
@@ -1017,7 +1020,7 @@ void HelloVulkan::beamtrace(const nvmath::vec4f& clearColor)
       &regions[1], 
       &regions[2], 
       &regions[3], 
-      1, 1, 4
+      1, 1, 4096
   );
 
   m_debug.endLabel(cmdBuf);
@@ -1112,6 +1115,7 @@ void HelloVulkan::createRtPipeline()
     eMiss,
     eClosestHit,
     eIntersection,
+    eAnyHit,
     eShaderGroupCount
   };
 
@@ -1136,6 +1140,10 @@ void HelloVulkan::createRtPipeline()
   stage.stage           = VK_SHADER_STAGE_INTERSECTION_BIT_KHR;
   stages[eIntersection] = stage;
 
+  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytrace.rahit.spv", true, defaultSearchPaths, true));
+  stage.stage     = VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
+  stages[eAnyHit] = stage;
+
 
   // Shader groups
   VkRayTracingShaderGroupCreateInfoKHR group{VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR};
@@ -1159,12 +1167,15 @@ void HelloVulkan::createRtPipeline()
   group.generalShader    = VK_SHADER_UNUSED_KHR;
   group.closestHitShader = eClosestHit;
   group.intersectionShader = eIntersection;
+  group.anyHitShader       = eAnyHit;
   m_rtShaderGroups.push_back(group);
 
 
   // Push constant: we want to be able to update constants used by the shaders
-  VkPushConstantRange pushConstant{VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_INTERSECTION_BIT_KHR,
-                                   0, sizeof(PushConstantRay)};
+  VkPushConstantRange pushConstant{
+      VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_INTERSECTION_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
+      0, sizeof(PushConstantRay)
+  };
 
 
   VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
@@ -1229,13 +1240,20 @@ void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& c
   vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipeline);
   vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipelineLayout, 0,
                           (uint32_t)descSets.size(), descSets.data(), 0, nullptr);
-  vkCmdPushConstants(cmdBuf, m_rtPipelineLayout,
-                     VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_INTERSECTION_BIT_KHR,
-                     0, sizeof(PushConstantRay), &m_pcRay);
+  vkCmdPushConstants(
+      cmdBuf, 
+      m_rtPipelineLayout,
+      VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_INTERSECTION_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
+      0, sizeof(PushConstantRay), &m_pcRay
+  );
 
 
   auto& regions = m_sbtWrapper.getRegions();
-  vkCmdTraceRaysKHR(cmdBuf, &regions[0], &regions[1], &regions[2], &regions[3], m_size.width, m_size.height, 1);
+  vkCmdTraceRaysKHR(
+      cmdBuf, 
+      &regions[0], &regions[1], &regions[2], &regions[3], 
+      m_size.width, m_size.height, 1
+  );
 
 
   m_debug.endLabel(cmdBuf);
