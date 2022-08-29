@@ -37,10 +37,10 @@ layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 void main()
 {
 
-    Ray ray;
-    ray.origin    = gl_WorldRayOriginEXT;
-    ray.direction = gl_WorldRayDirectionEXT;
-    const vec3 rayEnd = ray.origin + ray.direction * gl_RayTmaxEXT;
+    vec3 rayOrigin    = gl_WorldRayOriginEXT;
+    vec3 rayDirection = gl_WorldRayDirectionEXT;
+    const vec3 rayEnd = rayOrigin + rayDirection * gl_RayTmaxEXT;
+    float rayLength = gl_RayTmaxEXT;
 
     PhotonBeam beam = beams[gl_InstanceCustomIndexEXT];
 
@@ -58,70 +58,70 @@ void main()
     const vec3 world_position = vec3(gl_ObjectToWorldEXT * vec4(position, 1.0));
 
     vec3 beamDirection = normalize(beam.endPos - beam.startPos);
-    vec3 beamLength = length(beam.endPos - beam.startPos);
-    const vec3 rayBeamCross = cross(ray.direction, beamDirection);
-    vec3 norm1 = cross(ray.direction, rayBeamCross);
+    float beamLength = length(beam.endPos - beam.startPos);
+    const vec3 rayBeamCross = cross(rayDirection, beamDirection);
+    vec3 norm1 = cross(rayDirection, rayBeamCross);
     vec3 norm2 = cross(beamDirection, rayBeamCross); 
 
     // get the nearest points between camera ray and beam
-    vec3 rayPoint = ray.origin + dot(beam.startPos - ray.orign, norm2) / dot(ray.direction, norm2) * ray.direction;
-    vec3 beamPoint = beam.startPos + dot(ray.origin - beam.startPos, norm1) / dot(beamDirection, norm1) * beamDirection;
+    vec3 rayPoint = rayOrigin + dot(beam.startPos - rayOrigin, norm2) / dot(rayDirection, norm2) * rayDirection;
+    vec3 beamPoint = beam.startPos + dot(rayOrigin - beam.startPos, norm1) / dot(beamDirection, norm1) * beamDirection;
 
-    float rayPointAt = dot(rayPoint - ray.origin, ray.direction); 
+    float rayPointAt = dot(rayPoint - rayOrigin, rayDirection); 
     float beamPointAt = dot(beamPoint - beam.startPos, beamDirection);
   
     if(rayPointAt < 0 && beamPointAt < 0)
     {
-        rayPoint = ray.origin;
+        rayPoint = rayOrigin;
         beamPoint = beam.startPos;
     }
-    else if(rayPointAt> rayMaxLength && beamPointAt > beamLength)
+    else if(rayPointAt> rayLength && beamPointAt > beamLength)
     {
         rayPoint = rayEnd;
         beamPoint = beam.endPos;
     }
-    else if((rayPointAt < 0 && beamPointAt > beamLength)
+    else if(rayPointAt < 0 && beamPointAt > beamLength)
     {
-        rayPoint = ray.origin;
+        rayPoint = rayOrigin;
         beamPoint = beam.endPos;
     }
-    else if(rayPointAt > rayMaxLength &&  beamPointAt < 0)
+    else if(rayPointAt > rayLength &&  beamPointAt < 0)
     {
         rayPoint = rayEnd;
         beamPoint = beam.startPos;
     }
     else if(rayPointAt < 0)
     {
-        rayPoint = ray.origin;
-        beamPoint = beam.startPos + beamDirection * dot(rayPoint - beamStartPos, beamDirection);
+        rayPoint = rayOrigin;
+        beamPoint = beam.startPos + beamDirection * dot(rayPoint - beam.startPos, beamDirection);
     }
-    else if(rayPointAt > raymaxLength)
+    else if(rayPointAt > rayLength)
     {
         rayPoint = rayEnd;
-        beamPoint = beam.startPos + beamDirection * dot(rayPoint - beamStartPos, beamDirection);
+        beamPoint = beam.startPos + beamDirection * dot(rayPoint - beam.startPos, beamDirection);
     }
     else if(beamPointAt < 0)
     {
         beamPoint = beam.startPos;
-        rayPoint = ray.origin + ray.direction * dot(beamPoint - ray.origin, ray.direction);
+        rayPoint = rayOrigin + rayDirection * dot(beamPoint - rayOrigin, rayDirection);
     }
     else if(beamPointAt > beamLength)
     {
         beamPoint = beam.endPos;
-        rayPoint = ray.origin + ray.direction * dot(beamPoint - ray.origin, ray.direction);
+        rayPoint = rayOrigin + rayDirection * dot(beamPoint - rayOrigin, rayDirection);
     }
 
     // return none if the distance between the nearest points is longer than the beam radius
     if(length(beamPoint - rayPoint) <  pcRay.beamRadius)
-    return;
+        return;
 
     float beamBoxStartAt = length(vec3(gl_ObjectToWorldEXT * vec4(0.0,0.0,0.0, 1.0)) - beam.startPos);
     beamPointAt = length(beamPoint - beam.startPos);
 
     // return none if this subbeam does not contain the beam point
-    if(beamPointAt < beamBoxStartAt || beamBoxStartAt + pcRay.beamRadius * 2 <= beamPointPos)
-    return;
+    if(beamPointAt < beamBoxStartAt || beamBoxStartAt + pcRay.beamRadius * 2 <= beamPointAt)
+        return;
 
-    rayPointAt = length(rayPoint - ray.origin);
+    rayPointAt = length(rayPoint - rayOrigin);
     reportIntersectionEXT(rayPointAt, 0);
 }
