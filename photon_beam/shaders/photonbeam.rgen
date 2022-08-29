@@ -96,7 +96,6 @@ void main()
 
     // make beam boxes to overlap a little
     uint num_split = uint(beamLength / pcRay.beamRadius + 1.0);
-    float stride = beamLength / float(num_split);
 
     subBeamIndex = atomicAdd(subBeamCount, num_split);
 
@@ -120,7 +119,7 @@ void main()
    
     for(uint i=0; i < num_split; i++)
     {
-        vec3 splitStart = newBeam.startPos + stride * float(i) * rayDirection;
+        vec3 splitStart = newBeam.startPos + pcRay.beamRadius * float(i) * rayDirection;
         ShaderVkAccelerationStructureInstanceKHR asInfo;
         asInfo.instanceCustomIndexAndmask = beamIndex | (0xFF << 24);
         asInfo.instanceShaderBindingTableRecordOffsetAndflags = (0) | (0x00000001 << 24); // use the same hit group 0
