@@ -83,6 +83,7 @@ void main()
     // rayQuery stores a "committed" intersection, the closest intersection (if any).
     rayQueryProceedEXT(rayQuery);
     tMax = rayQueryGetIntersectionTEXT(rayQuery, true);
+    tMax     = 10000.0;
 
 
     traceRayEXT(beamAS,        // acceleration structure

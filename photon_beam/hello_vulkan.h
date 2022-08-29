@@ -66,8 +66,7 @@ public:
   nvvk::Buffer   m_primInfo;
   nvvk::Buffer   m_sceneDesc;
 
-  nvvk::Buffer m_beamBoxVertexBuffer;
-  nvvk::Buffer m_beamBoxIndexBuffer;
+  nvvk::Buffer m_beamBoxBuffer;
   nvvk::Buffer m_beamBuffer;
   nvvk::Buffer m_beamAsInfoBuffer;
   nvvk::Buffer m_beamAsCountReadBuffer;

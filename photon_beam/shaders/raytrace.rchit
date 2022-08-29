@@ -32,11 +32,10 @@
 #include "sampling.glsl"
 #include "host_device.h"
 
-hitAttributeEXT vec2 attribs;
+hitAttributeEXT vec3 beamHit;
 
 // clang-format off
 layout(location = 0) rayPayloadInEXT hitPayload prd;
-layout(location = 1) rayPayloadEXT bool isShadowed;
 
 layout(std430, set = 0, binding = 2) readonly buffer PhotonBeams{
 
@@ -46,16 +45,6 @@ layout(std430, set = 0, binding = 2) readonly buffer PhotonBeams{
 	PhotonBeam beams[];
 };
 
-
-layout(buffer_reference, scalar) readonly buffer Vertices  { vec3  v[]; };
-layout(buffer_reference, scalar) readonly buffer Indices   { ivec3 i[]; };
-layout(buffer_reference, scalar) readonly buffer Normals   { vec3  n[]; };
-layout(buffer_reference, scalar) readonly buffer TexCoords { vec2  t[]; };
-layout(buffer_reference, scalar) readonly buffer Materials { GltfShadeMaterial m[]; };
-
-layout(set = 1, binding = eSceneDesc ) readonly buffer SceneDesc_ { SceneDesc sceneDesc; };
-layout(set = 1, binding = eTextures) uniform sampler2D texturesMap[]; // all textures
-
 layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 // clang-format on
 
@@ -64,20 +53,8 @@ void main()
 {
 
   PhotonBeam beam = beams[gl_InstanceCustomIndexEXT];
-  Vertices  vertices  = Vertices(sceneDesc.beamBoxVertexAddress);
-  Indices   indices   = Indices(sceneDesc.beamBoxIndexAddress);
-
-  ivec3 triangleIndex = indices.i[gl_PrimitiveID];
-
-  const vec3 barycentrics = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
-
-  const vec3 pos0           = vertices.v[triangleIndex.x];
-  const vec3 pos1           = vertices.v[triangleIndex.y];
-  const vec3 pos2           = vertices.v[triangleIndex.z];
-  const vec3 position       = pos0 * barycentrics.x + pos1 * barycentrics.y + pos2 * barycentrics.z;
-  const vec3 world_position = vec3(gl_ObjectToWorldEXT * vec4(position, 1.0));
-
-  //vec3 worldPos = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+  vec3 worldPos = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+  float beamDist = length(beamHit - beam.startPos);
 
   prd.hitValue = beam.lightColor;
 }

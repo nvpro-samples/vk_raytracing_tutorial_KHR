@@ -217,68 +217,29 @@ void HelloVulkan::createGraphicsPipeline()
 
 void HelloVulkan::createBeamBoundingBox()
 {
-  std::vector<nvmath::vec3f> verticies;
-  verticies.reserve(8);
+  std::vector<Aabb> aabbs;
+  aabbs.reserve(1);
 
-  std::vector<uint32_t> indices;
-  indices.reserve(3 * 2 * 6);
+  Aabb beamBox;
+  beamBox.minimum = nvmath::vec3f(-m_beamRadius, -m_beamRadius, 0.0f);
+  beamBox.maximum = nvmath::vec3f(m_beamRadius, m_beamRadius, 2.0 * m_beamRadius);
 
-  verticies.push_back(nvmath::vec3f(m_beamRadius, m_beamRadius, 0.0f));
-  verticies.push_back(nvmath::vec3f(-m_beamRadius, m_beamRadius, 0.0f));
-  verticies.push_back(nvmath::vec3f(-m_beamRadius, -m_beamRadius, 0.0f));
-  verticies.push_back(nvmath::vec3f(m_beamRadius, -m_beamRadius, 0.0f));
-
-  verticies.push_back(nvmath::vec3f(m_beamRadius, m_beamRadius,  2.0 * m_beamRadius));
-  verticies.push_back(nvmath::vec3f(-m_beamRadius, m_beamRadius, 2.0 * m_beamRadius));
-  verticies.push_back(nvmath::vec3f(-m_beamRadius, -m_beamRadius, 2.0 * m_beamRadius));
-  verticies.push_back(nvmath::vec3f(m_beamRadius, -m_beamRadius, 2.0 * m_beamRadius));
-  
-  // front
-  indices.push_back(0);
-  indices.push_back(1);
-  indices.push_back(2);
-  indices.push_back(2);
-  indices.push_back(3);
-  indices.push_back(0);
-
-  //back
-  indices.push_back(4);
-  indices.push_back(7);
-  indices.push_back(6);
-  indices.push_back(6);
-  indices.push_back(5);
-  indices.push_back(4);
-  
-  for(int i = 0; i < 4; i++)
-  {
-    indices.push_back(4+i);
-    indices.push_back(4 + ((1 + i) % 4));
-    indices.push_back((1 + i) % 4);
-    indices.push_back((1 + i) % 4);
-    indices.push_back(i);
-    indices.push_back(4 + i);
-  }
-
+  aabbs.emplace_back(beamBox);
+ 
 
   nvvk::CommandPool cmdBufGet(m_device, m_graphicsQueueIndex);
   VkCommandBuffer   cmdBuf = cmdBufGet.createCommandBuffer();
 
-  m_beamBoxVertexBuffer = m_alloc.createBuffer(
+  m_beamBoxBuffer = m_alloc.createBuffer(
       cmdBuf, 
-      verticies,
-      VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
-  );
-  m_beamBoxIndexBuffer  = m_alloc.createBuffer(
-      cmdBuf, 
-      indices, 
-      VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
+      aabbs,
+      VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
   );
 
   cmdBufGet.submitAndWait(cmdBuf);
   m_alloc.finalizeAndReleaseStaging();
 
-  NAME_VK(m_beamBoxVertexBuffer.buffer);
-  NAME_VK(m_beamBoxIndexBuffer.buffer);
+  NAME_VK(m_beamBoxBuffer.buffer);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -366,8 +327,6 @@ void HelloVulkan::loadScene(const std::string& filename)
   sceneDesc.uvAddress       = nvvk::getBufferDeviceAddress(m_device, m_uvBuffer.buffer);
   sceneDesc.materialAddress = nvvk::getBufferDeviceAddress(m_device, m_materialBuffer.buffer);
   sceneDesc.primInfoAddress = nvvk::getBufferDeviceAddress(m_device, m_primInfo.buffer);
-  sceneDesc.beamBoxVertexAddress = nvvk::getBufferDeviceAddress(m_device, m_beamBoxVertexBuffer.buffer);
-  sceneDesc.beamBoxIndexAddress  = nvvk::getBufferDeviceAddress(m_device, m_beamBoxIndexBuffer.buffer);
   m_sceneDesc               = m_alloc.createBuffer(cmdBuf, sizeof(SceneDesc), &sceneDesc,
                                      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 
@@ -478,8 +437,7 @@ void HelloVulkan::destroyResources()
 
   m_alloc.destroy(m_beamBuffer);
   // m_alloc.destroy(m_beamAsInfoBuffer);
-  m_alloc.destroy(m_beamBoxVertexBuffer);
-  m_alloc.destroy(m_beamBoxIndexBuffer);
+  m_alloc.destroy(m_beamBoxBuffer);
 
   for(auto& t : m_textures)
   {
@@ -730,38 +688,28 @@ void HelloVulkan::initRayTracing()
 
 void HelloVulkan::createBeamBoxBlas() 
 {
-  VkDeviceAddress vertexAddress = nvvk::getBufferDeviceAddress(m_device, m_beamBoxVertexBuffer.buffer);
-  VkDeviceAddress indexAddress  = nvvk::getBufferDeviceAddress(m_device, m_beamBoxIndexBuffer.buffer);
+  VkDeviceAddress beamBoxDataAddress = nvvk::getBufferDeviceAddress(m_device, m_beamBoxBuffer.buffer);
 
-  uint32_t maxPrimitiveCount = 12;
+  VkAccelerationStructureGeometryAabbsDataKHR aabbs{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_AABBS_DATA_KHR};
+  aabbs.data.deviceAddress = beamBoxDataAddress;
+  aabbs.stride             = sizeof(Aabb);
 
-  VkAccelerationStructureGeometryTrianglesDataKHR triangles{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR};
-  triangles.vertexFormat             = VK_FORMAT_R32G32B32_SFLOAT; 
-  triangles.vertexData.deviceAddress = vertexAddress;
-  triangles.vertexStride             = sizeof(nvmath::vec3f);
-  triangles.indexType               = VK_INDEX_TYPE_UINT32;
-  triangles.indexData.deviceAddress = indexAddress;
-
-  triangles.maxVertex = 8;
-
-  // Identify the above data as containing opaque triangles.
   VkAccelerationStructureGeometryKHR asGeom{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
-  asGeom.geometryType       = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
-  asGeom.flags              = VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR;  // For AnyHit
-  asGeom.geometry.triangles = triangles;
+  asGeom.geometryType   = VK_GEOMETRY_TYPE_AABBS_KHR;
+  asGeom.flags          = VK_GEOMETRY_OPAQUE_BIT_KHR;
+  asGeom.geometry.aabbs = aabbs;
 
-  VkAccelerationStructureBuildRangeInfoKHR offset;
+  VkAccelerationStructureBuildRangeInfoKHR offset{};
   offset.firstVertex     = 0;
-  offset.primitiveCount  = maxPrimitiveCount;
+  offset.primitiveCount  = 1;
   offset.primitiveOffset = 0;
   offset.transformOffset = 0;
 
-  // Our blas is made from only one geometry, but could be made of many geometries
   nvvk::RaytracingBuilderKHR::BlasInput input;
   input.asGeometry.emplace_back(asGeom);
   input.asBuildOffsetInfo.emplace_back(offset);
 
-    // Add Blas for the beam box
+  // Add Blas for the beam box
   std::vector<nvvk::RaytracingBuilderKHR::BlasInput> allBlas;
   allBlas.reserve(1);
   allBlas.push_back({input});
@@ -983,7 +931,7 @@ void HelloVulkan::createPbPipeline()
   m_pbShaderGroups.push_back(group);
 
   // closest hit shader
-  group.type             = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+  group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR;
   group.generalShader    = VK_SHADER_UNUSED_KHR;
   group.closestHitShader = eClosestHit;
   m_pbShaderGroups.push_back(group);
