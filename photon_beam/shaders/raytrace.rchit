@@ -77,5 +77,7 @@ void main()
   const vec3 position       = pos0 * barycentrics.x + pos1 * barycentrics.y + pos2 * barycentrics.z;
   const vec3 world_position = vec3(gl_ObjectToWorldEXT * vec4(position, 1.0));
 
+  //vec3 worldPos = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+
   prd.hitValue = beam.lightColor;
 }
