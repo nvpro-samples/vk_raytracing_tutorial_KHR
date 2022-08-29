@@ -48,7 +48,7 @@ void main()
   float tMin     = 0.001;
   float tMax     = 10000.0;
 
-  float minmumLightIntensitySquare = 0.00001;
+  float minmumLightIntensitySquare = 0.1e-20;
 
   prd.hitValue     = vec3(0);
   prd.seed         = seed;
