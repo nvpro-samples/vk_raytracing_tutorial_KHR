@@ -599,10 +599,9 @@ vkCmdBuildAccelerationStructuresKHR(cmdBuf, 1, &buildAs[idx].buildInfo, &buildAs
 ~~~~
 
 
-Note the barrier after each call to the build: this is necessary because we are reusing scratch space across builds, 
-so we need to make sure the previous build is finished before starting the next one. We could have used multiple 
-scratch buffers, but that would have been memory intensive, and the device can only build one BLAS at a time, 
-so it wouldn't be any faster.
+Note the barrier after each call to the build: For the sake of simplicity we are reusing scratch space across builds, 
+so we need to make sure the previous build is finished before starting the next one. 
+Ideally, we should have used multiple regions of a scratch buffer so multiple BLAS could be built simultaneously.
 
 ~~~~ C
 // Since the scratch buffer is reused across builds, we need a barrier to ensure one build
