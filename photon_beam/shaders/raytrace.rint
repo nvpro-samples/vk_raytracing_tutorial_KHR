@@ -16,10 +16,6 @@
 
 hitAttributeEXT vec2 attribs;
 
-// clang-format off
-layout(location = 0) rayPayloadInEXT hitPayload prd;
-layout(location = 1) rayPayloadEXT bool isShadowed;
-
 layout(std430, set = 0, binding = 2) readonly buffer PhotonBeams{
 
     uint subBeamCount;
@@ -67,49 +63,57 @@ void main()
   vec3 norm1 = cross(ray.direction, rayBeamCross);
   vec3 norm2 = cross(beamDirection, rayBeamCross); 
 
+  // get the nearest points between camera ray and beam
   vec3 rayPoint = ray.origin + dot(beam.startPos - ray.orign, norm2) / dot(ray.direction, norm2) * ray.direction;
-
   vec3 beamPoint = beam.startPos + dot(ray.origin - beam.startPos, norm1) / dot(beamDirection, norm1) * beamDirection;
 
-  vec3 rayPointLength = dot(rayPoint - ray.origin, ray.direction); 
-  vec3 beamPointLength = dot(beamPoint - beam.startPos, beamDirection);
+  float rayPointAt = dot(rayPoint - ray.origin, ray.direction); 
+  float beamPointAt = dot(beamPoint - beam.startPos, beamDirection);
   
-  if(rayPointLength < 0 && beamPointLength < 0){
+  if(rayPointAt < 0 && beamPointAt < 0){
     rayPoint = ray.origin;
     beamPoint = beam.startPos;
   }
-  else if(rayPointLength > rayMaxLength && beamPointLength > beamLength) {
+  else if(rayPointAt> rayMaxLength && beamPointAt > beamLength) {
     rayPoint = rayEnd;
     beamPoint = beam.endPos;
   }
-  else if((rayPointLength < 0 && beamPointLength > beamLength){
+  else if((rayPointAt < 0 && beamPointAt > beamLength){
     rayPoint = ray.origin;
     beamPoint = beam.endPos;
   }
-  else if(rayPointLength > rayMaxLength &&  beamPointLength < 0){
+  else if(rayPointAt > rayMaxLength &&  beamPointAt < 0){
     rayPoint = rayEnd;
     beamPoint = beam.startPos;
   }
-  else if(rayPointLength < 0){
+  else if(rayPointAt < 0){
     rayPoint = ray.origin;
     beamPoint = beam.startPos + beamDirection * dot(rayPoint - beamStartPos, beamDirection);
   }
-  else if(rayPointLength > raymaxLength){
+  else if(rayPointAt > raymaxLength){
     rayPoint = rayEnd;
     beamPoint = beam.startPos + beamDirection * dot(rayPoint - beamStartPos, beamDirection);
   }
-  else if(beamPointLength < 0){
+  else if(beamPointAt < 0){
     beamPoint = beam.startPos;
     rayPoint = ray.origin + ray.direction * dot(beamPoint - ray.origin, ray.direction);
   }
-  else if(beamPointLength > beamLength){
+  else if(beamPointAt > beamLength){
     beamPoint = beam.endPos;
     rayPoint = ray.origin + ray.direction * dot(beamPoint - ray.origin, ray.direction);
   }
 
+  // return none if the distance between the nearest points is longer than the beam radius
   if(length(beamPoint - rayPoint) <  pcRay.beamRadius)
     return;
 
+ float beamBoxStartAt = length(vec3(gl_ObjectToWorldEXT * vec4(0.0,0.0,0.0, 1.0)) - beam.startPos);
+ beamPointAt = length(beamPoint - beam.startPos);
 
-  prd.hitValue = beam.lightColor;
+ // return none if this subbeam does not contain the beam point
+ if(beamPointAt < beamBoxStartAt || beamBoxStartAt + pcRay.beamRadius * 2 <= beamPointPos)
+    return;
+
+ rayPointAt = length(rayPoint - ray.origin);
+ reportIntersectionEXT(rayPointAt, 0);
 }
