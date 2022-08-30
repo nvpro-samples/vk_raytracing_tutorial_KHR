@@ -43,7 +43,7 @@ layout(location = 4) in vec2 i_texCoord;
 // Outgoing
 layout(location = 0) out vec4 o_color;
 // Buffers
-layout(buffer_reference, scalar) buffer  GltfMaterial { GltfShadeMaterial m[]; };
+layout(std430, buffer_reference, scalar) buffer  GltfMaterial { GltfShadeMaterial m[]; };
 layout(set = 0, binding = eSceneDesc ) readonly buffer SceneDesc_ { SceneDesc sceneDesc; } ;
 layout(set = 0, binding = eTextures) uniform sampler2D[] textureSamplers;
 // clang-format on

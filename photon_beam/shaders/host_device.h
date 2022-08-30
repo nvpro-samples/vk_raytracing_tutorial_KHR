@@ -120,6 +120,9 @@ struct GltfShadeMaterial
   vec4 pbrBaseColorFactor;
   vec3 emissiveFactor;
   int  pbrBaseColorTexture;
+  float metallic;
+  float roughness;
+  uint   padding[2];
 };
 
 struct PhotonBeam

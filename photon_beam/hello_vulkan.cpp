@@ -285,7 +285,7 @@ void HelloVulkan::loadScene(const std::string& filename)
   std::vector<GltfShadeMaterial> shadeMaterials;
   for(const auto& m : m_gltfScene.m_materials)
   {
-    shadeMaterials.emplace_back(GltfShadeMaterial{m.baseColorFactor, m.emissiveFactor, m.baseColorTexture});
+    shadeMaterials.emplace_back(GltfShadeMaterial{m.baseColorFactor, m.emissiveFactor, m.baseColorTexture, m.metallicFactor, m.roughnessFactor});
   }
   m_materialBuffer = m_alloc.createBuffer(cmdBuf, shadeMaterials,
                                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
@@ -1020,7 +1020,7 @@ void HelloVulkan::beamtrace(const nvmath::vec4f& clearColor)
       &regions[1], 
       &regions[2], 
       &regions[3], 
-      1, 1, 4096
+      1, 1, 4
   );
 
   m_debug.endLabel(cmdBuf);

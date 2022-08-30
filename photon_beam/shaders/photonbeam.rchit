@@ -46,13 +46,15 @@ layout(buffer_reference, scalar) readonly buffer Vertices  { vec3  v[]; };
 layout(buffer_reference, scalar) readonly buffer Indices   { ivec3 i[]; };
 layout(buffer_reference, scalar) readonly buffer Normals   { vec3  n[]; };
 layout(buffer_reference, scalar) readonly buffer TexCoords { vec2  t[]; };
-layout(buffer_reference, scalar) readonly buffer Materials { GltfShadeMaterial m[]; };
+layout(std430, buffer_reference, scalar) readonly buffer Materials { GltfShadeMaterial m[]; };
 
 layout(set = 1, binding = eSceneDesc ) readonly buffer SceneDesc_ { SceneDesc sceneDesc; };
 layout(set = 1, binding = eTextures) uniform sampler2D texturesMap[]; // all textures
 
 layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 // clang-format on
+
+
 
 
 void main()
@@ -123,6 +125,51 @@ void main()
     uint txtId = mat.pbrBaseColorTexture;
     albedo *= texture(texturesMap[nonuniformEXT(txtId)], texcoord0).xyz;
   }
+
+    // grdf BDRF
+    // both light and viewDir are supposed start from the shading location
+    float       aValSq    = pow(mat.roughness, 4.0);
+    vec3        halfVec   = normalize(-prd.rayDirection + rayDirection);
+    float       nDotH     = dot(world_normal, halfVec);
+    float       nDotL     = dot(world_normal, -prd.rayDirection);
+    float       vDotH     = dot(rayDirection, halfVec);
+    float       hDotL     = dot(-prd.rayDirection, halfVec);
+    float       vDotN     = dot(rayDirection, world_normal);
+
+    vec3       c_diff = (1.0 - mat.metallic) * albedo;
+    vec3       f0     = 0.04 * (1 - mat.metallic) + albedo * mat.metallic;
+    vec3       frsnel    = f0 + (1 - f0) * pow(1 - abs(vDotH), 5);
+    vec3 f_diffuse = (1.0 - frsnel) / M_PI * c_diff;
+
+    float dVal = 0.0;
+
+    if (nDotH > 0) {
+    float denom = (nDotH * nDotH * (aValSq - 1.0) + 1);
+        denom       = denom * denom * M_PI;
+        dVal        = aValSq / denom;
+    }
+
+    float gVal = 0.0;
+
+    if(hDotL > 0 && vDotH > 0){
+        float denom1 = sqrt(aValSq + (1 - aValSq) * nDotL * nDotL); 
+        denom1 += abs(nDotL);
+
+        float denom2 = sqrt(aValSq + (1 - aValSq) * vDotN * vDotN); 
+        denom2 += abs(vDotN);
+
+        gVal = 4.0 * abs(nDotL * vDotN) / (denom1 * denom2);
+
+    }
+
+    vec3 f_specular = frsnel * dVal * gVal / (4 * abs(vDotN * nDotL));
+
+    vec3 material_f = f_specular + f_diffuse;
+
+    prd.rayOrigin    = rayOrigin;
+    prd.rayDirection = rayDirection;
+    prd.weight       = material_f / p ;
+    return;
 
   vec3 BRDF = albedo / M_PI;
 
