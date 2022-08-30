@@ -17,6 +17,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+
+
 // Generate a random unsigned int from two unsigned int values, using 16 pairs
 // of rounds of the Tiny Encryption Algorithm. See Zafar, Olano, and Curtis,
 // "GPU Random Numbers via the Tiny Encryption Algorithm"
@@ -80,4 +82,48 @@ void createCoordinateSystem(in vec3 N, out vec3 Nt, out vec3 Nb)
   else
     Nt = vec3(0, -N.z, N.y) / sqrt(N.y * N.y + N.z * N.z);
   Nb = cross(N, Nt);
+}
+
+
+# define AIR_HG_ASSYM -0.1
+
+// Henyey-Greenstein phase function
+float heneyGreenPhaseFunc(float cosTheta, float assymFactor)
+{
+  // assymetriy factor
+  // this value must be between -1 to 1
+  // 0 value gives uniform phase function
+  // value > 0 gives light out-scattering forward
+  // value < 0 gives light out-scattering backward
+  float g     = assymFactor;
+  float denom = 1 + g * g + 2 * g * cosTheta;
+
+  return (1 - g * g) / (denom * sqrt(denom)) / (4 * M_PI);
+}
+
+vec3 heneyGreenPhaseFuncSampling(inout uint seed, in vec3 incomingLightDir, float assymFactor)
+{
+  float val1 = heneyGreenPhaseFunc(1.0, assymFactor);
+  float val2 = heneyGreenPhaseFunc(-1.0, assymFactor);
+
+  float maxVal = max(val1, val2);
+
+  while(true)
+  {
+    vec3 hemiSphereNormal = vec3(0, 0, 1);
+    if(rnd(seed) < 0.5)
+        hemiSphereNormal.z = -1;
+
+    vec3 rayDirection = samplingHemisphere(seed, vec3(1, 0, 0), vec3(0, 1, 0), hemiSphereNormal);
+
+    float phaseVal = heneyGreenPhaseFunc(dot(rayDirection, incomingLightDir), assymFactor);
+
+    float cutline = rnd(seed) * maxVal;
+
+    if(cutline > phaseVal)
+      return rayDirection;
+        
+
+  }
+
 }

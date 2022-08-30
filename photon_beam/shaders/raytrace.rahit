@@ -51,21 +51,6 @@ layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 // clang-format on
 
 
-// Henyey-Greenstein phase function
-float phaseFunc(float cosTheta)
-{
-    // assymetriy factor
-    // this value must be between -1 to 1
-    // 0 value gives uniform phase function
-    // value > 0 gives light out-scattering forward
-    // value < 0 gives light out-scattering backward
-    float g = 0.0;
-    float denom = 1 + g * g + 2 * g * cosTheta;
-
-    return (1 - g * g) / (denom * sqrt(denom))  / (4 * M_PI);
-
-}
-
 void main()
 {
 
@@ -87,7 +72,7 @@ void main()
     attenuation.x = exp(-extinctCoff.x * (rayDist + beamDist));
     attenuation.y = exp(-extinctCoff.y * (rayDist + beamDist));
     attenuation.z = exp(-extinctCoff.z * (rayDist + beamDist));
-    vec3 radiance = phaseFunc(beamRayCosVal) * scatterCoff * beam.lightColor * attenuation / (pcRay.beamRadius * beamRayAbsSinVal + 0.1e-10);
+    vec3 radiance = heneyGreenPhaseFunc(beamRayCosVal, AIR_HG_ASSYM) * scatterCoff * beam.lightColor * attenuation / (pcRay.beamRadius * beamRayAbsSinVal + 0.1e-10);
 
     float rayBeamDist = length(worldPos - beamHit);
     prd.hitValue += radiance * exp(-rayBeamDist);

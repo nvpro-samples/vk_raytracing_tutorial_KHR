@@ -55,22 +55,8 @@ layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 // clang-format on
 
 
-// Henyey-Greenstein phase function
-float phaseFunc(float cosTheta)
-{
-    // assymetriy factor
-    // this value must be between -1 to 1
-    // 0 value gives uniform phase function
-    // value > 0 gives light out-scattering forward
-    // value < 0 gives light out-scattering backward
-    float g = 0.0;
-    float denom = 1 + g * g + 2 * g * cosTheta;
-
-    return (1 - g * g) / (denom * sqrt(denom))  / (4 * M_PI);
-
-}
-
 bool randomScatterOccured(const vec3 world_position){
+
     // random walk within participating media(air) scattering
     float rayLength = length(prd.rayOrigin - world_position);
     float airScatterAt = -log(1.0 - rnd(prd.seed)) / length(pcRay.airExtinctCoff);
@@ -86,14 +72,13 @@ bool randomScatterOccured(const vec3 world_position){
     if (rnd(prd.seed) < 0.5)
         hemiSphereNormal.z = -1;
 
-    vec3 rayDirection = samplingHemisphere(prd.seed, vec3(1,0,0), vec3(0,1,0), hemiSphereNormal);
-    float samplingProb = 1.0 /(4.0 * M_PI);
+    vec3 rayDirection = heneyGreenPhaseFuncSampling(prd.seed, prd.rayDirection, AIR_HG_ASSYM);
 
-    vec3 weight = phaseFunc(dot(prd.rayDirection, rayDirection)) * pcRay.airScatterCoff/pcRay.airExtinctCoff;
+    vec3 weight = pcRay.airScatterCoff/pcRay.airExtinctCoff;
 
     prd.rayOrigin    = rayOrigin;
     prd.rayDirection = rayDirection;
-    prd.weight       = weight / samplingProb;
+    prd.weight       = weight;
 
     return true;
 }
