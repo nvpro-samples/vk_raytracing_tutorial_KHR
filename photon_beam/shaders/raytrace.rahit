@@ -57,7 +57,7 @@ float phaseFunc(float cosTheta)
     // 0 value gives uniform phase function
     // value > 0 gives light out-scattering forward
     // value < 0 gives light out-scattering backward
-    float g = -0.2;
+    float g = 0.0;
     float denom = 1 + g * g + 2 * g * cosTheta;
 
     return (1 - g * g) / (denom * sqrt(denom))  / (4 * M_PI);
@@ -73,8 +73,14 @@ void main()
     vec3 beamDirection = normalize(beam.endPos - beam.startPos);
     float rayDist = gl_HitTEXT;
     vec3 vewingDirection = normalize(gl_WorldRayDirectionEXT) * -1.0;
-    vec3 scatterCoff = vec3(log(1.0/0.2));
-    vec3 extinctCoff = vec3(log(1.0/0.9999));
+ 
+    vec3 beamNearColor = vec3(1.0);
+    vec3 beamUnitDistanceColor = vec3(1.0);
+    float beamSourceDist = 15.0;
+    vec3 beamIntensity = vec3(30.0);
+    vec3 extinctCoff = log(beamNearColor/beamUnitDistanceColor);
+
+    vec3 scatterCoff = beamNearColor / beamIntensity * pow(beamNearColor/beamUnitDistanceColor, vec3(beamSourceDist));
 
     // the target radiance direction is -1.0 * gl_WorldRayDirectionEXT, opposite of the camera ray
     float beamRayCosVal = dot(-gl_WorldRayDirectionEXT, beamDirection);
@@ -84,12 +90,12 @@ void main()
     attenuation.x = exp(-extinctCoff.x * (rayDist + beamDist));
     attenuation.y = exp(-extinctCoff.y * (rayDist + beamDist));
     attenuation.z = exp(-extinctCoff.z * (rayDist + beamDist));
-    vec3 radiance = phaseFunc(beamRayCosVal) * scatterCoff * beam.lightColor * attenuation * scatterCoff / (pcRay.beamRadius * beamRayAbsSinVal + 0.1e-10);
+    vec3 radiance = phaseFunc(beamRayCosVal) * scatterCoff * beam.lightColor * attenuation / (pcRay.beamRadius * beamRayAbsSinVal + 0.1e-10);
 
     float rayBeamDist = length(worldPos - beamHit);
-    float blur = (pcRay.beamRadius - rayBeamDist) / pcRay.beamRadius;
+   
 
-    prd.hitValue += radiance * blur;
+    prd.hitValue += radiance * exp(-rayBeamDist);
 
     ignoreIntersectionEXT;
 }
