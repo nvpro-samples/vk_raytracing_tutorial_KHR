@@ -105,6 +105,8 @@ struct PushConstantRay
   uint   maxNumBeams;
   uint maxNumSubBeams;
   uint64_t beamBlasAddres;
+  vec3     airScatteringCoff;
+  vec3     airExtinctCoff;
 };
 
 // Structure used for retrieving the primitive information in the closest hit
