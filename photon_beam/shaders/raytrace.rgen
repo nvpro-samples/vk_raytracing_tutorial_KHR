@@ -100,7 +100,4 @@ void main()
     imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(prd.hitValue, 1.f));
     return;
 
-    hitValue += prd.hitValue * curWeight;
-    curWeight *= prd.weight;
-
 }

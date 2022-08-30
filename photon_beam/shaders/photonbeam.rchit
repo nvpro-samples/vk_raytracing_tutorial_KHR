@@ -26,6 +26,8 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_buffer_reference2 : require
 
+#extension GL_EXT_debug_printf : require
+
 
 #include "gltf.glsl"
 #include "raycommon.glsl"
@@ -54,6 +56,52 @@ layout(set = 1, binding = eTextures) uniform sampler2D texturesMap[]; // all tex
 layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 // clang-format on
 
+
+// Henyey-Greenstein phase function
+float phaseFunc(float cosTheta)
+{
+    // assymetriy factor
+    // this value must be between -1 to 1
+    // 0 value gives uniform phase function
+    // value > 0 gives light out-scattering forward
+    // value < 0 gives light out-scattering backward
+    float g = 0.0;
+    float denom = 1 + g * g + 2 * g * cosTheta;
+
+    return (1 - g * g) / (denom * sqrt(denom))  / (4 * M_PI);
+
+}
+
+bool randomScatterOccured(const vec3 world_position){
+return false;
+    // random walk within participating media(air) scattering
+    float rayLength = length(prd.rayOrigin - world_position);
+    float airScatterAt = -log(1.0 - rnd(prd.seed)) / length(pcRay.airExtinctCoff);
+
+    if (rayLength < airScatterAt) {
+        return false;
+    }
+
+
+    vec3 rayOrigin = prd.rayOrigin + prd.rayDirection * airScatterAt;
+
+    vec3 hemiSphereNormal = vec3(0,0,1);
+    if (rnd(prd.seed) < 0.5)
+        hemiSphereNormal.z = -1;
+
+    vec3 rayDirection = samplingHemisphere(prd.seed, vec3(1,0,0), vec3(0,1,0), hemiSphereNormal);
+    float samplingProb = 1.0 /(4.0 * M_PI);
+
+    vec3 weight = phaseFunc(dot(prd.rayDirection, rayDirection)) * pcRay.airScatterCoff/pcRay.airExtinctCoff;
+
+    prd.rayOrigin    = rayOrigin;
+    prd.rayDirection = rayDirection;
+    prd.weight       = weight / samplingProb;
+
+    debugPrintfEXT("Hello from invocation (%f, %f,), (%f, %f, %f)!\n", rayLength, airScatterAt, prd.weight.x, prd.weight.y, prd.weight.z);
+
+    return true;
+}
 
 
 
@@ -87,6 +135,10 @@ void main()
     const vec3 position       = pos0 * barycentrics.x + pos1 * barycentrics.y + pos2 * barycentrics.z;
     const vec3 world_position = vec3(gl_ObjectToWorldEXT * vec4(position, 1.0));
 
+    // if random scatter occured in media before hitting a surface, return
+    //if (randomScatterOccured(world_position))
+      //  return;
+
     // Normal
     const vec3 nrm0         = normals.n[triangleIndex.x];
     const vec3 nrm1         = normals.n[triangleIndex.y];
@@ -114,7 +166,7 @@ void main()
     vec3 rayDirection = samplingHemisphere(prd.seed, tangent, bitangent, world_normal);
 
     // Probability of the newRay (cosine distributed)
-    const float p = 1 / M_PI;
+    const float p = 1 / (M_PI * 2);
 
     // Compute the BRDF for this ray (assuming Lambertian reflection)
     float cos_theta = dot(rayDirection, world_normal);
@@ -166,9 +218,11 @@ void main()
 
     vec3 material_f = f_specular + f_diffuse;
 
+    float rayLength = length(prd.rayOrigin - world_position);
+
     prd.rayOrigin    = rayOrigin;
     prd.rayDirection = rayDirection;
-    prd.weight       = material_f / p ;
+    prd.weight       = material_f / p * exp(-pcRay.airExtinctCoff * rayLength);
 
     return;
 

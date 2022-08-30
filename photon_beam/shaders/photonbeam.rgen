@@ -59,7 +59,7 @@ void main()
 
   uint beamIndex;
   uint subBeamIndex;
-  vec3 beamColor = vec3(pcRay.lightIntensity);
+  vec3 beamColor = pcRay.sourceLight;
   vec3 rayOrigin = pcRay.lightPosition;
 
   while(true)
@@ -151,7 +151,6 @@ void main()
     if (dot(beamColor, beamColor) < minmumLightIntensitySquare){
         break;
     }
-
   }
 
 }

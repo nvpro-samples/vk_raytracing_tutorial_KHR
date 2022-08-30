@@ -990,20 +990,25 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor) {
       // Initializing push constant values
       m_pcRay.clearColor     = clearColor;
       m_pcRay.lightPosition  = m_pcRaster.lightPosition;
-      m_pcRay.beamRadius     = m_beamRadius;
-      m_pcRay.lightIntensity = m_pcRaster.lightIntensity;
       m_pcRay.lightType      = m_pcRaster.lightType;
+      m_pcRay.beamRadius     = m_beamRadius;
       m_pcRay.maxNumBeams    = m_maxNumBeams;
       m_pcRay.maxNumSubBeams = m_maxNumSubBeams;
 
       // A Programmable System for Artistic Volumetric Lighting(2011) Derek Nowrouzezahrai
-      vec3  beamNearColor         = vec3(1.0);
-      vec3  beamUnitDistanceColor = vec3(0.9);
-      float beamSourceDist        = 45.0;
-      vec3  beamIntensity         = vec3(m_pcRay.lightIntensity);
-      vec3  unitBeamExtincRatio   = beamNearColor / beamUnitDistanceColor;
-      vec3 extinctCoff = vec3(std::log(unitBeamExtincRatio.x), std::log(unitBeamExtincRatio.y), std::log(unitBeamExtincRatio.z));
-      vec3 scatterCoff       = beamNearColor / beamIntensity * nvmath::pow(unitBeamExtincRatio, beamSourceDist);
+      vec3  beamNearColor         = vec3(10.0);
+      vec3  beamUnitDistanceColor = vec3(8.7, 8.7, 8.7);
+      // all element of albedo must be equal or less than 1
+      vec3  mediaAlbedo           = vec3(0.3);
+      float beamSourceDist        = 15.0;
+
+      vec3 unitBeamExtincRatio = beamNearColor / beamUnitDistanceColor;
+      vec3 extinctCoff =
+          vec3(std::log(unitBeamExtincRatio.x), std::log(unitBeamExtincRatio.y), std::log(unitBeamExtincRatio.z));
+
+      vec3 scatterCoff   = mediaAlbedo * extinctCoff;
+      m_pcRay.sourceLight = beamNearColor / scatterCoff * nvmath::pow(unitBeamExtincRatio, beamSourceDist);
+   
       m_pcRay.airExtinctCoff = extinctCoff;
       m_pcRay.airScatterCoff = scatterCoff;
 
@@ -1034,7 +1039,7 @@ void HelloVulkan::beamtrace()
       &regions[1], 
       &regions[2], 
       &regions[3], 
-      1, 1, 4096
+      1, 1, 1024
   );
 
   m_debug.endLabel(cmdBuf);
