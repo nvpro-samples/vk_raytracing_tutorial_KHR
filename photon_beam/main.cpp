@@ -188,6 +188,7 @@ int main(int argc, char** argv)
 
   // #VKRay
   helloVk.initRayTracing();
+
   helloVk.createBottomLevelAS();
   helloVk.createTopLevelAS();
 
@@ -199,9 +200,10 @@ int main(int argc, char** argv)
    nvmath::vec4f clearColor   = nvmath::vec4f(1, 1, 1, 1.00f);
   bool          useRaytracer = true;
 
+   helloVk.setBeamPushConstants(clearColor);
   if(useRaytracer)
   {
-    helloVk.beamtrace(clearColor);
+    helloVk.beamtrace();
   }
 
   helloVk.createRtDescriptorSet();
@@ -274,7 +276,7 @@ int main(int argc, char** argv)
       // Rendering Scene
       if(useRaytracer)
       {
-        helloVk.raytrace(cmdBuf, clearColor);
+        helloVk.raytrace(cmdBuf);
       }
       else
       {

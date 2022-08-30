@@ -74,13 +74,8 @@ void main()
     float rayDist = gl_HitTEXT;
     vec3 vewingDirection = normalize(gl_WorldRayDirectionEXT) * -1.0;
  
-    vec3 beamNearColor = vec3(1.0);
-    vec3 beamUnitDistanceColor = vec3(0.9);
-    float beamSourceDist = 45.0;
-    vec3 beamIntensity = vec3(pcRay.lightIntensity);
-    vec3 extinctCoff = log(beamNearColor/beamUnitDistanceColor);
-
-    vec3 scatterCoff = beamNearColor / beamIntensity * pow(beamNearColor/beamUnitDistanceColor, vec3(beamSourceDist));
+    vec3 extinctCoff = pcRay.airExtinctCoff;
+    vec3 scatterCoff = pcRay.airScatterCoff; 
 
     // the target radiance direction is -1.0 * gl_WorldRayDirectionEXT, opposite of the camera ray
     float beamRayCosVal = dot(-gl_WorldRayDirectionEXT, beamDirection);

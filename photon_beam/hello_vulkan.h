@@ -55,7 +55,7 @@ public:
   void onResize(int /*w*/, int /*h*/) override;
   void destroyResources();
   void rasterize(const VkCommandBuffer& cmdBuff);
-
+  void setBeamPushConstants(const nvmath::vec4f& clearColor);
 
   nvh::GltfScene m_gltfScene;
   nvvk::Buffer   m_vertexBuffer;
@@ -134,8 +134,8 @@ public:
   void updatePbDescriptorSet();
   void createPbPipeline();
 
-  void raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor);
-  void beamtrace(const nvmath::vec4f& clearColor);
+  void raytrace(const VkCommandBuffer& cmdBuf);
+  void beamtrace();
   void updateFrame();
   void resetFrame();
 

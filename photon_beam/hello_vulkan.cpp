@@ -685,17 +685,6 @@ void HelloVulkan::initRayTracing()
   m_sbtWrapper.setup(m_device, m_graphicsQueueIndex, &m_alloc, m_rtProperties);
   m_pbSbtWrapper.setup(m_device, m_graphicsQueueIndex, &m_alloc, m_rtProperties);
 
-    // A Programmable System for Artistic Volumetric Lighting(2011) Derek Nowrouzezahrai
-  vec3  beamNearColor         = vec3(1.0);
-  vec3  beamUnitDistanceColor = vec3(0.9);
-  float beamSourceDist        = 45.0;
-  vec3  beamIntensity         = vec3(m_pcRay.lightIntensity);
-  vec3  unitBeamExtincRatio   = beamNearColor / beamUnitDistanceColor;
-  vec3 extinctCoff = vec3(std::log(unitBeamExtincRatio.x), std::log(unitBeamExtincRatio.y), std::log(unitBeamExtincRatio.z));
-  vec3 scatterCoff = beamNearColor / beamIntensity * nvmath::pow(unitBeamExtincRatio, beamSourceDist);
-
-  m_pcRay.airExtinctCoff = extinctCoff;
-  m_pcRay.airScatterCoff = scatterCoff;
 }
 
 void HelloVulkan::createBeamBoxBlas() 
@@ -997,24 +986,37 @@ void HelloVulkan::createPbPipeline()
     vkDestroyShaderModule(m_device, s.module, nullptr);
 }
 
-void HelloVulkan::beamtrace(const nvmath::vec4f& clearColor)
-{
+void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor) {
+      // Initializing push constant values
+      m_pcRay.clearColor     = clearColor;
+      m_pcRay.lightPosition  = m_pcRaster.lightPosition;
+      m_pcRay.beamRadius     = m_beamRadius;
+      m_pcRay.lightIntensity = m_pcRaster.lightIntensity;
+      m_pcRay.lightType      = m_pcRaster.lightType;
+      m_pcRay.maxNumBeams    = m_maxNumBeams;
+      m_pcRay.maxNumSubBeams = m_maxNumSubBeams;
 
+      // A Programmable System for Artistic Volumetric Lighting(2011) Derek Nowrouzezahrai
+      vec3  beamNearColor         = vec3(1.0);
+      vec3  beamUnitDistanceColor = vec3(0.9);
+      float beamSourceDist        = 45.0;
+      vec3  beamIntensity         = vec3(m_pcRay.lightIntensity);
+      vec3  unitBeamExtincRatio   = beamNearColor / beamUnitDistanceColor;
+      vec3 extinctCoff = vec3(std::log(unitBeamExtincRatio.x), std::log(unitBeamExtincRatio.y), std::log(unitBeamExtincRatio.z));
+      vec3 scatterCoff       = beamNearColor / beamIntensity * nvmath::pow(unitBeamExtincRatio, beamSourceDist);
+      m_pcRay.airExtinctCoff = extinctCoff;
+      m_pcRay.airScatterCoff = scatterCoff;
+
+}
+
+void HelloVulkan::beamtrace()
+{
   nvvk::CommandPool cmdBufGet(m_device, m_graphicsQueueIndex);
   VkCommandBuffer   cmdBuf = cmdBufGet.createCommandBuffer();
 
   m_debug.beginLabel(cmdBuf, "Beam trace");
-  // Initializing push constant values
-  m_pcRay.clearColor     = clearColor;
-  m_pcRay.lightPosition  = m_pcRaster.lightPosition;
-  m_pcRay.beamRadius     = m_beamRadius;
-  m_pcRay.lightIntensity = m_pcRaster.lightIntensity;
-  m_pcRay.lightType      = m_pcRaster.lightType;
-  m_pcRay.maxNumBeams       = m_maxNumBeams;
-  m_pcRay.maxNumSubBeams    = m_maxNumSubBeams;
 
   std::vector<VkDescriptorSet> descSets{m_pbDescSet, m_descSet};
-
 
   vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pbPipeline);
   vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pbPipelineLayout, 0,
@@ -1185,7 +1187,8 @@ void HelloVulkan::createRtPipeline()
 
   // Push constant: we want to be able to update constants used by the shaders
   VkPushConstantRange pushConstant{
-      VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_INTERSECTION_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
+      VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR 
+      | VK_SHADER_STAGE_INTERSECTION_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
       0, sizeof(PushConstantRay)
   };
 
@@ -1233,20 +1236,11 @@ void HelloVulkan::createRtPipeline()
 //--------------------------------------------------------------------------------------------------
 // Ray Tracing the scene
 //
-void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor)
+void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf)
 {
   updateFrame();
 
   m_debug.beginLabel(cmdBuf, "Ray trace");
-  // Initializing push constant values
-  m_pcRay.clearColor     = clearColor;
-  m_pcRay.lightPosition  = m_pcRaster.lightPosition;
-  m_pcRay.beamRadius     = m_beamRadius;
-  m_pcRay.lightIntensity = m_pcRaster.lightIntensity;
-  m_pcRay.lightType      = m_pcRaster.lightType;
-  m_pcRay.maxNumBeams       = m_maxNumBeams;
-  m_pcRay.maxNumSubBeams    = m_maxNumSubBeams;
-
 
   std::vector<VkDescriptorSet> descSets{m_rtDescSet, m_descSet};
   vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipeline);
@@ -1255,7 +1249,8 @@ void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& c
   vkCmdPushConstants(
       cmdBuf, 
       m_rtPipelineLayout,
-      VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_INTERSECTION_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
+      VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR 
+      | VK_SHADER_STAGE_INTERSECTION_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
       0, sizeof(PushConstantRay), &m_pcRay
   );
 
@@ -1289,10 +1284,9 @@ void HelloVulkan::updateFrame()
     refCamMatrix = m;
     refFov       = fov;
   }
-  m_pcRay.frame++;
 }
 
 void HelloVulkan::resetFrame()
 {
-  m_pcRay.frame = -1;
+
 }

@@ -99,14 +99,13 @@ struct PushConstantRay
   vec4  clearColor;
   vec3  lightPosition;
   float lightIntensity;
+  vec3     airScatterCoff;
   float beamRadius;
-  int   lightType;
-  int   frame;
+  vec3     airExtinctCoff;
   uint   maxNumBeams;
   uint maxNumSubBeams;
   uint64_t beamBlasAddres;
-  vec3     airScatterCoff;
-  vec3     airExtinctCoff;
+  int      lightType;
 };
 
 // Structure used for retrieving the primitive information in the closest hit
