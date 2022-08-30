@@ -1020,7 +1020,7 @@ void HelloVulkan::beamtrace(const nvmath::vec4f& clearColor)
       &regions[1], 
       &regions[2], 
       &regions[3], 
-      1, 1, 4
+      1, 1, 1024
   );
 
   m_debug.endLabel(cmdBuf);

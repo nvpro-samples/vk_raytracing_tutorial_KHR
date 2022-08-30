@@ -60,71 +60,71 @@ layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 void main()
 {
   // Retrieve the Primitive mesh buffer information
-  PrimMeshInfo pinfo = primInfo[gl_InstanceCustomIndexEXT];
+    PrimMeshInfo pinfo = primInfo[gl_InstanceCustomIndexEXT];
 
-  // Getting the 'first index' for this mesh (offset of the mesh + offset of the triangle)
-  uint indexOffset  = (pinfo.indexOffset / 3) + gl_PrimitiveID;
-  uint vertexOffset = pinfo.vertexOffset;           // Vertex offset as defined in glTF
-  uint matIndex     = max(0, pinfo.materialIndex);  // material of primitive mesh
+    // Getting the 'first index' for this mesh (offset of the mesh + offset of the triangle)
+    uint indexOffset  = (pinfo.indexOffset / 3) + gl_PrimitiveID;
+    uint vertexOffset = pinfo.vertexOffset;           // Vertex offset as defined in glTF
+    uint matIndex     = max(0, pinfo.materialIndex);  // material of primitive mesh
 
-  Materials gltfMat   = Materials(sceneDesc.materialAddress);
-  Vertices  vertices  = Vertices(sceneDesc.vertexAddress);
-  Indices   indices   = Indices(sceneDesc.indexAddress);
-  Normals   normals   = Normals(sceneDesc.normalAddress);
-  TexCoords texCoords = TexCoords(sceneDesc.uvAddress);
-  Materials materials = Materials(sceneDesc.materialAddress);
+    Materials gltfMat   = Materials(sceneDesc.materialAddress);
+    Vertices  vertices  = Vertices(sceneDesc.vertexAddress);
+    Indices   indices   = Indices(sceneDesc.indexAddress);
+    Normals   normals   = Normals(sceneDesc.normalAddress);
+    TexCoords texCoords = TexCoords(sceneDesc.uvAddress);
+    Materials materials = Materials(sceneDesc.materialAddress);
 
-  // Getting the 3 indices of the triangle (local)
-  ivec3 triangleIndex = indices.i[indexOffset];
-  triangleIndex += ivec3(vertexOffset);  // (global)
+    // Getting the 3 indices of the triangle (local)
+    ivec3 triangleIndex = indices.i[indexOffset];
+    triangleIndex += ivec3(vertexOffset);  // (global)
 
-  const vec3 barycentrics = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
+    const vec3 barycentrics = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
 
-  // Vertex of the triangle
-  const vec3 pos0           = vertices.v[triangleIndex.x];
-  const vec3 pos1           = vertices.v[triangleIndex.y];
-  const vec3 pos2           = vertices.v[triangleIndex.z];
-  const vec3 position       = pos0 * barycentrics.x + pos1 * barycentrics.y + pos2 * barycentrics.z;
-  const vec3 world_position = vec3(gl_ObjectToWorldEXT * vec4(position, 1.0));
+    // Vertex of the triangle
+    const vec3 pos0           = vertices.v[triangleIndex.x];
+    const vec3 pos1           = vertices.v[triangleIndex.y];
+    const vec3 pos2           = vertices.v[triangleIndex.z];
+    const vec3 position       = pos0 * barycentrics.x + pos1 * barycentrics.y + pos2 * barycentrics.z;
+    const vec3 world_position = vec3(gl_ObjectToWorldEXT * vec4(position, 1.0));
 
-  // Normal
-  const vec3 nrm0         = normals.n[triangleIndex.x];
-  const vec3 nrm1         = normals.n[triangleIndex.y];
-  const vec3 nrm2         = normals.n[triangleIndex.z];
-  vec3       normal       = normalize(nrm0 * barycentrics.x + nrm1 * barycentrics.y + nrm2 * barycentrics.z);
-  const vec3 world_normal = normalize(vec3(normal * gl_WorldToObjectEXT));
-  const vec3 geom_normal  = normalize(cross(pos1 - pos0, pos2 - pos0));
+    // Normal
+    const vec3 nrm0         = normals.n[triangleIndex.x];
+    const vec3 nrm1         = normals.n[triangleIndex.y];
+    const vec3 nrm2         = normals.n[triangleIndex.z];
+    vec3       normal       = normalize(nrm0 * barycentrics.x + nrm1 * barycentrics.y + nrm2 * barycentrics.z);
+    const vec3 world_normal = normalize(vec3(normal * gl_WorldToObjectEXT));
+    const vec3 geom_normal  = normalize(cross(pos1 - pos0, pos2 - pos0));
 
 
-  // TexCoord
-  const vec2 uv0       = texCoords.t[triangleIndex.x];
-  const vec2 uv1       = texCoords.t[triangleIndex.y];
-  const vec2 uv2       = texCoords.t[triangleIndex.z];
-  const vec2 texcoord0 = uv0 * barycentrics.x + uv1 * barycentrics.y + uv2 * barycentrics.z;
+    // TexCoord
+    const vec2 uv0       = texCoords.t[triangleIndex.x];
+    const vec2 uv1       = texCoords.t[triangleIndex.y];
+    const vec2 uv2       = texCoords.t[triangleIndex.z];
+    const vec2 texcoord0 = uv0 * barycentrics.x + uv1 * barycentrics.y + uv2 * barycentrics.z;
 
-  // https://en.wikipedia.org/wiki/Path_tracing
-  // Material of the object
-  GltfShadeMaterial mat       = materials.m[matIndex];
-  // vec3              emittance = mat.emissiveFactor;
+    // https://en.wikipedia.org/wiki/Path_tracing
+    // Material of the object
+    GltfShadeMaterial mat       = materials.m[matIndex];
+    // vec3              emittance = mat.emissiveFactor;
 
-  // Pick a random direction from here and keep going.
-  vec3 tangent, bitangent;
-  createCoordinateSystem(world_normal, tangent, bitangent);
-  vec3 rayOrigin    = world_position;
-  vec3 rayDirection = samplingHemisphere(prd.seed, tangent, bitangent, world_normal);
+    // Pick a random direction from here and keep going.
+    vec3 tangent, bitangent;
+    createCoordinateSystem(world_normal, tangent, bitangent);
+    vec3 rayOrigin    = world_position;
+    vec3 rayDirection = samplingHemisphere(prd.seed, tangent, bitangent, world_normal);
 
-  // Probability of the newRay (cosine distributed)
-  const float p = 1 / M_PI;
+    // Probability of the newRay (cosine distributed)
+    const float p = 1 / M_PI;
 
-  // Compute the BRDF for this ray (assuming Lambertian reflection)
-  float cos_theta = dot(rayDirection, world_normal);
-  vec3  albedo    = mat.pbrBaseColorFactor.xyz;
+    // Compute the BRDF for this ray (assuming Lambertian reflection)
+    float cos_theta = dot(rayDirection, world_normal);
+    vec3  albedo    = mat.pbrBaseColorFactor.xyz;
 
-  if(mat.pbrBaseColorTexture > -1)
-  {
-    uint txtId = mat.pbrBaseColorTexture;
-    albedo *= texture(texturesMap[nonuniformEXT(txtId)], texcoord0).xyz;
-  }
+    if(mat.pbrBaseColorTexture > -1)
+    {
+        uint txtId = mat.pbrBaseColorTexture;
+        albedo *= texture(texturesMap[nonuniformEXT(txtId)], texcoord0).xyz;
+    }
 
     // grdf BDRF
     // both light and viewDir are supposed start from the shading location
@@ -144,7 +144,7 @@ void main()
     float dVal = 0.0;
 
     if (nDotH > 0) {
-    float denom = (nDotH * nDotH * (aValSq - 1.0) + 1);
+        float denom = (nDotH * nDotH * (aValSq - 1.0) + 1);
         denom       = denom * denom * M_PI;
         dVal        = aValSq / denom;
     }
@@ -169,27 +169,7 @@ void main()
     prd.rayOrigin    = rayOrigin;
     prd.rayDirection = rayDirection;
     prd.weight       = material_f / p ;
+
     return;
-
-  vec3 BRDF = albedo / M_PI;
-
-  // using russian roulette method from A Practical Guide to "Global Illumination using Photon Maps" by Jensen
-  // Probability of reflection(diffuse and specular) = max(diffuse.r + spec.r, diffuse.g + spec.g, diffuse.b + spec.b)
-  float reflection_prob = max(max(albedo.x, albedo.y), albedo.z);
-  if (rnd(prd.seed) >= reflection_prob)
-  {
-    BRDF = vec3(0);
-  }
-
-  if(reflection_prob <=0)
-  {
-    // just assign some positive non zero value
-    reflection_prob = 1;
-  }
-
-  prd.rayOrigin    = rayOrigin;
-  prd.rayDirection = rayDirection;
-  prd.weight       = BRDF * cos_theta / p / reflection_prob;
-  return;
 
 }
