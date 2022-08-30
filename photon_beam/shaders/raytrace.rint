@@ -33,7 +33,7 @@ void main()
     vec3 rayOrigin    = gl_WorldRayOriginEXT;
     vec3 rayDirection = gl_WorldRayDirectionEXT;
     const vec3 rayEnd = rayOrigin + rayDirection * gl_RayTmaxEXT;
-    float rayLength = gl_RayTmaxEXT;
+    float rayLength = gl_RayTmaxEXT - 0.0001;
 
     PhotonBeam beam = beams[gl_InstanceCustomIndexEXT];
 
@@ -49,28 +49,19 @@ void main()
 
     float rayPointAt = dot(rayPoint - rayOrigin, rayDirection); 
     float beamPointAt = dot(beamPoint - beam.startPos, beamDirection);
+
+    if(beamPointAt < 0)
+    {
+        beamPoint = beam.startPos;
+        rayPoint = rayOrigin + rayDirection * dot(beamPoint - rayOrigin, beamDirection) / dot(beamDirection, rayDirection);
+    }
+    else if(beamPointAt > beamLength)
+    {
+        beamPoint = beam.endPos;
+        rayPoint = rayOrigin + rayDirection * dot(beamPoint - rayOrigin, beamDirection) / dot(beamDirection, rayDirection);
+    }
   
-    if(rayPointAt < 0 && beamPointAt < 0)
-    {
-        rayPoint = rayOrigin;
-        beamPoint = beam.startPos;
-    }
-    else if(rayPointAt> rayLength && beamPointAt > beamLength)
-    {
-        rayPoint = rayEnd;
-        beamPoint = beam.endPos;
-    }
-    else if(rayPointAt < 0 && beamPointAt > beamLength)
-    {
-        rayPoint = rayOrigin;
-        beamPoint = beam.endPos;
-    }
-    else if(rayPointAt > rayLength &&  beamPointAt < 0)
-    {
-        rayPoint = rayEnd;
-        beamPoint = beam.startPos;
-    }
-    else if(rayPointAt < 0)
+    if(rayPointAt < 0)
     {
         rayPoint = rayOrigin;
         beamPoint = beam.startPos + beamDirection * dot(rayPoint - beam.startPos, beamDirection);
@@ -80,16 +71,7 @@ void main()
         rayPoint = rayEnd;
         beamPoint = beam.startPos + beamDirection * dot(rayPoint - beam.startPos, beamDirection);
     }
-    else if(beamPointAt < 0)
-    {
-        beamPoint = beam.startPos;
-        rayPoint = rayOrigin + rayDirection * dot(beamPoint - rayOrigin, rayDirection);
-    }
-    else if(beamPointAt > beamLength)
-    {
-        beamPoint = beam.endPos;
-        rayPoint = rayOrigin + rayDirection * dot(beamPoint - rayOrigin, rayDirection);
-    }
+
 
     // return none if the distance between the nearest points is longer than the beam radius
     if(length(beamPoint - rayPoint) >  pcRay.beamRadius)
