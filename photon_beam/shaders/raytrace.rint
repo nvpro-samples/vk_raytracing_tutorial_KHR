@@ -76,7 +76,7 @@ void main()
     // return none if the distance between the nearest points is longer than the beam radius
     if(length(beamPoint - rayPoint) >  pcRay.beamRadius)
     {
-        reportIntersectionEXT(-1, 0);
+        //reportIntersectionEXT(-1, 0);
         return;
     }
     
@@ -87,7 +87,7 @@ void main()
     // return none if this subbeam does not contain the beam point
     if(beamPointAt < beamBoxStartAt || beamBoxStartAt + pcRay.beamRadius * 2 <= beamPointAt)
     {
-        reportIntersectionEXT(-1, 0);
+        //reportIntersectionEXT(-1, 0);
         return;
     }
 

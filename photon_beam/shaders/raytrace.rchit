@@ -56,5 +56,5 @@ void main()
   vec3 worldPos = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
   float beamDist = length(beamHit - beam.startPos);
 
-  prd.hitValue = beam.lightColor;
+  //prd.hitValue = beam.lightColor;
 }
