@@ -75,11 +75,20 @@ void main()
     float beamRayCosVal = dot(gl_WorldRayDirectionEXT, beamDirection);
     float beamRayAbsSinVal = sqrt(1 - beamRayCosVal * beamRayCosVal);
 
+    // this removes noise
+    beamRayAbsSinVal = max(beamRayAbsSinVal, 0.1);
+
+    //bellow if statement does not work even though it is supposed to have the same effect as above max statement
+    if (beamRayAbsSinVal < 0.1){
+        beamRayAbsSinVal = 0.1;
+    }
+
+ 
     vec3 attenuation;
     attenuation.x = exp(-extinctCoff.x * (rayDist + beamDist));
     attenuation.y = exp(-extinctCoff.y * (rayDist + beamDist));
     attenuation.z = exp(-extinctCoff.z * (rayDist + beamDist));
-    vec3 radiance = phaseFunc(beamRayCosVal) * scatterCoff * beam.lightColor * attenuation * scatterCoff / (pcRay.beamRadius * beamRayAbsSinVal + 0.1e-20);
+    vec3 radiance = phaseFunc(beamRayCosVal) * scatterCoff * beam.lightColor * attenuation * scatterCoff / (pcRay.beamRadius * beamRayAbsSinVal + 0.1e-10);
 
     prd.hitValue += radiance;
     ignoreIntersectionEXT;
