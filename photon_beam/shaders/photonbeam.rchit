@@ -166,7 +166,7 @@ void main()
     vec3 rayDirection = samplingHemisphere(prd.seed, tangent, bitangent, world_normal);
 
     // Probability of the newRay (cosine distributed)
-    const float p = 1 / (M_PI * 2);
+    const float p = 1 / M_PI;
 
     // Compute the BRDF for this ray (assuming Lambertian reflection)
     float cos_theta = dot(rayDirection, world_normal);

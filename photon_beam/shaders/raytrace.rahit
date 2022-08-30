@@ -90,9 +90,9 @@ void main()
     vec3 radiance = phaseFunc(beamRayCosVal) * scatterCoff * beam.lightColor * attenuation / (pcRay.beamRadius * beamRayAbsSinVal + 0.1e-10);
 
     float rayBeamDist = length(worldPos - beamHit);
-    //prd.hitValue += radiance * exp(-rayBeamDist);
+    prd.hitValue += radiance * exp(-rayBeamDist);
 
-    prd.hitValue += radiance;
+    //prd.hitValue += radiance;
 
     //debugPrintfEXT("Hello from invocation (%f, %f), (%f %f %f )!\n", rayDist, beamDist,length(beam.endPos - beam.startPos), beam.lightColor.y, beam.lightColor.z);
 
