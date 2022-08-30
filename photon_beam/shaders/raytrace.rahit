@@ -57,12 +57,8 @@ float phaseFunc(float cosTheta)
     // 0 value gives uniform phase function
     // value > 0 gives light out-scattering forward
     // value < 0 gives light out-scattering backward
-    float g = 0.0;
-
+    float g = -0.2;
     float denom = 1 + g * g + 2 * g * cosTheta;
-
-    //denom = max(0.25, denom);
-    //denom = min(1.25, denom);
 
     return (1 - g * g) / (denom * sqrt(denom))  / (4 * M_PI);
 
@@ -74,23 +70,15 @@ void main()
     PhotonBeam beam = beams[gl_InstanceCustomIndexEXT];
     vec3 worldPos = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
     float beamDist = length(beamHit - beam.startPos);
-    vec3 beamDirection = normalize(beamHit - beam.startPos);
+    vec3 beamDirection = normalize(beam.endPos - beam.startPos);
     float rayDist = gl_HitTEXT;
     vec3 vewingDirection = normalize(gl_WorldRayDirectionEXT) * -1.0;
-    vec3 scatterCoff = vec3(log(1.0/0.10));
-    vec3 extinctCoff = vec3(log(1.0/0.95));
+    vec3 scatterCoff = vec3(log(1.0/0.2));
+    vec3 extinctCoff = vec3(log(1.0/0.9999));
 
-    float beamRayCosVal = dot(vewingDirection, beamDirection);
+    // the target radiance direction is -1.0 * gl_WorldRayDirectionEXT, opposite of the camera ray
+    float beamRayCosVal = dot(-gl_WorldRayDirectionEXT, beamDirection);
     float beamRayAbsSinVal = sqrt(1 - beamRayCosVal * beamRayCosVal);
-
-    // this removes noise
-    beamRayAbsSinVal = max(beamRayAbsSinVal, 0.1);
-
-    //bellow if statement does not work even though it is supposed to have the same effect as above max statement
-    if (beamRayAbsSinVal < 0.1){
-        //beamRayAbsSinVal = 0.1;
-    }
-
  
     vec3 attenuation;
     attenuation.x = exp(-extinctCoff.x * (rayDist + beamDist));
@@ -98,7 +86,10 @@ void main()
     attenuation.z = exp(-extinctCoff.z * (rayDist + beamDist));
     vec3 radiance = phaseFunc(beamRayCosVal) * scatterCoff * beam.lightColor * attenuation * scatterCoff / (pcRay.beamRadius * beamRayAbsSinVal + 0.1e-10);
 
-    prd.hitValue += radiance;
-    //return;
+    float rayBeamDist = length(worldPos - beamHit);
+    float blur = (pcRay.beamRadius - rayBeamDist) / pcRay.beamRadius;
+
+    prd.hitValue += radiance * blur;
+
     ignoreIntersectionEXT;
 }
