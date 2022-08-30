@@ -684,6 +684,18 @@ void HelloVulkan::initRayTracing()
   m_pbBuilder.setup(m_device, &m_alloc, m_graphicsQueueIndex);
   m_sbtWrapper.setup(m_device, m_graphicsQueueIndex, &m_alloc, m_rtProperties);
   m_pbSbtWrapper.setup(m_device, m_graphicsQueueIndex, &m_alloc, m_rtProperties);
+
+    // A Programmable System for Artistic Volumetric Lighting(2011) Derek Nowrouzezahrai
+  vec3  beamNearColor         = vec3(1.0);
+  vec3  beamUnitDistanceColor = vec3(0.9);
+  float beamSourceDist        = 45.0;
+  vec3  beamIntensity         = vec3(m_pcRay.lightIntensity);
+  vec3  unitBeamExtincRatio   = beamNearColor / beamUnitDistanceColor;
+  vec3 extinctCoff = vec3(std::log(unitBeamExtincRatio.x), std::log(unitBeamExtincRatio.y), std::log(unitBeamExtincRatio.z));
+  vec3 scatterCoff = beamNearColor / beamIntensity * nvmath::pow(unitBeamExtincRatio, beamSourceDist);
+
+  m_pcRay.airExtinctCoff = extinctCoff;
+  m_pcRay.airScatterCoff = scatterCoff;
 }
 
 void HelloVulkan::createBeamBoxBlas() 

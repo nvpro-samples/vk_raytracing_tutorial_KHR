@@ -105,7 +105,7 @@ struct PushConstantRay
   uint   maxNumBeams;
   uint maxNumSubBeams;
   uint64_t beamBlasAddres;
-  vec3     airScatteringCoff;
+  vec3     airScatterCoff;
   vec3     airExtinctCoff;
 };
 
