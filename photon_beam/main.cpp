@@ -136,7 +136,7 @@ int main(int argc, char** argv)
   VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR};
   contextInfo.addDeviceExtension(VK_KHR_RAY_QUERY_EXTENSION_NAME, false, &rayQueryFeatures);
 
- 
+ /*
   contextInfo.addDeviceExtension(VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME);
   VkValidationFeaturesEXT      validationInfo{VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT};
   VkValidationFeatureEnableEXT validationFeatureToEnable = VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT;
@@ -148,7 +148,7 @@ int main(int argc, char** argv)
 #else   // If not _WIN32
   putenv("DEBUG_PRINTF_TO_STDOUT=1");
 #endif  // _WIN32
-
+ */
   // Creating Vulkan base application
   nvvk::Context vkctx{};
   vkctx.initInstance(contextInfo);

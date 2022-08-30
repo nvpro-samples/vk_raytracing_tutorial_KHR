@@ -26,8 +26,6 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_buffer_reference2 : require
 
-#extension GL_EXT_debug_printf : require
-
 
 #include "gltf.glsl"
 #include "raycommon.glsl"
@@ -73,7 +71,6 @@ float phaseFunc(float cosTheta)
 }
 
 bool randomScatterOccured(const vec3 world_position){
-return false;
     // random walk within participating media(air) scattering
     float rayLength = length(prd.rayOrigin - world_position);
     float airScatterAt = -log(1.0 - rnd(prd.seed)) / length(pcRay.airExtinctCoff);
@@ -97,8 +94,6 @@ return false;
     prd.rayOrigin    = rayOrigin;
     prd.rayDirection = rayDirection;
     prd.weight       = weight / samplingProb;
-
-    debugPrintfEXT("Hello from invocation (%f, %f,), (%f, %f, %f)!\n", rayLength, airScatterAt, prd.weight.x, prd.weight.y, prd.weight.z);
 
     return true;
 }
@@ -136,8 +131,8 @@ void main()
     const vec3 world_position = vec3(gl_ObjectToWorldEXT * vec4(position, 1.0));
 
     // if random scatter occured in media before hitting a surface, return
-    //if (randomScatterOccured(world_position))
-      //  return;
+    if (randomScatterOccured(world_position))
+        return;
 
     // Normal
     const vec3 nrm0         = normals.n[triangleIndex.x];
