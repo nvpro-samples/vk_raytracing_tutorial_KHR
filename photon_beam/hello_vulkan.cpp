@@ -285,10 +285,7 @@ void HelloVulkan::loadScene(const std::string& filename)
   std::vector<GltfShadeMaterial> shadeMaterials;
   for(const auto& m : m_gltfScene.m_materials)
   {
-    float metallicFactor = m.metallicFactor;
-    if(m.metallicFactor < 0.1)
-      metallicFactor = 0.7;
-    shadeMaterials.emplace_back(GltfShadeMaterial{m.baseColorFactor, m.emissiveFactor, m.baseColorTexture, metallicFactor, m.roughnessFactor});
+    shadeMaterials.emplace_back(GltfShadeMaterial{m.baseColorFactor, m.emissiveFactor, m.baseColorTexture, m.metallicFactor, m.roughnessFactor});
   }
   m_materialBuffer = m_alloc.createBuffer(cmdBuf, shadeMaterials,
                                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
