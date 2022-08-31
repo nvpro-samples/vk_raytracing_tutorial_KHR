@@ -120,7 +120,7 @@ vec3 heneyGreenPhaseFuncSampling(inout uint seed, in vec3 incomingLightDir, floa
 
     float cutline = rnd(seed) * maxVal;
 
-    if(cutline > phaseVal)
+    if(cutline < phaseVal)
       return rayDirection;
         
 

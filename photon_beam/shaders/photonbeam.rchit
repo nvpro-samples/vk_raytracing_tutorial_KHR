@@ -145,11 +145,10 @@ void main()
     vec3 rayOrigin    = world_position;
     vec3 rayDirection = samplingHemisphere(prd.seed, tangent, bitangent, world_normal);
 
-    // Probability of the newRay (cosine distributed)
-    const float p = 1 / M_PI;
-
-    // Compute the BRDF for this ray (assuming Lambertian reflection)
     float cos_theta = dot(rayDirection, world_normal);
+    // Probability of the newRay (cosine distributed)
+    const float p = cos_theta / M_PI;
+    
     vec3  albedo    = mat.pbrBaseColorFactor.xyz;
 
     if(mat.pbrBaseColorTexture > -1)
@@ -190,19 +189,20 @@ void main()
         float denom2 = sqrt(aValSq + (1 - aValSq) * vDotN * vDotN); 
         denom2 += abs(vDotN);
 
-        gVal = 4.0 * abs(nDotL * vDotN) / (denom1 * denom2);
+        gVal = 1.0 / (denom1 * denom2);
 
     }
 
-    vec3 f_specular = frsnel * dVal * gVal / (4 * abs(vDotN * nDotL));
-
+    vec3 f_specular = frsnel * dVal * gVal;
     vec3 material_f = f_specular + f_diffuse;
+
+    float f_max_val = (1/ M_PI) + 1.0/(aValSq * aValSq * M_PI);
 
     float rayLength = length(prd.rayOrigin - world_position);
 
     prd.rayOrigin    = rayOrigin;
     prd.rayDirection = rayDirection;
-    prd.weight       = material_f / p * exp(-pcRay.airExtinctCoff * rayLength);
+    prd.weight       = material_f * cos_theta / p * exp(-pcRay.airExtinctCoff * rayLength);
 
     return;
 
