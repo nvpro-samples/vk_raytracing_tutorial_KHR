@@ -26,5 +26,6 @@ layout(location = 0) rayPayloadInEXT hitPayload prd;
 
 void main()
 {
-  prd.weight = vec3(0.0);
+	prd.instanceIndex = -1;
+    prd.weight = vec3(0.0);
 }
