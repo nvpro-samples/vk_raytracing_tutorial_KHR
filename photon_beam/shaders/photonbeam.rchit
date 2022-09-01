@@ -100,7 +100,6 @@ void main()
     uint vertexOffset = pinfo.vertexOffset;           // Vertex offset as defined in glTF
     uint matIndex     = max(0, pinfo.materialIndex);  // material of primitive mesh
 
-    Materials gltfMat   = Materials(sceneDesc.materialAddress);
     Vertices  vertices  = Vertices(sceneDesc.vertexAddress);
     Indices   indices   = Indices(sceneDesc.indexAddress);
     Normals   normals   = Normals(sceneDesc.normalAddress);

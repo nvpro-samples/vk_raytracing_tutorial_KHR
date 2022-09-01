@@ -22,6 +22,8 @@
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_ARB_shader_clock : enable
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_EXT_buffer_reference2 : require
 
 #extension GL_EXT_ray_query : require
 
@@ -37,12 +39,22 @@ layout(set = 0, binding = 0) uniform accelerationStructureEXT beamAS;
 layout(set = 0, binding = 1, rgba32f) uniform image2D image;
 layout(set = 0, binding = 3) uniform accelerationStructureEXT surfaceAS;
 
+layout(set = 0, binding = 4) readonly buffer _InstanceInfo {PrimMeshInfo primInfo[];};
+
+layout(buffer_reference, scalar) readonly buffer Vertices  { vec3  v[]; };
+layout(buffer_reference, scalar) readonly buffer Indices   { ivec3 i[]; };
+layout(buffer_reference, scalar) readonly buffer Normals   { vec3  n[]; };
+layout(set = 1, binding = eSceneDesc ) readonly buffer SceneDesc_ { SceneDesc sceneDesc; };
+
 layout(set = 1, binding = 0) uniform _GlobalUniforms { GlobalUniforms uni; };
 layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 // clang-format on
 
 void main()
 {
+    Indices   indices   = Indices(sceneDesc.indexAddress);
+    Normals   normals   = Normals(sceneDesc.normalAddress);
+
     const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
     const vec2 inUV        = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
     vec2       d           = inUV * 2.0 - 1.0;
@@ -53,7 +65,8 @@ void main()
 
     uint  rayFlags = gl_RayFlagsNoneEXT;
     float tMin     = 0.001;
-    float tMax     = 10000.0;
+    float tMaxDefault = 10000.0;
+    float tMax     = tMaxDefault;
 
     prd.hitValue     = vec3(0);
     prd.rayOrigin    = origin.xyz;
@@ -75,6 +88,37 @@ void main()
     // rayQuery stores a "committed" intersection, the closest intersection (if any).
     rayQueryProceedEXT(rayQuery);
     tMax = rayQueryGetIntersectionTEXT(rayQuery, true);
+    if (rayQueryGetIntersectionTypeEXT(rayQuery, true) == gl_RayQueryCommittedIntersectionNoneEXT)
+    { 
+        prd.instanceIndex = -1;
+    }
+    else
+    {
+        
+        prd.instanceIndex = rayQueryGetIntersectionInstanceCustomIndexEXT(rayQuery, true);
+        const int primitiveID = rayQueryGetIntersectionPrimitiveIndexEXT(rayQuery, true);
+
+        PrimMeshInfo pinfo = primInfo[prd.instanceIndex];
+        uint indexOffset  = (pinfo.indexOffset / 3) + rayQueryGetIntersectionPrimitiveIndexEXT(rayQuery, true);
+        uint vertexOffset = pinfo.vertexOffset;           // Vertex offset as defined in glTF
+        uint matIndex     = max(0, pinfo.materialIndex);  // material of primitive mesh
+
+        // Getting the 3 indices of the triangle (local)
+        ivec3 triangleIndex = indices.i[indexOffset];
+        triangleIndex += ivec3(vertexOffset);  // (global)
+
+        vec3 barycentrics = vec3(0.0, rayQueryGetIntersectionBarycentricsEXT(rayQuery, true));
+
+        // Normal
+        const vec3 nrm0         = normals.n[triangleIndex.x];
+        const vec3 nrm1         = normals.n[triangleIndex.y];
+        const vec3 nrm2         = normals.n[triangleIndex.z];
+        vec3       normal       = normalize(nrm0 * barycentrics.x + nrm1 * barycentrics.y + nrm2 * barycentrics.z);
+        const vec3 world_normal = normalize(vec3(normal * rayQueryGetIntersectionWorldToObjectEXT(rayQuery, true)));
+        prd.hitNormal = world_normal;
+        
+    }
+    
 
     traceRayEXT(beamAS,        // acceleration structure
                 rayFlags,          // rayFlags

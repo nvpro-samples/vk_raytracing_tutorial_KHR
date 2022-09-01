@@ -32,7 +32,7 @@ struct hitPayload
 struct rayHitPayload
 {
   vec3 hitValue;
-  uint instanceIndex;
+  int instanceIndex;
   vec3 rayOrigin;
   uint padding;
   vec3 rayDirection;

@@ -51,7 +51,8 @@ START_BINDING(RtxBindings)
   eBeamAS       = 0,  // Top-level acceleration structure
   eOutImage   = 1,  // Ray tracer output image
   eBeamLookup = 2,   // Lookup of objects
-  eSurfaceAS  = 3
+  eSurfaceAS  = 3,
+  ePrimLookup = 4
 END_BINDING();
 
 START_BINDING(PbBindings)
