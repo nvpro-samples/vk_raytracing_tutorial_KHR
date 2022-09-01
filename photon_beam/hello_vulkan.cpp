@@ -880,12 +880,14 @@ void HelloVulkan::createRtDescriptorSet()
 
   VkDescriptorImageInfo  imageInfo{{}, m_offscreenColor.descriptor.imageView, VK_IMAGE_LAYOUT_GENERAL};
   VkDescriptorBufferInfo beamInfoDesc{m_beamBuffer.buffer, 0, VK_WHOLE_SIZE};
+  VkDescriptorBufferInfo primitiveInfoDesc{m_primInfo.buffer, 0, VK_WHOLE_SIZE};
 
   std::vector<VkWriteDescriptorSet> writes;
   writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eBeamAS, &descBeamASInfo));
   writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eOutImage, &imageInfo));
   writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eBeamLookup, &beamInfoDesc));
   writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eSurfaceAS, &descSurfaceASInfo));
+  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::ePrimLookup, &primitiveInfoDesc));
   vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
 
@@ -1000,8 +1002,8 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor) {
       m_pcRay.airHGAssymFactor = -0.2;
 
       // A Programmable System for Artistic Volumetric Lighting(2011) Derek Nowrouzezahrai
-      vec3  beamNearColor         = vec3(10.0);
-      vec3  beamUnitDistanceColor = vec3(9.0, 9.5, 9.7);
+      vec3  beamNearColor         = vec3(10.0) * 3.0f;
+      vec3  beamUnitDistanceColor = vec3(9.0, 9.5, 9.7) * 3.0f;
       // all element of albedo must be equal or less than 1
       vec3  mediaAlbedo    = vec3(0.8);
       float beamSourceDist        = 15.0;
