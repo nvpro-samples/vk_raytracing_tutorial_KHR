@@ -26,8 +26,6 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_buffer_reference2 : require
 
-#extension GL_EXT_debug_printf : require
-
 
 #include "gltf.glsl"
 #include "raycommon.glsl"
@@ -75,12 +73,10 @@ void main()
     vec3 radiance = heneyGreenPhaseFunc(beamRayCosVal, pcRay.airHGAssymFactor) * scatterCoff * beam.lightColor * attenuation / (pcRay.beamRadius * beamRayAbsSinVal + 0.1e-10);
 
     float rayBeamPointDist = length(worldPos - beamHit);
-    prd.hitValue += radiance * exp(-pcRay.beamRadius * rayBeamPointDist * rayBeamPointDist);
+    //prd.hitValue += radiance * exp(-pcRay.beamRadius * rayBeamPointDist * rayBeamPointDist);
 
-    //prd.hitValue += radiance * (1 - rayBeamPointDist / pcRay.beamRadius);
-
+    prd.hitValue += radiance * pow((1 - rayBeamPointDist / pcRay.beamRadius), 2.0);
     //prd.hitValue += radiance;
-
     //debugPrintfEXT("Hello from invocation (%f, %f), (%f %f %f )!\n", rayDist, beamDist,length(beam.endPos - beam.startPos), beam.lightColor.y, beam.lightColor.z);
 
     ignoreIntersectionEXT;

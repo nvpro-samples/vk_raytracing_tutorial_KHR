@@ -1020,13 +1020,13 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor) {
       m_pcRay.photonRadius     = m_photonRadius;
       m_pcRay.maxNumBeams    = m_maxNumBeams;
       m_pcRay.maxNumSubBeams = m_maxNumSubBeams;
-      m_pcRay.airHGAssymFactor = -0.2;
+      m_pcRay.airHGAssymFactor = m_hgAssymFactor;
 
       // A Programmable System for Artistic Volumetric Lighting(2011) Derek Nowrouzezahrai
       vec3  beamNearColor         = vec3(10.0) * 3.0f;
-      vec3  beamUnitDistanceColor = vec3(9.0, 9.5, 9.7) * 3.0f;
+      vec3  beamUnitDistanceColor = vec3(9.0, 9.5, 9.7) * 2.8f;
       // all element of albedo must be equal or less than 1
-      vec3  mediaAlbedo    = vec3(0.8);
+      vec3 mediaAlbedo            = vec3(0.8);
       float beamSourceDist        = 15.0;
 
       vec3 unitBeamExtincRatio = beamNearColor / beamUnitDistanceColor;
@@ -1066,7 +1066,7 @@ void HelloVulkan::beamtrace()
       &regions[1], 
       &regions[2], 
       &regions[3], 
-      1, 1, 4096
+      1, 1, m_numLightSamples
   );
 
   m_debug.endLabel(cmdBuf);
@@ -1076,17 +1076,6 @@ void HelloVulkan::beamtrace()
 
   cmdBuf = cmdBufGet.createCommandBuffer();
 
-  // Make sure the copy of the instance buffer are copied before triggering the acceleration structure build
-  /*
-    VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
-  barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-  barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
-  vkCmdPipelineBarrier(
-      cmdBuf, 
-      VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,           
-      VK_PIPELINE_STAGE_TRANSFER_BIT, 
-      0, 1, &barrier, 0, nullptr, 0, nullptr);
-  */
 
   VkBufferCopy cpy;
   cpy.size      = sizeof(uint32_t);
