@@ -1017,6 +1017,7 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor) {
       m_pcRay.lightPosition  = m_pcRaster.lightPosition;
       m_pcRay.lightType      = m_pcRaster.lightType;
       m_pcRay.beamRadius     = m_beamRadius;
+      m_pcRay.photonRadius     = m_photonRadius;
       m_pcRay.maxNumBeams    = m_maxNumBeams;
       m_pcRay.maxNumSubBeams = m_maxNumSubBeams;
       m_pcRay.airHGAssymFactor = -0.2;

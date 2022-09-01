@@ -35,7 +35,7 @@ void main()
 
     PhotonBeam beam = beams[gl_InstanceCustomIndexEXT];
 
-    if(length(beam.endPos - rayEnd) >  pcRay.beamRadius)
+    if(length(beam.endPos - rayEnd) >  pcRay.photonRadius)
     {
         return;
     }

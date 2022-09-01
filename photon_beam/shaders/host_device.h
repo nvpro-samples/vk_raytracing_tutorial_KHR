@@ -119,7 +119,7 @@ struct PushConstantRay
   uint64_t beamBlasAddress;
   uint64_t photonBlasAddress;
   float    airHGAssymFactor;
-  uint     padding;
+  float    photonRadius;
 };
 
 // Structure used for retrieving the primitive information in the closest hit

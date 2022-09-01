@@ -75,7 +75,9 @@ void main()
     vec3 radiance = heneyGreenPhaseFunc(beamRayCosVal, pcRay.airHGAssymFactor) * scatterCoff * beam.lightColor * attenuation / (pcRay.beamRadius * beamRayAbsSinVal + 0.1e-10);
 
     float rayBeamPointDist = length(worldPos - beamHit);
-    prd.hitValue += radiance * exp(-rayBeamPointDist);
+    prd.hitValue += radiance * exp(-pcRay.beamRadius * rayBeamPointDist * rayBeamPointDist);
+
+    //prd.hitValue += radiance * (1 - rayBeamPointDist / pcRay.beamRadius);
 
     //prd.hitValue += radiance;
 

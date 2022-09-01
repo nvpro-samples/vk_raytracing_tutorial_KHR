@@ -115,9 +115,13 @@ void main()
     attenuation.x = exp(-extinctCoff.x * (rayDist + beamDist));
     attenuation.y = exp(-extinctCoff.y * (rayDist + beamDist));
     attenuation.z = exp(-extinctCoff.z * (rayDist + beamDist));
-    vec3 radiance = attenuation * material_f * beam.lightColor / (pcRay.beamRadius * pcRay.beamRadius * M_PI);
+    vec3 radiance = attenuation * material_f * beam.lightColor / (pcRay.photonRadius * pcRay.photonRadius * M_PI);
 
-    prd.hitValue += radiance * exp(-length(worldPos - beam.endPos));
+    float pointDist = length(worldPos - beam.endPos);
+    //prd.hitValue += radiance * exp(-pcRay.photonRadius * pointDist * pointDist);
+
+    prd.hitValue += radiance * (1 - pointDist / pcRay.photonRadius);
+    //prd.hitValue += radiance;
 
     ignoreIntersectionEXT;
 }
