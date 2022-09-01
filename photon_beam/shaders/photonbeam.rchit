@@ -56,6 +56,13 @@ layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 
 
 bool randomScatterOccured(const vec3 world_position){
+    float max_extinct = max(max(pcRay.airExtinctCoff.x, pcRay.airExtinctCoff.y), pcRay.airExtinctCoff.z);
+
+    if (max_extinct <= 0.0)
+        return false;
+
+    float max_scatter = max(max(pcRay.airScatterCoff.x, pcRay.airScatterCoff.y), pcRay.airScatterCoff.z);
+
 
     // random walk within participating media(air) scattering
     float rayLength = length(prd.rayOrigin - world_position);
@@ -65,11 +72,14 @@ bool randomScatterOccured(const vec3 world_position){
         return false;
     }
 
-
     vec3 rayOrigin = prd.rayOrigin + prd.rayDirection * airScatterAt;
     vec3 rayDirection = heneyGreenPhaseFuncSampling(prd.seed, prd.rayDirection, AIR_HG_ASSYM);
 
-    vec3 weight = pcRay.airScatterCoff/pcRay.airExtinctCoff;
+    vec3 weight = exp(-pcRay.airExtinctCoff * airScatterAt);
+    // use russian roulett to decide whether scatter or absortion occurs
+    if (rnd(prd.seed) > max_scatter/max_extinct){
+        prd.weight = vec3(0.0);
+    }
 
     prd.rayOrigin    = rayOrigin;
     prd.rayDirection = rayDirection;
