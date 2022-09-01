@@ -1,0 +1,45 @@
+
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_buffer_reference2 : require
+
+#include "gltf.glsl"
+#include "raycommon.glsl"
+#include "sampling.glsl"
+#include "host_device.h"
+
+hitAttributeEXT vec3 beamHit;
+
+layout(std430, set = 0, binding = 2) readonly buffer PhotonBeams{
+
+    uint subBeamCount;
+    uint beamCount;
+    uint _padding_beams[2];
+	PhotonBeam beams[];
+};
+
+layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
+// clang-format on
+
+
+void main()
+{
+    vec3 rayOrigin    = gl_WorldRayOriginEXT;
+    vec3 rayDirection = gl_WorldRayDirectionEXT;
+    const vec3 rayEnd = rayOrigin + rayDirection * gl_RayTmaxEXT;
+
+    PhotonBeam beam = beams[gl_InstanceCustomIndexEXT];
+
+    if(length(beam.endPos - rayEnd) >  pcRay.beamRadius)
+    {
+        return;
+    }
+
+    beamHit = beam.endPos;
+    reportIntersectionEXT(gl_RayTmaxEXT, 0);
+}

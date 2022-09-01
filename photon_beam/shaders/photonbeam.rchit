@@ -84,6 +84,7 @@ bool randomScatterOccured(const vec3 world_position){
     prd.rayOrigin    = rayOrigin;
     prd.rayDirection = rayDirection;
     prd.weight       = weight;
+    prd.instanceIndex = -1;
 
     return true;
 }
@@ -94,6 +95,7 @@ void main()
 {
   // Retrieve the Primitive mesh buffer information
     PrimMeshInfo pinfo = primInfo[gl_InstanceCustomIndexEXT];
+    prd.instanceIndex = gl_InstanceCustomIndexEXT;
 
     // Getting the 'first index' for this mesh (offset of the mesh + offset of the triangle)
     uint indexOffset  = (pinfo.indexOffset / 3) + gl_PrimitiveID;

@@ -61,7 +61,12 @@ START_BINDING(PbBindings)
   ePbPhotonBeam  = 2,  
   ePbPhotonBeamAs  = 3 
 END_BINDING();
-// clang-format on
+
+START_BINDING(MediaBindings)
+  mdAir       = 0,  // Top-level acceleration structure
+  mdSolid = 1   // Lookup of objects
+END_BINDING();
+  // clang-format on
 
 // Scene buffer addresses
 struct SceneDesc
@@ -141,7 +146,7 @@ struct PhotonBeam
   vec3  endPos;
   float radius;
   vec3  lightColor;
-  uint  padding;
+  int   hitInstanceIndex;
 };
 
 struct ShaderVkAccelerationStructureInstanceKHR

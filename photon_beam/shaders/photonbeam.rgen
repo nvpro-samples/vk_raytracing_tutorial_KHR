@@ -81,6 +81,7 @@ void main()
     // newBeam.radius = pcRay.beamRadius;
     newBeam.radius = 0;
     newBeam.lightColor = beamColor / numLightSourceBeams;
+    newBeam.hitInstanceIndex = prd.instanceIndex;
 
     beamIndex = atomicAdd(beamCount, 1);
     if (beamIndex >= pcRay.maxNumBeams)
@@ -94,17 +95,24 @@ void main()
     // make beam boxes to overlap a little
     uint num_split = uint(beamLength / (pcRay.beamRadius * 2.0) + 1.0);
 
-    subBeamIndex = atomicAdd(subBeamCount, num_split);
+    // this value must be either 0 or 1
+    uint numSurfacePhoton =  (prd.instanceIndex >= 0 )? 1: 0;
+    
+    subBeamIndex = atomicAdd(subBeamCount, num_split + numSurfacePhoton);
+   
+    
 
     // Not using min function with subtraction operator to simplify the if statement
     // because subtraction between unsinged integer values can cause overflow.
     if (subBeamIndex > pcRay.maxNumBeams)
     {
         num_split = 0;
+        numSurfacePhoton = 0;
     }
-    else if (num_split + subBeamIndex > pcRay.maxNumSubBeams)
+    else if (num_split + subBeamIndex + numSurfacePhoton > pcRay.maxNumSubBeams)
     {
         num_split = (pcRay.maxNumSubBeams - subBeamIndex);
+        numSurfacePhoton = 0;
     }
 
     vec3 rayDirectionRight = vec3(1, 0, 0);
@@ -119,7 +127,7 @@ void main()
         vec3 splitStart = newBeam.startPos + pcRay.beamRadius * 2 * float(i) * rayDirection;
         ShaderVkAccelerationStructureInstanceKHR asInfo;
         asInfo.instanceCustomIndexAndmask = beamIndex | (0xFF << 24);
-        asInfo.instanceShaderBindingTableRecordOffsetAndflags = (0) | (0x00000001 << 24); // use the same hit group 0
+        asInfo.instanceShaderBindingTableRecordOffsetAndflags = (mdAir) | (0x00000001 << 24); // use the hit group 0
         asInfo.accelerationStructureReference = pcRay.beamBlasAddres;
         asInfo.matrix[0][0] = rayDirectionRight.x;
         asInfo.matrix[0][1] = rayDirectionUp.x;
@@ -137,7 +145,30 @@ void main()
         subBeams[subBeamIndex + i] = asInfo;
     }
 
-    if (subBeamIndex + num_split >= pcRay.maxNumSubBeams)
+    if (numSurfacePhoton > 0) 
+    {
+        vec3 boxStart = newBeam.endPos - pcRay.beamRadius * rayDirection;
+        ShaderVkAccelerationStructureInstanceKHR asInfo;
+        asInfo.instanceCustomIndexAndmask = beamIndex | (0xFF << 24);
+        asInfo.instanceShaderBindingTableRecordOffsetAndflags = (mdSolid) | (0x00000001 << 24); // use the hit group 1
+        asInfo.accelerationStructureReference = pcRay.beamBlasAddres;
+        asInfo.matrix[0][0] = rayDirectionRight.x;
+        asInfo.matrix[0][1] = rayDirectionUp.x;
+        asInfo.matrix[0][2] = rayDirection.x;
+        asInfo.matrix[0][3] = boxStart.x;
+        asInfo.matrix[1][0] = rayDirectionRight.y;
+        asInfo.matrix[1][1] = rayDirectionUp.y;
+        asInfo.matrix[1][2] = rayDirection.y;
+        asInfo.matrix[1][3] = boxStart.y;
+        asInfo.matrix[2][0] = rayDirectionRight.z;
+        asInfo.matrix[2][1] = rayDirectionUp.z;
+        asInfo.matrix[2][2] = rayDirection.z;
+        asInfo.matrix[2][3] = boxStart.z;
+
+        subBeams[subBeamIndex + num_split] = asInfo;
+    }
+
+    if (subBeamIndex + num_split  + numSurfacePhoton >= pcRay.maxNumSubBeams)
         break;
 
     beamColor *= prd.weight;

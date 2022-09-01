@@ -24,7 +24,7 @@ struct hitPayload
   vec3 rayOrigin;
   uint seed;
   vec3 rayDirection;
-  uint padding1;
+  int  instanceIndex;
   vec3 weight;
   uint padding2;
 };

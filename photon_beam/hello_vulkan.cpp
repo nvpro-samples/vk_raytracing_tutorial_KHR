@@ -1141,7 +1141,9 @@ void HelloVulkan::createRtPipeline()
     eMiss,
     eClosestHit,
     eIntersection,
+    eIntersectionSurface,
     eAnyHit,
+    eAnyHitSurface,
     eShaderGroupCount
   };
 
@@ -1166,9 +1168,17 @@ void HelloVulkan::createRtPipeline()
   stage.stage           = VK_SHADER_STAGE_INTERSECTION_BIT_KHR;
   stages[eIntersection] = stage;
 
+  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytrace_surface.rint.spv", true, defaultSearchPaths, true));
+  stage.stage           = VK_SHADER_STAGE_INTERSECTION_BIT_KHR;
+  stages[eIntersectionSurface] = stage;
+
   stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytrace.rahit.spv", true, defaultSearchPaths, true));
   stage.stage     = VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
   stages[eAnyHit] = stage;
+
+  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytrace_surface.rahit.spv", true, defaultSearchPaths, true));
+  stage.stage     = VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
+  stages[eAnyHitSurface] = stage;
 
 
   // Shader groups
@@ -1194,6 +1204,15 @@ void HelloVulkan::createRtPipeline()
   group.closestHitShader = eClosestHit;
   group.intersectionShader = eIntersection;
   group.anyHitShader       = eAnyHit;
+  m_rtShaderGroups.push_back(group);
+
+
+  // closest hit shader + Intersection
+  group.type               = VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR;
+  group.generalShader      = VK_SHADER_UNUSED_KHR;
+  group.closestHitShader   = eClosestHit;
+  group.intersectionShader = eIntersectionSurface;
+  group.anyHitShader       = eAnyHitSurface;
   m_rtShaderGroups.push_back(group);
 
 
