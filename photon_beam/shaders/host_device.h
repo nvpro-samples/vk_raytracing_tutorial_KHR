@@ -116,7 +116,8 @@ struct PushConstantRay
   vec3     sourceLight;
   uint lightType;
 
-  uint64_t beamBlasAddres;
+  uint64_t beamBlasAddress;
+  uint64_t photonBlasAddress;
   float    airHGAssymFactor;
   uint     padding;
 };

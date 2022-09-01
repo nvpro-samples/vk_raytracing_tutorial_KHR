@@ -225,7 +225,12 @@ void HelloVulkan::createBeamBoundingBox()
   beamBox.minimum = nvmath::vec3f(-m_beamRadius, -m_beamRadius, 0.0f);
   beamBox.maximum = nvmath::vec3f(m_beamRadius, m_beamRadius, 2.0 * m_beamRadius);
 
+  Aabb photonBox;
+  photonBox.minimum = nvmath::vec3f(-m_photonRadius, -m_photonRadius, -m_photonRadius);
+  photonBox.maximum = nvmath::vec3f(m_photonRadius, m_photonRadius, m_photonRadius);
+
   aabbs.emplace_back(beamBox);
+  aabbs.emplace_back(photonBox);
  
 
   nvvk::CommandPool cmdBufGet(m_device, m_graphicsQueueIndex);
@@ -707,17 +712,31 @@ void HelloVulkan::createBeamBoxBlas()
   offset.primitiveOffset = 0;
   offset.transformOffset = 0;
 
-  nvvk::RaytracingBuilderKHR::BlasInput input;
-  input.asGeometry.emplace_back(asGeom);
-  input.asBuildOffsetInfo.emplace_back(offset);
+  nvvk::RaytracingBuilderKHR::BlasInput beamBoxInput;
+  beamBoxInput.asGeometry.emplace_back(asGeom);
+  beamBoxInput.asBuildOffsetInfo.emplace_back(offset);
+
+
+  VkAccelerationStructureBuildRangeInfoKHR photonBoxOffset{};
+  photonBoxOffset.firstVertex = 0;
+  photonBoxOffset.primitiveCount = 1;
+  photonBoxOffset.primitiveOffset = sizeof(Aabb);
+  photonBoxOffset.transformOffset = 0;
+
+  nvvk::RaytracingBuilderKHR::BlasInput photonBoxInput;
+  photonBoxInput.asGeometry.emplace_back(asGeom);
+  photonBoxInput.asBuildOffsetInfo.emplace_back(photonBoxOffset);
+
 
   // Add Blas for the beam box
   std::vector<nvvk::RaytracingBuilderKHR::BlasInput> allBlas;
-  allBlas.reserve(1);
-  allBlas.push_back({input});
+  allBlas.reserve(2);
+  allBlas.push_back({beamBoxInput});
+  allBlas.push_back({photonBoxInput});
 
   m_pbBuilder.buildBlas(allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
-  m_pcRay.beamBlasAddres = m_pbBuilder.getBlasDeviceAddress(0);
+  m_pcRay.beamBlasAddress = m_pbBuilder.getBlasDeviceAddress(0);
+  m_pcRay.photonBlasAddress = m_pbBuilder.getBlasDeviceAddress(1);
 }
 
 //--------------------------------------------------------------------------------------------------

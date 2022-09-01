@@ -72,6 +72,7 @@ public:
   nvvk::Buffer m_beamAsCountReadBuffer;
 
   float m_beamRadius{0.5f};
+  float    m_photonRadius{0.5f};
   uint32_t m_maxNumBeams{4096 * 32 * 16};
   uint32_t m_maxNumSubBeams{4096 * 32 * 64};
 

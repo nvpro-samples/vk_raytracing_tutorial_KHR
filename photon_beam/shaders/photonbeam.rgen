@@ -128,7 +128,7 @@ void main()
         ShaderVkAccelerationStructureInstanceKHR asInfo;
         asInfo.instanceCustomIndexAndmask = beamIndex | (0xFF << 24);
         asInfo.instanceShaderBindingTableRecordOffsetAndflags = (mdAir) | (0x00000001 << 24); // use the hit group 0
-        asInfo.accelerationStructureReference = pcRay.beamBlasAddres;
+        asInfo.accelerationStructureReference = pcRay.beamBlasAddress;
         asInfo.matrix[0][0] = rayDirectionRight.x;
         asInfo.matrix[0][1] = rayDirectionUp.x;
         asInfo.matrix[0][2] = rayDirection.x;
@@ -147,11 +147,11 @@ void main()
 
     if (numSurfacePhoton > 0) 
     {
-        vec3 boxStart = newBeam.endPos - pcRay.beamRadius * rayDirection;
+        vec3 boxStart = newBeam.endPos;
         ShaderVkAccelerationStructureInstanceKHR asInfo;
         asInfo.instanceCustomIndexAndmask = beamIndex | (0xFF << 24);
         asInfo.instanceShaderBindingTableRecordOffsetAndflags = (mdSolid) | (0x00000001 << 24); // use the hit group 1
-        asInfo.accelerationStructureReference = pcRay.beamBlasAddres;
+        asInfo.accelerationStructureReference = pcRay.photonBlasAddress;
         asInfo.matrix[0][0] = rayDirectionRight.x;
         asInfo.matrix[0][1] = rayDirectionUp.x;
         asInfo.matrix[0][2] = rayDirection.x;
