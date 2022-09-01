@@ -73,7 +73,7 @@ bool randomScatterOccured(const vec3 world_position){
     }
 
     vec3 rayOrigin = prd.rayOrigin + prd.rayDirection * airScatterAt;
-    vec3 rayDirection = heneyGreenPhaseFuncSampling(prd.seed, prd.rayDirection, AIR_HG_ASSYM);
+    vec3 rayDirection = heneyGreenPhaseFuncSampling(prd.seed, prd.rayDirection, pcRay.airHGAssymFactor);
 
     vec3 weight = exp(-pcRay.airExtinctCoff * airScatterAt);
     // use russian roulett to decide whether scatter or absortion occurs

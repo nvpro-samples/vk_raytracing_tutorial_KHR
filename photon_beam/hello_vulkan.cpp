@@ -994,6 +994,7 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor) {
       m_pcRay.beamRadius     = m_beamRadius;
       m_pcRay.maxNumBeams    = m_maxNumBeams;
       m_pcRay.maxNumSubBeams = m_maxNumSubBeams;
+      m_pcRay.airHGAssymFactor = -0.2;
 
       // A Programmable System for Artistic Volumetric Lighting(2011) Derek Nowrouzezahrai
       vec3  beamNearColor         = vec3(10.0);
