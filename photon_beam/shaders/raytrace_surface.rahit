@@ -63,13 +63,12 @@ void main()
     }
 
     vec3 worldPos = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
-    float beamDist = length(beamHit - beam.startPos);
     vec3 towardLightDirection = normalize(beam.startPos - beam.endPos);
+    float beamDist = length(beam.startPos - beam.endPos);
     float rayDist = gl_HitTEXT;
     vec3 vewingDirection = normalize(gl_WorldRayDirectionEXT) * -1.0;
  
     vec3 extinctCoff = pcRay.airExtinctCoff;
-    vec3 scatterCoff = pcRay.airScatterCoff; 
 
     // gltf BDRF
     // both light and viewDir are supposed start from the shading location
@@ -113,12 +112,12 @@ void main()
     
  
     vec3 attenuation;
-    attenuation.x = exp(-extinctCoff.x * rayDist);
-    attenuation.y = exp(-extinctCoff.y * rayDist);
-    attenuation.z = exp(-extinctCoff.z * rayDist);
+    attenuation.x = exp(-extinctCoff.x * (rayDist + beamDist));
+    attenuation.y = exp(-extinctCoff.y * (rayDist + beamDist));
+    attenuation.z = exp(-extinctCoff.z * (rayDist + beamDist));
     vec3 radiance = attenuation * material_f * beam.lightColor / (pcRay.beamRadius * pcRay.beamRadius * M_PI);
 
-    prd.hitValue += radiance;
+    prd.hitValue += radiance * exp(-length(worldPos - beam.endPos));
 
     ignoreIntersectionEXT;
 }
