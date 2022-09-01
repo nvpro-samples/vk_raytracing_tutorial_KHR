@@ -120,8 +120,8 @@ void main()
     float pointDist = length(worldPos - beam.endPos);
     //prd.hitValue += radiance * exp(-pcRay.photonRadius * pointDist * pointDist);
 
-    prd.hitValue += radiance * (1 - pointDist / pcRay.photonRadius);
-    //prd.hitValue += radiance;
+    //prd.hitValue += radiance * (1 - pointDist / pcRay.photonRadius);
+    prd.hitValue += radiance;
 
     ignoreIntersectionEXT;
 }
