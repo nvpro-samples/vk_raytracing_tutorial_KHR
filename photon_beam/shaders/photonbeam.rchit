@@ -67,11 +67,6 @@ bool randomScatterOccured(const vec3 world_position){
 
 
     vec3 rayOrigin = prd.rayOrigin + prd.rayDirection * airScatterAt;
-
-    vec3 hemiSphereNormal = vec3(0,0,1);
-    if (rnd(prd.seed) < 0.5)
-        hemiSphereNormal.z = -1;
-
     vec3 rayDirection = heneyGreenPhaseFuncSampling(prd.seed, prd.rayDirection, AIR_HG_ASSYM);
 
     vec3 weight = pcRay.airScatterCoff/pcRay.airExtinctCoff;

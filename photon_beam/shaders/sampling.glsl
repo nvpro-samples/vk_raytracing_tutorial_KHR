@@ -60,6 +60,8 @@ float rnd(inout uint prev)
 //-------------------------------------------------------------------------------------------------
 
 // Randomly sampling around +Z
+// pdf of the sampling is cos theta 
+// where theta is the angle between the sampling vector and the norm vector(+Z) 
 vec3 samplingHemisphere(inout uint seed, in vec3 x, in vec3 y, in vec3 z)
 {
 #define M_PI 3.141592
@@ -74,6 +76,18 @@ vec3 samplingHemisphere(inout uint seed, in vec3 x, in vec3 y, in vec3 z)
   return direction;
 }
 
+vec3 uniformSamplingSphere(inout uint seed)
+{
+
+  float r1 = rnd(seed);
+  float r2 = rnd(seed) * 2 -1;
+  float sq = sqrt(1.0 - r2 * r2);
+
+  vec3 direction = vec3(cos(2 * M_PI * r1) * sq, sin(2 * M_PI * r1) * sq, r2);
+
+  return direction;
+}
+
 // Return the tangent and binormal from the incoming normal
 void createCoordinateSystem(in vec3 N, out vec3 Nt, out vec3 Nb)
 {
@@ -84,8 +98,6 @@ void createCoordinateSystem(in vec3 N, out vec3 Nt, out vec3 Nb)
   Nb = cross(N, Nt);
 }
 
-
-# define AIR_HG_ASSYM -0.1
 
 // Henyey-Greenstein phase function
 float heneyGreenPhaseFunc(float cosTheta, float assymFactor)
@@ -108,13 +120,13 @@ vec3 heneyGreenPhaseFuncSampling(inout uint seed, in vec3 incomingLightDir, floa
 
   float maxVal = max(val1, val2);
 
+  if(assymFactor == 0.0)
+    return uniformSamplingSphere(seed);
+
   while(true)
   {
-    vec3 hemiSphereNormal = vec3(0, 0, 1);
-    if(rnd(seed) < 0.5)
-        hemiSphereNormal.z = -1;
 
-    vec3 rayDirection = samplingHemisphere(seed, vec3(1, 0, 0), vec3(0, 1, 0), hemiSphereNormal);
+    vec3 rayDirection = uniformSamplingSphere(seed);
 
     float phaseVal = heneyGreenPhaseFunc(dot(rayDirection, incomingLightDir), assymFactor);
 
@@ -123,7 +135,6 @@ vec3 heneyGreenPhaseFuncSampling(inout uint seed, in vec3 incomingLightDir, floa
     if(cutline < phaseVal)
       return rayDirection;
         
-
   }
 
 }

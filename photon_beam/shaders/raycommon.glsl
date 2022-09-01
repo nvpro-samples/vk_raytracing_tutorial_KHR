@@ -17,6 +17,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#define AIR_HG_ASSYM 0.8
+
 struct hitPayload
 {
   vec3 hitValue;
