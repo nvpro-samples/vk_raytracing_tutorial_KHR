@@ -31,7 +31,7 @@
 #include "host_device.h"
 
 // clang-format off
-layout(location = 0) rayPayloadEXT hitPayload prd;
+layout(location = 0) rayPayloadEXT rayHitPayload prd;
 
 layout(set = 0, binding = 0) uniform accelerationStructureEXT beamAS;
 layout(set = 0, binding = 1, rgba32f) uniform image2D image;
@@ -43,9 +43,6 @@ layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 
 void main()
 {
-  // Initialize the random number
-    uint seed = tea(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, int(clockARB()));
-
     const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
     const vec2 inUV        = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
     vec2       d           = inUV * 2.0 - 1.0;
@@ -59,14 +56,9 @@ void main()
     float tMax     = 10000.0;
 
     prd.hitValue     = vec3(0);
-    prd.seed         = seed;
-    prd.depth        = 0;
     prd.rayOrigin    = origin.xyz;
     prd.rayDirection = direction.xyz;
-    prd.weight       = vec3(0);
 
-    vec3 curWeight = vec3(1);
-    vec3 hitValue  = vec3(0);
 
     // get the t value to surface
     rayQueryEXT rayQuery;

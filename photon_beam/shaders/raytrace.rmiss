@@ -22,7 +22,7 @@
 #extension GL_GOOGLE_include_directive : enable
 #include "raycommon.glsl"
 
-layout(location = 0) rayPayloadInEXT hitPayload prd;
+layout(location = 0) rayPayloadInEXT rayHitPayload prd;
 
 layout(push_constant) uniform Constants
 {
@@ -31,12 +31,5 @@ layout(push_constant) uniform Constants
 
 void main()
 {
-return;
-  if(prd.depth == 0)
-    prd.hitValue = clearColor.xyz * 0.8;
-  else
-    prd.hitValue = vec3(0.01);  // No contribution from environment
-  prd.depth = 100;              // Ending trace
-
-  prd.hitValue = vec3(0.5);
+	return;
 }

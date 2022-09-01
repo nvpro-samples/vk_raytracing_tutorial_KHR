@@ -50,9 +50,6 @@ void main()
 
   float minmumLightIntensitySquare = 0.1e-20;
 
-  prd.hitValue     = vec3(0);
-  prd.seed         = seed;
-  prd.depth        = 0;
   prd.rayOrigin    = pcRay.lightPosition;
   prd.rayDirection = rayDirection;
   prd.weight       = vec3(0);

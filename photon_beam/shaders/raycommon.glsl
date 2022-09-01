@@ -20,20 +20,23 @@
 
 struct hitPayload
 {
-  vec3 hitValue;
-  uint seed;
-  uint depth;
+
   vec3 rayOrigin;
+  uint seed;
   vec3 rayDirection;
+  uint padding1;
   vec3 weight;
+  uint padding2;
 };
 
-struct beamHitPayload
+struct rayHitPayload
 {
   vec3 hitValue;
-  uint seed;
-  uint depth;
+  uint instanceIndex;
   vec3 rayOrigin;
+  uint padding;
   vec3 rayDirection;
-  vec3 light;
+  uint padding2;
+  vec3 hitNormal;
+  uint padding3;
 };

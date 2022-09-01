@@ -37,7 +37,7 @@
 hitAttributeEXT vec3 beamHit;
 
 // clang-format off
-layout(location = 0) rayPayloadInEXT hitPayload prd;
+layout(location = 0) rayPayloadInEXT rayHitPayload prd;
 
 layout(std430, set = 0, binding = 2) readonly buffer PhotonBeams{
 
