@@ -28,6 +28,9 @@
 #extension GL_EXT_ray_query : require
 
 
+#extension GL_EXT_nonuniform_qualifier : enable
+
+
 #include "raycommon.glsl"
 #include "sampling.glsl"
 #include "host_device.h"
@@ -44,7 +47,10 @@ layout(set = 0, binding = 4) readonly buffer _InstanceInfo {PrimMeshInfo primInf
 layout(buffer_reference, scalar) readonly buffer Vertices  { vec3  v[]; };
 layout(buffer_reference, scalar) readonly buffer Indices   { ivec3 i[]; };
 layout(buffer_reference, scalar) readonly buffer Normals   { vec3  n[]; };
+layout(buffer_reference, scalar) readonly buffer TexCoords { vec2  t[]; };
+layout(std430, buffer_reference, scalar) readonly buffer Materials { GltfShadeMaterial m[]; };
 layout(set = 1, binding = eSceneDesc ) readonly buffer SceneDesc_ { SceneDesc sceneDesc; };
+layout(set = 1, binding = eTextures) uniform sampler2D texturesMap[]; // all textures
 
 layout(set = 1, binding = 0) uniform _GlobalUniforms { GlobalUniforms uni; };
 layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
@@ -54,6 +60,8 @@ void main()
 {
     Indices   indices   = Indices(sceneDesc.indexAddress);
     Normals   normals   = Normals(sceneDesc.normalAddress);
+    TexCoords texCoords = TexCoords(sceneDesc.uvAddress);
+    Materials materials = Materials(sceneDesc.materialAddress);
 
     const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
     const vec2 inUV        = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
@@ -116,6 +124,24 @@ void main()
         vec3       normal       = normalize(nrm0 * barycentrics.x + nrm1 * barycentrics.y + nrm2 * barycentrics.z);
         const vec3 world_normal = normalize(vec3(normal * rayQueryGetIntersectionWorldToObjectEXT(rayQuery, true)));
         prd.hitNormal = world_normal;
+
+        const vec2 uv0       = texCoords.t[triangleIndex.x];
+        const vec2 uv1       = texCoords.t[triangleIndex.y];
+        const vec2 uv2       = texCoords.t[triangleIndex.z];
+        const vec2 texcoord0 = uv0 * barycentrics.x + uv1 * barycentrics.y + uv2 * barycentrics.z;
+
+        GltfShadeMaterial mat       = materials.m[matIndex];   
+        vec3  albedo    = mat.pbrBaseColorFactor.xyz;
+
+        if(mat.pbrBaseColorTexture > -1)
+        {
+            uint txtId = mat.pbrBaseColorTexture;
+            albedo *= texture(texturesMap[nonuniformEXT(txtId)], texcoord0).xyz;
+        }
+
+        prd.hitAlbedo = albedo;
+        prd.hitMetallic = mat.metallic;
+        prd.hitRoughness = mat.roughness;
         
     }
     

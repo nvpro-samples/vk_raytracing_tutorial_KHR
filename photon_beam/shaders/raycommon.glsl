@@ -38,5 +38,7 @@ struct rayHitPayload
   vec3 rayDirection;
   uint padding2;
   vec3 hitNormal;
-  uint padding3;
+  float hitRoughness;
+  vec3 hitAlbedo;
+  float hitMetallic;
 };
