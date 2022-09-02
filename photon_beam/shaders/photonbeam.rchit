@@ -26,7 +26,7 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_buffer_reference2 : require
 
-#extension GL_EXT_debug_printf : require
+//#extension GL_EXT_debug_printf : require
 
 #include "gltf.glsl"
 #include "raycommon.glsl"
@@ -157,15 +157,16 @@ void main()
     float halfVecPdfVal = microfacetPDF(nDotH, mat.roughness);
     float rayPdfVal = halfVecPdfVal / (4 * dot(halfVec, -prd.rayDirection));
 
+    // for now ignore rays going bellow surface
     if(dot(rayDirection, world_normal) < 0)
     {
-            debugPrintfEXT("Hello from invocation (%f, %f, %f), (%f, %f, %f)!\n", rayDirection.x, rayDirection.y, rayDirection.z, world_normal.x, world_normal.y, world_normal.z);
-            prd.rayOrigin    = rayOrigin;
-    prd.rayDirection = rayDirection;
-    prd.weight = vec3(0.0);
-    return;
+        //debugPrintfEXT("Hello from invocation (%f, %f, %f), (%f, %f, %f)!\n", rayDirection.x, rayDirection.y, rayDirection.z, world_normal.x, world_normal.y, world_normal.z);
+        prd.rayOrigin    = rayOrigin;
+        prd.rayDirection = rayDirection;
+        prd.weight = vec3(0.0);
+        return;
             
-            }
+    }
     float cos_theta = dot(rayDirection, world_normal); 
     vec3  albedo    = mat.pbrBaseColorFactor.xyz;
 

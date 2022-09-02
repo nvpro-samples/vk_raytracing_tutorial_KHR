@@ -85,16 +85,8 @@ void main()
     vec3       frsnel    = f0 + (1 - f0) * pow(1 - abs(vDotH), 5);
     vec3 f_diffuse = (1.0 - frsnel) / M_PI * c_diff;
 
-    float dVal = 0.0;
-
-    if (nDotH > 0) {
-        float denom = (nDotH * nDotH * (aValSq - 1.0) + 1);
-        denom       = denom * denom * M_PI;
-        dVal        = aValSq / denom;
-    }
-
+    float dVal = microfacetPDF(nDotH, prd.hitRoughness);
     float gVal = 0.0;
-
     if(hDotL > 0 && vDotH > 0){
         float denom1 = sqrt(aValSq + (1 - aValSq) * nDotL * nDotL); 
         denom1 += abs(nDotL);
@@ -108,8 +100,6 @@ void main()
 
     vec3 f_specular = frsnel * dVal * gVal;
     vec3 material_f = f_specular + f_diffuse;
-
-    
  
     vec3 attenuation;
     attenuation.x = exp(-extinctCoff.x * (rayDist + beamDist));

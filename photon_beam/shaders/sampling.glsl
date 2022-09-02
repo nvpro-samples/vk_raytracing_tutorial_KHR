@@ -141,15 +141,15 @@ vec3 heneyGreenPhaseFuncSampling(inout uint seed, in vec3 incomingLightDir, floa
 
 
 float microfacetPDF(float nDotH, float roughness){
-  float dVal = 0.0;
-  float a2   = roughness * roughness * roughness * roughness;
- 
+    float dVal = 0.0;
+    if(nDotH < 0)
+        return 0.0;
+
+    float a2   = roughness * roughness * roughness * roughness;
     float denom = (nDotH * nDotH * (a2 - 1.0) + 1);
     denom       = denom * denom * M_PI;
-    dVal        = a2 / denom;
-  
-
-  return dVal;
+    return a2 / denom;
+ 
 }
 
 // https://schuttejoe.github.io/post/ggximportancesamplingpart1/
