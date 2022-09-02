@@ -115,7 +115,11 @@ void main()
         numSurfacePhoton = 0;
     }
 
+    // if ray direction is (0,1,0) or (0, -1, 0) set the right direction to (1, 0, 0)
     vec3 rayDirectionRight = vec3(1, 0, 0);
+
+    // if ray direcction is not (0,1,0) or (0, -1, 0)
+    // project the ray direction to xz plane and rotate 90 degree clockwise to get the right direction
     if (rayDirection.x != 0.0 ||  rayDirection.z != 0.0)
     {
         rayDirectionRight = normalize(vec3(rayDirection.z, 0, -rayDirection.x));

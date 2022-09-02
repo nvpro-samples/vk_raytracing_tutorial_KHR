@@ -138,3 +138,49 @@ vec3 heneyGreenPhaseFuncSampling(inout uint seed, in vec3 incomingLightDir, floa
   }
 
 }
+
+
+float microfacetPDF(float nDotH, float roughness){
+  float dVal = 0.0;
+  float a2   = roughness * roughness * roughness * roughness;
+ 
+    float denom = (nDotH * nDotH * (a2 - 1.0) + 1);
+    denom       = denom * denom * M_PI;
+    dVal        = a2 / denom;
+  
+
+  return dVal;
+}
+
+// https://schuttejoe.github.io/post/ggximportancesamplingpart1/
+// https://agraphicsguy.wordpress.com/2015/11/01/sampling-microfacet-brdf/
+vec3 microfacetBrdfSampling(inout uint seed, in vec3 incomingLightDir, in vec3 normal, float roughness)
+{
+    float r1 = rnd(seed);
+    float r2 = rnd(seed);
+
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float theta = atan(a * sqrt(r1 / (1 - r1) )); 
+    float phi   = 2 * M_PI * r2;
+
+    vec3 halfVec = vec3(sin(theta) * cos(phi), cos(theta), sin(theta) * sin(phi));
+                                                                                                                                                                                                                          
+    // if normal vector is (0,1,0) or (0, -1, 0) set the right direction to (1, 0, 0)
+    vec3 normalRight = vec3(1, 0, 0);
+
+    // if normal vector is not (0,1,0) or (0, -1, 0)
+    // project the ray direction to xz plane and rotate 90 degree clockwise to get the right direction
+    if(normal.x != 0.0 || normal.z != 0.0)
+    {
+      normalRight = normalize(vec3(normal.z, 0, -normal.x));
+    }
+    vec3 normalFront = cross(normal, normalRight);
+
+    halfVec = halfVec.x * normalRight + halfVec.y * normal + halfVec.z * normalFront;
+   
+    // return the outgoing light direction
+    // outgoing light Dir - incomingLightDir = 2 * halfVec
+
+    return incomingLightDir - 2 * dot(halfVec, incomingLightDir) * halfVec;
+}
