@@ -190,7 +190,7 @@ void main()
     rayDirection = prd.rayDirection;
 
     // if light intensity is weak, assume the light has been absored and make a new light
-    if (dot(beamColor, beamColor) < minmumLightIntensitySquare){
+    if (length(beamColor) < minmumLightIntensitySquare){
         return;
     }
   }
