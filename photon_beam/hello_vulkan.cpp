@@ -1026,7 +1026,7 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor) {
 
       // A Programmable System for Artistic Volumetric Lighting(2011) Derek Nowrouzezahrai
       vec3  beamNearColor         = vec3(1.0) * 30.0f;
-      vec3  beamUnitDistanceColor = vec3(2.3/2.55, 0.999, 0.999) * 28.0f;
+      vec3  beamUnitDistanceColor = vec3(2.3/2.55, 0.999, 0.999) * 29.0f;
       // all element of albedo must be equal or less than 1
       vec3 mediaAlbedo            = vec3(0.8);
       float beamSourceDist        = 15.0;
@@ -1040,6 +1040,10 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor) {
    
       m_pcRay.airExtinctCoff = extinctCoff;
       m_pcRay.airScatterCoff = scatterCoff;
+
+      //m_pcRay.airExtinctCoff = vec3(0.0);
+      //m_pcRay.airScatterCoff = vec3(0.0);
+      //m_pcRay.sourceLight    = vec3(300.0);
 
 }
 

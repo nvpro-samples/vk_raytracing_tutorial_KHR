@@ -79,7 +79,6 @@ void main()
 
     // prd.hitValue += prd.weight * radiance * (1 - rayBeamPointDist / pcRay.beamRadius);
     //prd.hitValue += prd.weight * radiance;
-    //debugPrintfEXT("Hello from invocation (%f, %f), (%f %f %f )!\n", rayDist, beamDist,length(beam.endPos - beam.startPos), beam.lightColor.y, beam.lightColor.z);
 
     ignoreIntersectionEXT;
 }
