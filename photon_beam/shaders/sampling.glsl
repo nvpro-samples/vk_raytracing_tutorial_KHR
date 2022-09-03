@@ -166,6 +166,7 @@ float microfacetLightPDF(float hDotL, float nDotH, float a2)
 
 // https://schuttejoe.github.io/post/ggximportancesamplingpart1/
 // https://agraphicsguy.wordpress.com/2015/11/01/sampling-microfacet-brdf/
+// incomiing LightDir is direction start from light source and goes toward the point of the interaction.
 vec3 microfacetReflectedLightSampling(inout uint seed, in vec3 incomingLightDir, in vec3 normal, float roughness)
 {
     float r1 = rnd(seed);
@@ -193,7 +194,8 @@ vec3 microfacetReflectedLightSampling(inout uint seed, in vec3 incomingLightDir,
     // return the outgoing light direction
     // outgoing light Dir - incomingLightDir = 2 * halfVec
 
-    return incomingLightDir - 2 * dot(halfVec, incomingLightDir) * halfVec;
+    // normalize at last step in order to avoid some floating point error;
+    return normalize(incomingLightDir + 2 * dot(halfVec, incomingLightDir) * halfVec);
 }
 
 // both incoming light and reflected light directions start from the point of the reflection
