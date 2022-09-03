@@ -36,7 +36,7 @@ void main()
 {
   float numLightSourceBeams = gl_LaunchSizeEXT.x * gl_LaunchSizeEXT.y * gl_LaunchSizeEXT.z;
   // Initialize the random number
-  uint seed = tea(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, int(clockARB()));
+  uint seed = tea(gl_LaunchIDEXT.z, int(clockARB()));
 
   vec3 hemiSphereNormal = vec3(0,0,1);
   if (rnd(seed) < 0.5)
