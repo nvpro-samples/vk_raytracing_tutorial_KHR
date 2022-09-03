@@ -75,7 +75,7 @@ void main()
     float rayBeamPointDist = length(worldPos - beamHit);
     //prd.hitValue += radiance * exp(-pcRay.beamRadius * rayBeamPointDist * rayBeamPointDist);
 
-    prd.hitValue += radiance * pow((1 - rayBeamPointDist / pcRay.beamRadius), 0.5);
+    prd.hitValue += prd.weight * radiance * pow((1 - rayBeamPointDist / pcRay.beamRadius), 0.5);
 
     //prd.hitValue += radiance * (1 - rayBeamPointDist / pcRay.beamRadius);
     //prd.hitValue += radiance;

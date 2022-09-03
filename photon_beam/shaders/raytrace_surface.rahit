@@ -78,7 +78,7 @@ void main()
     //prd.hitValue += radiance * exp(-pcRay.photonRadius * pointDist * pointDist);
 
     //prd.hitValue += radiance * (1 - pointDist / pcRay.photonRadius);
-    prd.hitValue += radiance;
+    prd.hitValue += prd.weight * radiance;
 
     ignoreIntersectionEXT;
 }
