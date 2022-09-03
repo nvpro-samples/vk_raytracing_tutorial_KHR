@@ -72,12 +72,15 @@ public:
   nvvk::Buffer m_beamAsCountReadBuffer;
 
   float m_beamRadius{0.5f};
-  float    m_photonRadius{0.25f};
-  uint32_t m_maxNumBeams{4096 * 32 * 16};
-  uint32_t m_maxNumSubBeams{4096 * 32 * 64};
-  uint32_t m_numBeamSamples{2048};
-  uint32_t m_numPhotonSamples{2048};
-  float    m_hgAssymFactor = -0.9;
+  float    m_photonRadius{0.5f};
+  uint32_t m_numBeamSamples{1024};
+  uint32_t m_numPhotonSamples{4 * 4 * 4096};
+  
+  // number of photon samples * (expected surface intersection ) + number of number of beam samples * (expected number of scatter  + surface intersection )
+  uint32_t m_maxNumBeams{m_numPhotonSamples * 16 + m_numBeamSamples * 32};
+  // number of beam samples * (expected number of scatter  + surface intersection ) * (expected length of the beam / (radius * 2)) 
+  uint32_t m_maxNumSubBeams{m_numBeamSamples * 32 * 128};
+  float    m_hgAssymFactor = -0.5;
 
   // Information pushed at each draw call
   PushConstantRaster m_pcRaster{

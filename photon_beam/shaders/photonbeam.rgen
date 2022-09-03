@@ -6,7 +6,6 @@
 #extension GL_ARB_shader_clock : enable
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
-
 #include "raycommon.glsl"
 #include "sampling.glsl"
 #include "host_device.h"
@@ -34,12 +33,12 @@ layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 
 void main()
 {
-  float numLightSourceBeams = gl_LaunchSizeEXT.x * gl_LaunchSizeEXT.y * gl_LaunchSizeEXT.z;
 
-  uint lauchIndex = gl_LaunchSizeEXT.y * gl_LaunchSizeEXT.z * gl_LaunchIDEXT.x 
+  uint launchIndex = gl_LaunchSizeEXT.y * gl_LaunchSizeEXT.z * gl_LaunchIDEXT.x 
         + gl_LaunchSizeEXT.z * gl_LaunchIDEXT.y + gl_LaunchIDEXT.z;
+
   // Initialize the random number
-  uint seed = tea(gl_LaunchIDEXT.z, int(clockARB()));
+  uint seed = tea(launchIndex, int(clockARB()));
 
   vec3 hemiSphereNormal = vec3(0,0,1);
   if (rnd(seed) < 0.5)
@@ -101,10 +100,10 @@ void main()
      // this value must be either 0 or 1
     uint numSurfacePhoton =  (prd.instanceIndex >= 0 )? 1: 0;
 
-    if (lauchIndex  > pcRay.numBeamSources)
+    if (launchIndex  > pcRay.numBeamSources)
         num_split = 0;
 
-    if (lauchIndex  > pcRay.numPhotonSources)
+    if (launchIndex  > pcRay.numPhotonSources)
         numSurfacePhoton = 0;
     
     if (numSurfacePhoton + num_split < 1)

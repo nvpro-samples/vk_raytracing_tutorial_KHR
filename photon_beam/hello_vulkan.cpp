@@ -1068,7 +1068,8 @@ void HelloVulkan::beamtrace()
       &regions[1], 
       &regions[2], 
       &regions[3], 
-      1, 1, m_numBeamSamples < m_numPhotonSamples ? m_numPhotonSamples : m_numBeamSamples
+      // It seems 4096 is the maximum allowed value for the next 3 parameters, larger value does not lauhcn ray tracing
+      4, 4, 4096
   );
 
   m_debug.endLabel(cmdBuf);
