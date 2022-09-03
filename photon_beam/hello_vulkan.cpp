@@ -1021,6 +1021,8 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor) {
       m_pcRay.maxNumBeams    = m_maxNumBeams;
       m_pcRay.maxNumSubBeams = m_maxNumSubBeams;
       m_pcRay.airHGAssymFactor = m_hgAssymFactor;
+      m_pcRay.numBeamSources   = m_numBeamSamples;
+      m_pcRay.numPhotonSources  = m_numPhotonSamples;
 
       // A Programmable System for Artistic Volumetric Lighting(2011) Derek Nowrouzezahrai
       vec3  beamNearColor         = vec3(1.0) * 30.0f;
@@ -1066,7 +1068,7 @@ void HelloVulkan::beamtrace()
       &regions[1], 
       &regions[2], 
       &regions[3], 
-      1, 1, m_numLightSamples
+      1, 1, m_numBeamSamples < m_numPhotonSamples ? m_numPhotonSamples : m_numBeamSamples
   );
 
   m_debug.endLabel(cmdBuf);

@@ -35,6 +35,9 @@ layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 void main()
 {
   float numLightSourceBeams = gl_LaunchSizeEXT.x * gl_LaunchSizeEXT.y * gl_LaunchSizeEXT.z;
+
+  uint lauchIndex = gl_LaunchSizeEXT.y * gl_LaunchSizeEXT.z * gl_LaunchIDEXT.x 
+        + gl_LaunchSizeEXT.z * gl_LaunchIDEXT.y + gl_LaunchIDEXT.z;
   // Initialize the random number
   uint seed = tea(gl_LaunchIDEXT.z, int(clockARB()));
 
@@ -80,7 +83,7 @@ void main()
     newBeam.mediaIndex = 0;
     // newBeam.radius = pcRay.beamRadius;
     newBeam.radius = 0;
-    newBeam.lightColor = beamColor / numLightSourceBeams;
+    newBeam.lightColor = beamColor / float(pcRay.numBeamSources);
     newBeam.hitInstanceIndex = prd.instanceIndex;
 
     beamIndex = atomicAdd(beamCount, 1);
@@ -95,8 +98,19 @@ void main()
     // make beam boxes to overlap a little
     uint num_split = uint(beamLength / (pcRay.beamRadius * 2.0) + 1.0);
 
-    // this value must be either 0 or 1
+     // this value must be either 0 or 1
     uint numSurfacePhoton =  (prd.instanceIndex >= 0 )? 1: 0;
+
+    if (lauchIndex  > pcRay.numBeamSources)
+        num_split = 0;
+
+    if (lauchIndex  > pcRay.numPhotonSources)
+        numSurfacePhoton = 0;
+    
+    if (numSurfacePhoton + num_split < 1)
+        return;
+
+   
     
     subBeamIndex = atomicAdd(subBeamCount, num_split + numSurfacePhoton);
    
@@ -173,7 +187,7 @@ void main()
     }
 
     if (subBeamIndex + num_split  + numSurfacePhoton >= pcRay.maxNumSubBeams)
-        break;
+        return;
 
     beamColor *= prd.weight;
     rayOrigin = prd.rayOrigin;
@@ -181,7 +195,7 @@ void main()
 
     // if light intensity is weak, assume the light has been absored and make a new light
     if (dot(beamColor, beamColor) < minmumLightIntensitySquare){
-        break;
+        return;
     }
   }
 

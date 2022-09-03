@@ -75,7 +75,8 @@ public:
   float    m_photonRadius{0.25f};
   uint32_t m_maxNumBeams{4096 * 32 * 16};
   uint32_t m_maxNumSubBeams{4096 * 32 * 64};
-  uint32_t m_numLightSamples{2048};
+  uint32_t m_numBeamSamples{512};
+  uint32_t m_numPhotonSamples{512};
   float    m_hgAssymFactor = -0.9;
 
   // Information pushed at each draw call
