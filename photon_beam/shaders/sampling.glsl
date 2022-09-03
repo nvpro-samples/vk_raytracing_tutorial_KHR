@@ -212,7 +212,19 @@ vec3 gltfBrdf(in vec3 incomingLightDir, in vec3 reflectedLightDir, in vec3 norma
     vec3 frsnel    = f0 + (1 - f0) * pow(1 - abs(vDotH), 5);
     vec3 f_diffuse = (1.0 - frsnel) / M_PI * c_diff;
 
-    float dVal = microfacetPDF(nDotH, roughness);
+    float dVal = 0.0;
+    // roughness = 0.0, nDotH = 1.0 -> microfacetPDF = inf 
+    if(roughness > 0.0 || nDotH < 1.0)
+    {
+      dVal = microfacetPDF(nDotH, roughness);
+    }
+    // I am actually not sure what to do in this case
+    // For now just return frsnel vector, where each element has value at least 1 
+    else
+    {
+      return frsnel / max(max(frsnel.x, frsnel.y), frsnel.z);
+    }
+
     float gVal = 0.0;
     if(hDotL > 0 && vDotH > 0)
     {

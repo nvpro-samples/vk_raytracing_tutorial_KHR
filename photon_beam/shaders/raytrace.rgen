@@ -58,7 +58,7 @@ layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 
 void main()
 {
-    uint seed = tea(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, int(clockARB()));
+    uint seed = tea(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, 1);
     Indices   indices   = Indices(sceneDesc.indexAddress);
     Normals   normals   = Normals(sceneDesc.normalAddress);
     TexCoords texCoords = TexCoords(sceneDesc.uvAddress);
@@ -183,16 +183,21 @@ void main()
                     0                  // payload (location = 0)
         );
 
-        // stop at here if it is the last loop iteration
         if (i == 0)
             break;
 
         vec3 viewingDirection = -prd.rayDirection;
+        prd.rayDirection = microfacetReflectedLightSampling(seed, world_normal, prd.rayDirection, prd.hitRoughness);
+        if(dot(world_normal, prd.rayDirection ) < 0)
+        {
+            break;
+        }
 
         prd.rayOrigin = prd.rayOrigin + prd.rayDirection * tMax;
-        prd.rayDirection = microfacetReflectedLightSampling(seed, normal, prd.rayDirection, prd.hitRoughness);
         prd.rayOrigin += prd.rayDirection * 0.000001;
         prd.weight *= pdfWeightedGltfBrdf(prd.rayDirection, viewingDirection, world_normal, albedo, mat.roughness, mat.metallic);
+        //prd.weight *= 0.0;
+        tMax = tMaxDefault;
 
     }
 
