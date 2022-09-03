@@ -75,9 +75,9 @@ void main()
     float rayBeamPointDist = length(worldPos - beamHit);
     //prd.hitValue += radiance * exp(-pcRay.beamRadius * rayBeamPointDist * rayBeamPointDist);
 
-    //prd.hitValue += radiance * pow((1 - rayBeamPointDist / pcRay.beamRadius), 2.0);
+    prd.hitValue += radiance * pow((1 - rayBeamPointDist / pcRay.beamRadius), 0.5);
 
-    prd.hitValue += radiance * (1 - rayBeamPointDist / pcRay.beamRadius);
+    //prd.hitValue += radiance * (1 - rayBeamPointDist / pcRay.beamRadius);
     //prd.hitValue += radiance;
     //debugPrintfEXT("Hello from invocation (%f, %f), (%f %f %f )!\n", rayDist, beamDist,length(beam.endPos - beam.startPos), beam.lightColor.y, beam.lightColor.z);
 
