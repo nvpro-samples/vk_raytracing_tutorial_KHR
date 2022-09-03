@@ -107,7 +107,7 @@ void main()
         rayQueryProceedEXT(rayQuery);
         tMax = rayQueryGetIntersectionTEXT(rayQuery, true);
         if (rayQueryGetIntersectionTypeEXT(rayQuery, true) == gl_RayQueryCommittedIntersectionNoneEXT)
-        { 
+        {
             prd.instanceIndex = -1;
             traceRayEXT(beamAS,        // acceleration structure
                     rayFlags,          // rayFlags
@@ -121,6 +121,12 @@ void main()
                     tMax,              // ray max range
                     0                  // payload (location = 0)
             );
+
+            // add clear colr if the ray has not hitted any solid surface
+            if (i == 0)
+            {
+                prd.hitValue += pcRay.clearColor.xyz * 0.8;
+            }
             break;
         }
    
