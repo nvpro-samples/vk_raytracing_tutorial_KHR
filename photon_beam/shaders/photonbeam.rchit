@@ -144,6 +144,7 @@ void main()
     // https://en.wikipedia.org/wiki/Path_tracing
     // Material of the object
     GltfShadeMaterial mat       = materials.m[matIndex];
+    float cos_theta = dot(prd.rayDirection, world_normal);
 
     vec3 rayOrigin    = world_position;
     vec3 rayDirection = microfacetReflectedLightSampling(prd.seed, world_normal, prd.rayDirection, mat.roughness);
@@ -165,7 +166,6 @@ void main()
         albedo *= texture(texturesMap[nonuniformEXT(txtId)], texcoord0).xyz;
     }
 
-    float cos_theta = dot(rayDirection, world_normal);
     vec3 material_f = pdfWeightedGltfBrdf(-prd.rayDirection, rayDirection, world_normal, albedo, mat.roughness, mat.metallic);
     float rayLength = length(prd.rayOrigin - world_position);
 
