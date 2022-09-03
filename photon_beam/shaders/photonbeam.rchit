@@ -144,7 +144,7 @@ void main()
     // https://en.wikipedia.org/wiki/Path_tracing
     // Material of the object
     GltfShadeMaterial mat       = materials.m[matIndex];
-    float cos_theta = dot(prd.rayDirection, world_normal);
+    float cos_theta = dot(-prd.rayDirection, world_normal);
 
     vec3 rayOrigin    = world_position;
     vec3 rayDirection = microfacetReflectedLightSampling(prd.seed, world_normal, prd.rayDirection, mat.roughness);
