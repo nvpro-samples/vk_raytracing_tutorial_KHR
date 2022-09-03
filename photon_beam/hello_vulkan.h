@@ -80,7 +80,7 @@ public:
   uint32_t m_maxNumBeams{m_numPhotonSamples * 16 + m_numBeamSamples * 32};
   // number of beam samples * (expected number of scatter  + surface intersection ) * (expected length of the beam / (radius * 2)) 
   uint32_t m_maxNumSubBeams{m_numBeamSamples * 32 * 128};
-  float    m_hgAssymFactor = -0.5;
+  float    m_hgAssymFactor = -0.7;
 
   // Information pushed at each draw call
   PushConstantRaster m_pcRaster{
