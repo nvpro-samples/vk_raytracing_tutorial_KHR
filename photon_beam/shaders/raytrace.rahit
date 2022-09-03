@@ -51,7 +51,6 @@ layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 
 void main()
 {
-
     PhotonBeam beam = beams[gl_InstanceCustomIndexEXT];
     vec3 worldPos = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
     float beamDist = length(beamHit - beam.startPos);
@@ -75,9 +74,13 @@ void main()
     float rayBeamPointDist = length(worldPos - beamHit);
     //prd.hitValue += prd.weight * radiance * exp(-pcRay.beamRadius * rayBeamPointDist * rayBeamPointDist);
 
-    prd.hitValue += prd.weight * radiance * pow((1 - rayBeamPointDist / pcRay.beamRadius), 0.5);
+    // using pow((1 - rayBeamPointDist / pcRay.beamRadius), 0.5) kernel cause several tiny black point noise to occur when eye position changes, 
+    // probably dueto sudden drop of radiance value at the end of the beam cylinder
+    // so do not use this kernel
+    //prd.hitValue += prd.weight * radiance * pow((1 - rayBeamPointDist / pcRay.beamRadius), 0.5);
 
-    // prd.hitValue += prd.weight * radiance * (1 - rayBeamPointDist / pcRay.beamRadius);
+    prd.hitValue += prd.weight * radiance * (1 - rayBeamPointDist / pcRay.beamRadius);
+    //prd.hitValue += prd.weight * radiance * exp(-rayBeamPointDist / pcRay.beamRadius);
     //prd.hitValue += prd.weight * radiance;
 
     ignoreIntersectionEXT;
