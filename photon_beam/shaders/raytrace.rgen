@@ -183,11 +183,16 @@ void main()
                     0                  // payload (location = 0)
         );
 
+
         if (i == 0)
+            break;
+            prd.hitValue = vec3(0.0);
+
+        if (i == 1)
             break;
 
         vec3 viewingDirection = -prd.rayDirection;
-        prd.rayDirection = microfacetReflectedLightSampling(seed, world_normal, prd.rayDirection, prd.hitRoughness);
+        prd.rayDirection = microfacetReflectedLightSampling(seed, prd.rayDirection, world_normal, mat.roughness);
         if(dot(world_normal, prd.rayDirection ) < 0)
         {
             break;

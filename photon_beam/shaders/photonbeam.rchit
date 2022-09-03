@@ -147,7 +147,7 @@ void main()
     float cos_theta = dot(-prd.rayDirection, world_normal);
 
     vec3 rayOrigin    = world_position;
-    vec3 rayDirection = microfacetReflectedLightSampling(prd.seed, world_normal, prd.rayDirection, mat.roughness);
+    vec3 rayDirection = microfacetReflectedLightSampling(prd.seed, prd.rayDirection, world_normal, mat.roughness);
 
     // rays reflected toward inside of the surface are considered to be absorbd
     if(dot(world_normal, rayDirection) < 0)
