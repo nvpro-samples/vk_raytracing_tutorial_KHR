@@ -83,7 +83,7 @@ void main()
     newBeam.mediaIndex = 0;
     // newBeam.radius = pcRay.beamRadius;
     newBeam.radius = 0;
-    newBeam.lightColor = beamColor / float(pcRay.numBeamSources);
+    newBeam.lightColor = beamColor;
     newBeam.hitInstanceIndex = prd.instanceIndex;
 
     beamIndex = atomicAdd(beamCount, 1);

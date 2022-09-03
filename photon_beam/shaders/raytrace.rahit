@@ -70,7 +70,7 @@ void main()
     attenuation.x = exp(-extinctCoff.x * (rayDist + beamDist));
     attenuation.y = exp(-extinctCoff.y * (rayDist + beamDist));
     attenuation.z = exp(-extinctCoff.z * (rayDist + beamDist));
-    vec3 radiance = heneyGreenPhaseFunc(beamRayCosVal, pcRay.airHGAssymFactor) * scatterCoff * beam.lightColor * attenuation / (pcRay.beamRadius * beamRayAbsSinVal + 0.1e-10);
+    vec3 radiance = heneyGreenPhaseFunc(beamRayCosVal, pcRay.airHGAssymFactor) * scatterCoff * beam.lightColor / float(pcRay.numBeamSources) * attenuation / (pcRay.beamRadius * beamRayAbsSinVal + 0.1e-10);
 
     float rayBeamPointDist = length(worldPos - beamHit);
     //prd.hitValue += prd.weight * radiance * exp(-pcRay.beamRadius * rayBeamPointDist * rayBeamPointDist);
