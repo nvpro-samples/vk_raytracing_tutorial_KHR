@@ -144,30 +144,19 @@ void main()
     // https://en.wikipedia.org/wiki/Path_tracing
     // Material of the object
     GltfShadeMaterial mat       = materials.m[matIndex];
-    // vec3              emittance = mat.emissiveFactor;
 
-    // Pick a random direction from here and keep going.
-    vec3 tangent, bitangent;
-    createCoordinateSystem(world_normal, tangent, bitangent);
     vec3 rayOrigin    = world_position;
-    vec3 rayDirection = microfacetBrdfSampling(prd.seed, world_normal, prd.rayDirection, mat.roughness);
-    vec3        halfVec   = normalize(-prd.rayDirection + rayDirection);
-    float       nDotH     = dot(world_normal, halfVec);
-    // microfacetPDF(nDotH, mat.roughness) gives pdf for half-vector, not the out-going ray.
-    float halfVecPdfVal = microfacetPDF(nDotH, mat.roughness);
-    float rayPdfVal = halfVecPdfVal / (4 * dot(halfVec, -prd.rayDirection));
+    vec3 rayDirection = microfacetReflectedLightSampling(prd.seed, world_normal, prd.rayDirection, mat.roughness);
 
-    // for now ignore rays going bellow surface
-    if(dot(rayDirection, world_normal) < 0)
+    // rays reflected toward inside of the surface are considered to be absorbd
+    if(dot(world_normal, rayDirection) < 0)
     {
-        //debugPrintfEXT("Hello from invocation (%f, %f, %f), (%f, %f, %f)!\n", rayDirection.x, rayDirection.y, rayDirection.z, world_normal.x, world_normal.y, world_normal.z);
         prd.rayOrigin    = rayOrigin;
         prd.rayDirection = rayDirection;
         prd.weight = vec3(0.0);
-        return;
-            
+        return; 
     }
-    float cos_theta = dot(rayDirection, world_normal); 
+
     vec3  albedo    = mat.pbrBaseColorFactor.xyz;
 
     if(mat.pbrBaseColorTexture > -1)
@@ -176,47 +165,8 @@ void main()
         albedo *= texture(texturesMap[nonuniformEXT(txtId)], texcoord0).xyz;
     }
 
-    // grdf BDRF
-    // both light and viewDir are supposed start from the shading location
-    float       a2    = pow(mat.roughness, 4.0);
-    
-    
-    float       nDotL     = dot(world_normal, -prd.rayDirection);
-    float       vDotH     = dot(rayDirection, halfVec);
-    float       hDotL     = dot(-prd.rayDirection, halfVec);
-    float       vDotN     = dot(rayDirection, world_normal);
-
-    vec3       c_diff = (1.0 - mat.metallic) * albedo;
-    vec3       f0     = 0.04 * (1 - mat.metallic) + albedo * mat.metallic;
-    vec3       frsnel    = f0 + (1 - f0) * pow(1 - abs(vDotH), 5);
-    vec3  pdf_weighted_f_diffuse = (1.0 - frsnel) * c_diff / M_PI;
-
-
-    float simplifiedGVal = 0.0;
-
-    if(hDotL > 0 && vDotH > 0){
-        float denom1 = sqrt(a2 + (1 - a2) * nDotL * nDotL); 
-        denom1 += abs(nDotL);
-        float denom2 = sqrt(a2 + (1 - a2) * vDotN * vDotN); 
-        denom2 += abs(vDotN);
-        simplifiedGVal = 1.0 / (denom1 * denom2);
-    }
-
-    if (mat.roughness == 0){
-        pdf_weighted_f_diffuse = vec3(0.0);
-    }
-    else {
-        //if(nDotH < 0)
-           // debugPrintfEXT("Hello from invocation (%f, %f, %f)!\n", max(max(f_diffuse.x, f_diffuse.y), f_diffuse.z) /dVal, nDotH, dVal);
-        pdf_weighted_f_diffuse =  pdf_weighted_f_diffuse / rayPdfVal;
-    }
-
-    // actually, gVal = simplifiedGVal *  (4 * abs(vDotn) * abs(nDotL) 
-    // and, f_specular = frsnel * gVal * halfVecPdfVal / (rayPdfVal * (4 * abs(vDotn) * abs(nDotL) )
-    // pdf_weighted_f_specular = f_specular / rayPdfVal
-    vec3 pdf_weighted_f_specular = frsnel * simplifiedGVal * 4 * dot(halfVec, -prd.rayDirection);
-    vec3 material_f = pdf_weighted_f_specular + pdf_weighted_f_diffuse;
-
+    float cos_theta = dot(rayDirection, world_normal);
+    vec3 material_f = pdfWeightedGltfBrdf(-prd.rayDirection, rayDirection, world_normal, albedo, mat.roughness, mat.metallic);
     float rayLength = length(prd.rayOrigin - world_position);
 
     prd.rayOrigin    = rayOrigin;

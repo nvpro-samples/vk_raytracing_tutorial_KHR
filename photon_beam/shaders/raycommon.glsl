@@ -41,4 +41,6 @@ struct rayHitPayload
   float hitRoughness;
   vec3 hitAlbedo;
   float hitMetallic;
+  vec3  weight;
+  uint padding3;
 };

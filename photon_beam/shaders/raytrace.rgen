@@ -58,6 +58,7 @@ layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 
 void main()
 {
+    uint seed = tea(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, int(clockARB()));
     Indices   indices   = Indices(sceneDesc.indexAddress);
     Normals   normals   = Normals(sceneDesc.normalAddress);
     TexCoords texCoords = TexCoords(sceneDesc.uvAddress);
@@ -80,29 +81,49 @@ void main()
     prd.rayOrigin    = origin.xyz;
     prd.rayDirection = direction.xyz;
 
+    vec3 secondRayDir;
+    float       vDotN = 0;
+    // microfacetPDF(nDotH, mat.roughness) gives pdf for half-vector, not the out-going ray.
+    float halfVecPdfVal;
+    float rayPdfVal;
+    prd.weight = vec3(1.0);
 
-    // get the t value to surface
-    rayQueryEXT rayQuery;
-    rayQueryInitializeEXT(rayQuery,              // Ray query
-                            surfaceAS,                  // Top-level acceleration structure
-                            gl_RayFlagsOpaqueEXT,  // Ray flags, here saying "treat all geometry as opaque"
-                            0xFF,                  // 8-bit instance mask, here saying "trace against all instances"
-                            prd.rayOrigin,             // Ray origin
-                            0.0,                   // Minimum t-value
-                            prd.rayDirection,          // Ray direction
-                            tMax);              // Maximum t-value
 
-    // Start traversal, and loop over all ray-scene intersections. When this finishes,
-    // rayQuery stores a "committed" intersection, the closest intersection (if any).
-    rayQueryProceedEXT(rayQuery);
-    tMax = rayQueryGetIntersectionTEXT(rayQuery, true);
-    if (rayQueryGetIntersectionTypeEXT(rayQuery, true) == gl_RayQueryCommittedIntersectionNoneEXT)
-    { 
-        prd.instanceIndex = -1;
-    }
-    else
+    for(int i=0; i < 2; i ++)
     {
-        
+        // get the t value to surface
+        rayQueryEXT rayQuery;
+        rayQueryInitializeEXT(rayQuery,              // Ray query
+                                surfaceAS,                  // Top-level acceleration structure
+                                gl_RayFlagsOpaqueEXT,  // Ray flags, here saying "treat all geometry as opaque"
+                                0xFF,                  // 8-bit instance mask, here saying "trace against all instances"
+                                prd.rayOrigin,             // Ray origin
+                                0.0,                   // Minimum t-value
+                                prd.rayDirection,          // Ray direction
+                                tMax);              // Maximum t-value
+
+        // Start traversal, and loop over all ray-scene intersections. When this finishes,
+        // rayQuery stores a "committed" intersection, the closest intersection (if any).
+        rayQueryProceedEXT(rayQuery);
+        tMax = rayQueryGetIntersectionTEXT(rayQuery, true);
+        if (rayQueryGetIntersectionTypeEXT(rayQuery, true) == gl_RayQueryCommittedIntersectionNoneEXT)
+        { 
+            prd.instanceIndex = -1;
+            traceRayEXT(beamAS,        // acceleration structure
+                    rayFlags,          // rayFlags
+                    0xFF,              // cullMask
+                    0,                 // sbtRecordOffset
+                    0,                 // sbtRecordStride
+                    0,                 // missIndex
+                    prd.rayOrigin,     // ray origin
+                    tMin,              // ray min range
+                    prd.rayDirection,  // ray direction
+                    tMax,              // ray max range
+                    0                  // payload (location = 0)
+            );
+            break;
+        }
+   
         prd.instanceIndex = rayQueryGetIntersectionInstanceCustomIndexEXT(rayQuery, true);
         const int primitiveID = rayQueryGetIntersectionPrimitiveIndexEXT(rayQuery, true);
 
@@ -143,21 +164,32 @@ void main()
         prd.hitMetallic = mat.metallic;
         prd.hitRoughness = mat.roughness;
         
-    }
-    
 
-    traceRayEXT(beamAS,        // acceleration structure
-                rayFlags,          // rayFlags
-                0xFF,              // cullMask
-                0,                 // sbtRecordOffset
-                0,                 // sbtRecordStride
-                0,                 // missIndex
-                prd.rayOrigin,     // ray origin
-                tMin,              // ray min range
-                prd.rayDirection,  // ray direction
-                tMax,              // ray max range
-                0                  // payload (location = 0)
-    );
+        traceRayEXT(beamAS,        // acceleration structure
+                    rayFlags,          // rayFlags
+                    0xFF,              // cullMask
+                    0,                 // sbtRecordOffset
+                    0,                 // sbtRecordStride
+                    0,                 // missIndex
+                    prd.rayOrigin,     // ray origin
+                    tMin,              // ray min range
+                    prd.rayDirection,  // ray direction
+                    tMax,              // ray max range
+                    0                  // payload (location = 0)
+        );
+
+        // stop at here if it is the last loop iteration
+        if (i == 0)
+            break;
+
+        vec3 viewingDirection = -prd.rayDirection;
+
+        prd.rayOrigin = prd.rayOrigin + prd.rayDirection * tMax;
+        prd.rayDirection = microfacetReflectedLightSampling(seed, normal, prd.rayDirection, prd.hitRoughness);
+        prd.rayOrigin += prd.rayDirection * 0.000001;
+        prd.weight *= pdfWeightedGltfBrdf(prd.rayDirection, viewingDirection, world_normal, albedo, mat.roughness, mat.metallic);
+
+    }
 
     imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(prd.hitValue, 1.f));
     return;

@@ -139,9 +139,12 @@ vec3 heneyGreenPhaseFuncSampling(inout uint seed, in vec3 incomingLightDir, floa
 
 }
 
-
-float microfacetPDF(float nDotH, float roughness){
-    float dVal = 0.0;
+// PDF for half vector
+// nDotH is the dot product between half vector and surfcace normal
+// half vector = normalize (incident light direction +  refliected light direction)
+// both incident light and reflected light directions start from the point of the reflection
+float microfacetPDF(float nDotH, float roughness)
+{
     if(nDotH < 0)
         return 0.0;
 
@@ -152,15 +155,21 @@ float microfacetPDF(float nDotH, float roughness){
  
 }
 
+// PDF for the reflected light
+// hDotL is the dot product between half vector and reflected light direction
+float microfacetLightPDF(float hDotL, float nDotH, float roughness)
+{
+  return microfacetPDF(nDotH, roughness) / (4 * hDotL);
+}
+
 // https://schuttejoe.github.io/post/ggximportancesamplingpart1/
 // https://agraphicsguy.wordpress.com/2015/11/01/sampling-microfacet-brdf/
-vec3 microfacetBrdfSampling(inout uint seed, in vec3 incomingLightDir, in vec3 normal, float roughness)
+vec3 microfacetReflectedLightSampling(inout uint seed, in vec3 incomingLightDir, in vec3 normal, float roughness)
 {
     float r1 = rnd(seed);
     float r2 = rnd(seed);
 
     float a = roughness * roughness;
-    float a2 = a * a;
     float theta = atan(a * sqrt(r1 / (1 - r1) )); 
     float phi   = 2 * M_PI * r2;
 
@@ -183,4 +192,74 @@ vec3 microfacetBrdfSampling(inout uint seed, in vec3 incomingLightDir, in vec3 n
     // outgoing light Dir - incomingLightDir = 2 * halfVec
 
     return incomingLightDir - 2 * dot(halfVec, incomingLightDir) * halfVec;
+}
+
+// both incoming light and reflected light directions start from the point of the reflection
+vec3 gltfBrdf(in vec3 incomingLightDir, in vec3 reflectedLightDir, in vec3 normal, in vec3 baseColor, float roughness, float metallic)
+{
+    float a2  = pow(roughness, 4.0);
+    vec3  halfVec = normalize(incomingLightDir + reflectedLightDir);
+    float nDotH   = dot(normal, halfVec);
+    float nDotL   = dot(normal, incomingLightDir);
+    float vDotH   = dot(reflectedLightDir, halfVec);
+    float hDotL   = dot(incomingLightDir, halfVec);
+    float vDotN   = dot(reflectedLightDir, normal);
+
+    vec3 c_diff    = (1.0 - metallic) * baseColor;
+    vec3 f0        = 0.04 * (1 - metallic) + baseColor * metallic;
+    vec3 frsnel    = f0 + (1 - f0) * pow(1 - abs(vDotH), 5);
+    vec3 f_diffuse = (1.0 - frsnel) / M_PI * c_diff;
+
+    float dVal = microfacetPDF(nDotH, roughness);
+    float gVal = 0.0;
+    if(hDotL > 0 && vDotH > 0)
+    {
+        float denom1 = sqrt(a2 + (1 - a2) * nDotL * nDotL);
+        denom1 += abs(nDotL);
+
+        float denom2 = sqrt(a2 + (1 - a2) * vDotN * vDotN);
+        denom2 += abs(vDotN);
+
+        gVal = 1.0 / (denom1 * denom2);
+    }
+
+    vec3 f_specular = frsnel * dVal * gVal;
+    return f_specular + f_diffuse;
+}
+
+// weight gltfBRDF value with the pdf value of the reflected light
+vec3 pdfWeightedGltfBrdf(in vec3 incomingLightDir, in vec3 reflectedLightDir, in vec3 normal, in vec3 baseColor, float roughness, float metallic)
+{
+    float a2      = pow(roughness, 4.0);
+    vec3  halfVec = normalize(incomingLightDir + reflectedLightDir);
+    float nDotH   = dot(normal, halfVec);
+    float nDotL   = dot(normal, incomingLightDir);
+    float vDotH   = dot(reflectedLightDir, halfVec);
+    float hDotL   = dot(incomingLightDir, halfVec);
+    float vDotN   = dot(reflectedLightDir, normal);
+
+    vec3 c_diff    = (1.0 - metallic) * baseColor;
+    vec3 f0        = 0.04 * (1 - metallic) + baseColor * metallic;
+    vec3 frsnel    = f0 + (1 - f0) * pow(1 - abs(vDotH), 5);
+    vec3 f_diffuse = vec3(0.0);
+
+    if(roughness > 0.0)
+    {
+      f_diffuse = (1.0 - frsnel) / M_PI * c_diff / microfacetLightPDF(hDotL, nDotH, roughness);
+    }
+
+    float gVal = 0.0;
+    if(hDotL > 0 && vDotH > 0)
+    {
+        float denom1 = sqrt(a2 + (1 - a2) * nDotL * nDotL);
+        denom1 += abs(nDotL);
+
+        float denom2 = sqrt(a2 + (1 - a2) * vDotN * vDotN);
+        denom2 += abs(vDotN);
+
+        gVal = 1.0 / (denom1 * denom2);
+    }
+
+    vec3 f_specular = frsnel * gVal * (4 * hDotL);
+    return f_specular + f_diffuse;
 }

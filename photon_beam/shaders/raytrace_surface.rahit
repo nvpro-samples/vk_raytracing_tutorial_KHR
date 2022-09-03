@@ -26,8 +26,6 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_buffer_reference2 : require
 
-#extension GL_EXT_debug_printf : require
-
 
 #include "gltf.glsl"
 #include "raycommon.glsl"
@@ -67,39 +65,8 @@ void main()
     float beamDist = length(beam.startPos - beam.endPos);
     float rayDist = gl_HitTEXT;
     vec3 vewingDirection = normalize(gl_WorldRayDirectionEXT) * -1.0;
- 
     vec3 extinctCoff = pcRay.airExtinctCoff;
-
-    // gltf BDRF
-    // both light and viewDir are supposed start from the shading location
-    float       aValSq    = pow(prd.hitRoughness, 4.0);
-    vec3        halfVec   = normalize(towardLightDirection + vewingDirection);
-    float       nDotH     = dot(prd.hitNormal, halfVec);
-    float       nDotL     = dot(prd.hitNormal, towardLightDirection);
-    float       vDotH     = dot(vewingDirection, halfVec);
-    float       hDotL     = dot(towardLightDirection, halfVec);
-    float       vDotN     = dot(vewingDirection, prd.hitNormal);
-
-    vec3       c_diff = (1.0 - prd.hitMetallic) * prd.hitAlbedo;
-    vec3       f0     = 0.04 * (1 - prd.hitMetallic) + prd.hitAlbedo * prd.hitMetallic;
-    vec3       frsnel    = f0 + (1 - f0) * pow(1 - abs(vDotH), 5);
-    vec3 f_diffuse = (1.0 - frsnel) / M_PI * c_diff;
-
-    float dVal = microfacetPDF(nDotH, prd.hitRoughness);
-    float gVal = 0.0;
-    if(hDotL > 0 && vDotH > 0){
-        float denom1 = sqrt(aValSq + (1 - aValSq) * nDotL * nDotL); 
-        denom1 += abs(nDotL);
-
-        float denom2 = sqrt(aValSq + (1 - aValSq) * vDotN * vDotN); 
-        denom2 += abs(vDotN);
-
-        gVal = 1.0 / (denom1 * denom2);
-
-    }
-
-    vec3 f_specular = frsnel * dVal * gVal;
-    vec3 material_f = f_specular + f_diffuse;
+    vec3 material_f = gltfBrdf(towardLightDirection, vewingDirection, prd.hitNormal, prd.hitAlbedo, prd.hitRoughness, prd.hitMetallic);
  
     vec3 attenuation;
     attenuation.x = exp(-extinctCoff.x * (rayDist + beamDist));
