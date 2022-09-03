@@ -190,94 +190,91 @@ vec3 microfacetReflectedLightSampling(inout uint seed, in vec3 incomingLightDir,
     vec3 normalFront = cross(normal, normalRight);
 
     halfVec = halfVec.x * normalRight + halfVec.y * normal + halfVec.z * normalFront;
-   
-    // return the outgoing light direction
-    // outgoing light Dir - incomingLightDir = 2 * halfVec
 
     // normalize at last step in order to avoid some floating point error;
-    return normalize(incomingLightDir + 2 * dot(halfVec, incomingLightDir) * halfVec);
+    return normalize(incomingLightDir - 2 * dot(halfVec, incomingLightDir) * halfVec);
 }
 
 // both incoming light and reflected light directions start from the point of the reflection
 vec3 gltfBrdf(in vec3 incomingLightDir, in vec3 reflectedLightDir, in vec3 normal, in vec3 baseColor, float roughness, float metallic)
 {
-    float a2  = pow(roughness, 4.0);
-    vec3  halfVec = normalize(incomingLightDir + reflectedLightDir);
-    float nDotH   = dot(normal, halfVec);
-    float nDotL   = dot(normal, incomingLightDir);
-    float vDotH   = dot(reflectedLightDir, halfVec);
-    float hDotL   = dot(incomingLightDir, halfVec);
-    float vDotN   = dot(reflectedLightDir, normal);
+  float a2      = pow(roughness, 4.0);
+  vec3  halfVec = normalize(incomingLightDir + reflectedLightDir);
+  float nDotH   = dot(normal, halfVec);
+  float nDotL   = dot(normal, incomingLightDir);
+  float vDotH   = dot(reflectedLightDir, halfVec);
+  float hDotL   = dot(incomingLightDir, halfVec);
+  float vDotN   = dot(reflectedLightDir, normal);
 
-    vec3 c_diff    = (1.0 - metallic) * baseColor;
-    vec3 f0        = 0.04 * (1 - metallic) + baseColor * metallic;
-    vec3 frsnel    = f0 + (1 - f0) * pow(1 - abs(vDotH), 5);
-    vec3 f_diffuse = (1.0 - frsnel) / M_PI * c_diff;
+  vec3 c_diff    = (1.0 - metallic) * baseColor;
+  vec3 f0        = 0.04 * (1 - metallic) + baseColor * metallic;
+  vec3 frsnel    = f0 + (1 - f0) * pow(1 - abs(vDotH), 5);
+  vec3 f_diffuse = (1.0 - frsnel) / M_PI * c_diff;
 
-    float dVal = 0.0;
-    // roughness = 0.0, nDotH = 1.0 -> microfacetPDF = inf 
-    if(roughness > 0.0 || nDotH < 1.0)
-    {
-      dVal = microfacetPDF(nDotH, roughness);
-    }
-    // I am actually not sure what to do in this case
-    // For now just return frsnel vector, where each element has value at least 1 
-    else
-    {
-      return frsnel / max(max(frsnel.x, frsnel.y), frsnel.z);
-    }
+  float dVal = 0.0;
+  // roughness = 0.0, nDotH = 1.0 -> microfacetPDF = inf
+  if(roughness > 0.0 || nDotH < 0.9999)
+  {
+    dVal = microfacetPDF(nDotH, roughness);
+  }
+  // I am actually not sure what to do in this case
+  // For now just get microfacetPDF(1.0, 0.000001)
+  else
+  {
+    dVal = microfacetPDF(1.0, 0.000001);
+  }
 
-    float gVal = 0.0;
-    if(hDotL > 0 && vDotH > 0)
-    {
-        float denom1 = sqrt(a2 + (1 - a2) * nDotL * nDotL);
-        denom1 += abs(nDotL);
+  float gVal = 0.0;
+  if(hDotL > 0 && vDotH > 0)
+  {
+    float denom1 = sqrt(a2 + (1 - a2) * nDotL * nDotL);
+    denom1 += abs(nDotL);
 
-        float denom2 = sqrt(a2 + (1 - a2) * vDotN * vDotN);
-        denom2 += abs(vDotN);
+    float denom2 = sqrt(a2 + (1 - a2) * vDotN * vDotN);
+    denom2 += abs(vDotN);
 
-        gVal = 1.0 / (denom1 * denom2);
-    }
+    gVal = 1.0 / (denom1 * denom2);
+  }
 
-    vec3 f_specular = frsnel * dVal * gVal;
-    return f_specular + f_diffuse;
+  vec3 f_specular = frsnel * dVal * gVal;
+  return f_specular + f_diffuse;
 }
 
 // weight gltfBRDF value with the pdf value of the reflected light
 vec3 pdfWeightedGltfBrdf(in vec3 incomingLightDir, in vec3 reflectedLightDir, in vec3 normal, in vec3 baseColor, float roughness, float metallic)
 {
-    float a2      = pow(roughness, 4.0);
-    vec3  halfVec = normalize(incomingLightDir + reflectedLightDir);
-    float nDotH   = dot(normal, halfVec);
-    float nDotL   = dot(normal, incomingLightDir);
-    float vDotH   = dot(reflectedLightDir, halfVec);
-    float hDotL   = dot(incomingLightDir, halfVec);
-    float vDotN   = dot(reflectedLightDir, normal);
+  float a2      = pow(roughness, 4.0);
+  vec3  halfVec = normalize(incomingLightDir + reflectedLightDir);
+  float nDotH   = dot(normal, halfVec);
+  float nDotL   = dot(normal, incomingLightDir);
+  float vDotH   = dot(reflectedLightDir, halfVec);
+  float hDotL   = dot(incomingLightDir, halfVec);
+  float vDotN   = dot(reflectedLightDir, normal);
 
-    vec3 c_diff    = (1.0 - metallic) * baseColor;
-    vec3 f0        = 0.04 * (1 - metallic) + baseColor * metallic;
-    vec3 frsnel    = f0 + (1 - f0) * pow(1 - abs(vDotH), 5);
-    vec3 f_diffuse = vec3(0.0);
+  vec3 c_diff    = (1.0 - metallic) * baseColor;
+  vec3 f0        = 0.04 * (1 - metallic) + baseColor * metallic;
+  vec3 frsnel    = f0 + (1 - f0) * pow(1 - abs(vDotH), 5);
+  vec3 f_diffuse = vec3(0.0);
 
-    // hDotL = 0 ->  microfacetLightPDF = inf -> f_diffuse = 0
-    // roughness = 0.0, nDotH = 1.0 -> microfacetPDF = inf -> microfacetLightPDF = inf -> f_diffuse = 0
-    if((roughness > 0.0 || nDotH < 1.0) && hDotL > 0.0)
-    {
-      f_diffuse = (1.0 - frsnel) / M_PI * c_diff / microfacetLightPDF(hDotL, nDotH, a2);
-    }
+  // hDotL = 0 ->  microfacetLightPDF = inf -> f_diffuse = 0
+  // roughness = 0.0, nDotH = 1.0 -> microfacetPDF = inf -> microfacetLightPDF = inf -> f_diffuse = 0
+  if((roughness > 0.0 || nDotH < 0.9999) && hDotL > 0.0)
+  {
+    f_diffuse = (1.0 - frsnel) / M_PI * c_diff / microfacetLightPDF(hDotL, nDotH, a2);
+  }
 
-    float gVal = 0.0;
-    if(hDotL > 0 && vDotH > 0)
-    {
-        float denom1 = sqrt(a2 + (1 - a2) * nDotL * nDotL);
-        denom1 += abs(nDotL);
+  float gVal = 0.0;
+  if(hDotL > 0 && vDotH > 0)
+  {
+    float denom1 = sqrt(a2 + (1 - a2) * nDotL * nDotL);
+    denom1 += abs(nDotL);
 
-        float denom2 = sqrt(a2 + (1 - a2) * vDotN * vDotN);
-        denom2 += abs(vDotN);
+    float denom2 = sqrt(a2 + (1 - a2) * vDotN * vDotN);
+    denom2 += abs(vDotN);
 
-        gVal = 1.0 / (denom1 * denom2);
-    }
+    gVal = 1.0 / (denom1 * denom2);
+  }
 
-    vec3 f_specular = frsnel * gVal * (4 * hDotL);
-    return f_specular + f_diffuse;
+  vec3 f_specular = frsnel * gVal * (4 * hDotL);
+  return f_specular + f_diffuse;
 }

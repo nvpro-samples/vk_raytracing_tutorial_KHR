@@ -88,7 +88,8 @@ void main()
     prd.weight = vec3(1.0);
 
 
-    for(int i=0; i < 2; i ++)
+    uint num_iteration = 2;
+    for(int i=0; i < num_iteration; i ++)
     {
         // get the t value to surface
         rayQueryEXT rayQuery;
@@ -122,10 +123,9 @@ void main()
             );
 
             // add clear colr if the ray has not hitted any solid surface
-            if (i == 0)
-            {
-                prd.hitValue += pcRay.clearColor.xyz * 0.8;
-            }
+            if (i ==0)
+                prd.hitValue += prd.weight * pcRay.clearColor.xyz * 0.8;
+            
             break;
         }
    
@@ -183,25 +183,26 @@ void main()
                     0                  // payload (location = 0)
         );
 
-
-        if (i == 0)
-            break;
-            prd.hitValue = vec3(0.0);
-
-        if (i == 1)
+        if (i  + 1> num_iteration)
             break;
 
         vec3 viewingDirection = -prd.rayDirection;
+        if (mat.roughness > 0.0001)
+            break;
+
         prd.rayDirection = microfacetReflectedLightSampling(seed, prd.rayDirection, world_normal, mat.roughness);
         if(dot(world_normal, prd.rayDirection ) < 0)
-        {
             break;
-        }
 
         prd.rayOrigin = prd.rayOrigin + prd.rayDirection * tMax;
         prd.rayOrigin += prd.rayDirection * 0.000001;
         prd.weight *= pdfWeightedGltfBrdf(prd.rayDirection, viewingDirection, world_normal, albedo, mat.roughness, mat.metallic);
-        //prd.weight *= 0.0;
+        //prd.weight *= gltfBrdf(prd.rayDirection, viewingDirection, world_normal, albedo, mat.roughness, mat.metallic);
+
+        //prd.hitValue =  testGltfBrdf(prd.rayDirection, viewingDirection, world_normal, albedo, mat.roughness, mat.metallic);
+        //prd.hitValue = gltfBrdf(prd.rayDirection, viewingDirection, world_normal, albedo, mat.roughness, mat.metallic);
+        //prd.hitValue = vec3(1.0) *  dot(world_normal, normalize(viewingDirection +  prd.rayDirection));
+
         tMax = tMaxDefault;
 
     }

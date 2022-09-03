@@ -197,7 +197,7 @@ int main(int argc, char** argv)
 
   helloVk.createBeamBoxBlas();
 
-   nvmath::vec4f clearColor   = nvmath::vec4f(1, 1, 1, 1.00f);
+   nvmath::vec4f clearColor   = nvmath::vec4f(0.52, 0.81, 0.92, 1.00f);
   bool          useRaytracer = true;
 
    helloVk.setBeamPushConstants(clearColor);
