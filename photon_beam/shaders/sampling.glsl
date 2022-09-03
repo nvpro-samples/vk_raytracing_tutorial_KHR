@@ -143,12 +143,14 @@ vec3 heneyGreenPhaseFuncSampling(inout uint seed, in vec3 incomingLightDir, floa
 // nDotH is the dot product between half vector and surfcace normal
 // half vector = normalize (incident light direction +  refliected light direction)
 // both incident light and reflected light directions start from the point of the reflection
-float microfacetPDF(float nDotH, float roughness)
+float microfacetPDF(float nDotH, float a2)
 {
     if(nDotH < 0)
         return 0.0;
 
-    float a2   = roughness * roughness * roughness * roughness;
+    if(a2 <= 0.0)
+      return 0.0;
+
     float denom = (nDotH * nDotH * (a2 - 1.0) + 1);
     denom       = denom * denom * M_PI;
     return a2 / denom;
@@ -157,9 +159,9 @@ float microfacetPDF(float nDotH, float roughness)
 
 // PDF for the reflected light
 // hDotL is the dot product between half vector and reflected light direction
-float microfacetLightPDF(float hDotL, float nDotH, float roughness)
+float microfacetLightPDF(float hDotL, float nDotH, float a2)
 {
-  return microfacetPDF(nDotH, roughness) / (4 * hDotL);
+  return microfacetPDF(nDotH, a2) / (4 * hDotL);
 }
 
 // https://schuttejoe.github.io/post/ggximportancesamplingpart1/
@@ -245,7 +247,7 @@ vec3 pdfWeightedGltfBrdf(in vec3 incomingLightDir, in vec3 reflectedLightDir, in
 
     if(roughness > 0.0)
     {
-      f_diffuse = (1.0 - frsnel) / M_PI * c_diff / microfacetLightPDF(hDotL, nDotH, roughness);
+      f_diffuse = (1.0 - frsnel) / M_PI * c_diff / microfacetLightPDF(hDotL, nDotH, a2);
     }
 
     float gVal = 0.0;

@@ -83,7 +83,6 @@ void main()
 
     vec3 secondRayDir;
     float       vDotN = 0;
-    // microfacetPDF(nDotH, mat.roughness) gives pdf for half-vector, not the out-going ray.
     float halfVecPdfVal;
     float rayPdfVal;
     prd.weight = vec3(1.0);
