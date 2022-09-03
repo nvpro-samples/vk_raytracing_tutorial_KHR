@@ -94,7 +94,6 @@ void main()
     vec3 beamVec = newBeam.endPos - newBeam.startPos;
     float beamLength = sqrt(dot(beamVec, beamVec));
 
-    // make beam boxes to overlap a little
     uint num_split = uint(beamLength / (pcRay.beamRadius * 2.0) + 1.0);
 
      // this value must be either 0 or 1
@@ -108,24 +107,22 @@ void main()
     
     if (numSurfacePhoton + num_split < 1)
         return;
-
-   
     
     subBeamIndex = atomicAdd(subBeamCount, num_split + numSurfacePhoton);
-   
-    
 
     // Not using min function with subtraction operator to simplify the if statement
     // because subtraction between unsinged integer values can cause overflow.
-    if (subBeamIndex > pcRay.maxNumBeams)
+    if (subBeamIndex >= pcRay.maxNumBeams)
+    {
+        return;
+    }
+    else if (subBeamIndex + numSurfacePhoton >= pcRay.maxNumBeams)
     {
         num_split = 0;
-        numSurfacePhoton = 0;
     }
-    else if (num_split + subBeamIndex + numSurfacePhoton > pcRay.maxNumSubBeams)
+    else if (num_split + subBeamIndex + numSurfacePhoton >= pcRay.maxNumSubBeams)
     {
-        num_split = (pcRay.maxNumSubBeams - subBeamIndex);
-        numSurfacePhoton = 0;
+        num_split = (pcRay.maxNumSubBeams - subBeamIndex - numSurfacePhoton);
     }
 
     // if ray direction is (0,1,0) or (0, -1, 0) set the right direction to (1, 0, 0)
