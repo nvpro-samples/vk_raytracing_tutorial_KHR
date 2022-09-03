@@ -245,7 +245,9 @@ vec3 pdfWeightedGltfBrdf(in vec3 incomingLightDir, in vec3 reflectedLightDir, in
     vec3 frsnel    = f0 + (1 - f0) * pow(1 - abs(vDotH), 5);
     vec3 f_diffuse = vec3(0.0);
 
-    if(roughness > 0.0)
+    // hDotL = 0 ->  microfacetLightPDF = inf -> f_diffuse = 0
+    // roughness = 0.0, nDotH = 1.0 -> microfacetPDF = inf -> microfacetLightPDF = inf -> f_diffuse = 0
+    if((roughness > 0.0 || nDotH < 1.0) && hDotL > 0.0)
     {
       f_diffuse = (1.0 - frsnel) / M_PI * c_diff / microfacetLightPDF(hDotL, nDotH, a2);
     }
