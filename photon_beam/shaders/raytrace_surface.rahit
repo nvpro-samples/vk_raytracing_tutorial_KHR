@@ -51,7 +51,6 @@ layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 
 void main()
 {
-
     PhotonBeam beam = beams[gl_InstanceCustomIndexEXT];
 
     if (prd.instanceIndex != beam.hitInstanceIndex)
