@@ -48,6 +48,7 @@ class HelloVulkan : public nvvk::AppBaseVk
 {
 public:
   void setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t queueFamily) override;
+  void setDefaults();
   void createDescriptorSetLayout();
   void createGraphicsPipeline();
   void createBeamBoundingBox();
@@ -83,18 +84,19 @@ public:
 
   uint32_t m_numBeamSamples{64};
   uint32_t m_numPhotonSamples{64};
-
-  nvmath::vec4f m_beamNearColor         = nvmath::vec4f(1.0f, 1.0f, 1.0f, 1.0f);
-  nvmath::vec4f m_beamUnitDistantColor = nvmath::vec4f(2.3f / 2.55f, 0.999f, 0.999f, 1.0f) * 2.8f / 3.0f;
-  float         m_beamIntensity      = 30.0f;
-  bool          m_usePhotonMapping{true};
-  bool          m_usePhotonBeam{true};
   
   // number of photon samples * (expected surface intersection ) + number of number of beam samples * (expected number of scatter  + surface intersection )
   uint32_t m_maxNumBeams{m_numPhotonSamples * 16 + m_numBeamSamples * 32};
   // number of beam samples * (expected number of scatter  + surface intersection ) * (expected length of the beam / (radius * 2)) 
   uint32_t m_maxNumSubBeams{m_numBeamSamples * 32 * 128};
-  float    m_hgAssymFactor = -0.5;
+
+
+  nvmath::vec4f m_beamNearColor;
+  nvmath::vec4f m_beamUnitDistantColor;
+  float         m_beamIntensity;
+  bool          m_usePhotonMapping;
+  bool          m_usePhotonBeam;
+  float         m_hgAssymFactor;
 
   // Information pushed at each draw call
   PushConstantRaster m_pcRaster{
