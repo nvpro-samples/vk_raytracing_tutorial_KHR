@@ -54,9 +54,28 @@ void ResetAbleRaytracingBuilderKHR::resetTlas()
   }
 }
 
+void HelloVulkan::setDefaults()
+{
+  const float defaultPhotonBeamRadius{0.5f};
+
+  const nvmath::vec4f defaultBeamNearColor{1.0f, 1.0f, 1.0f, 1.0f};
+  const nvmath::vec4f defaultBeamUnitDistantColor{2.3f / 2.55f * 2.8f / 3.0f, 2.8f / 3.0f, 2.8f / 3.0f, 1.0f};
+  const float         defaultBeamIntensity = 20.0f;
+
+  m_beamRadius   = defaultPhotonBeamRadius;
+  m_photonRadius = defaultPhotonBeamRadius;
+
+  m_beamNearColor        = defaultBeamNearColor;
+  m_beamUnitDistantColor = defaultBeamUnitDistantColor;
+  m_beamIntensity        = defaultBeamIntensity;
+
+  bool m_usePhotonMapping = true;
+  bool m_usePhotonBeam    = true;
+}
 
 void HelloVulkan::setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t queueFamily)
 {
+  setDefaults();
   AppBaseVk::setup(instance, device, physicalDevice, queueFamily);
   m_alloc.init(instance, device, physicalDevice);
   m_debug.setup(m_device);
