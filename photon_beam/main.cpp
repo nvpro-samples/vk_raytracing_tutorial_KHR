@@ -127,7 +127,7 @@ void renderUI(HelloVulkan& helloVk, bool useRaytracer, bool& createBeamPhotonAS)
     bool pressed = ImGui::SmallButton("Refresh Beam");
     if(pressed)
     {
-      //createBeamPhotonAS = true;
+      createBeamPhotonAS = true;
 
     }
 }
@@ -344,7 +344,6 @@ int main(int argc, char** argv)
                 createBeamPhotonAS = false;
             }
 
-            // Rendering Scene
             if(useRaytracer)
             {
                 helloVk.setBeamPushConstants(clearColor);

@@ -43,14 +43,6 @@
 
 extern std::vector<std::string> defaultSearchPaths;
 
-void ResetAbleRaytracingBuilderKHR::resetTlas() {
-  if(m_alloc && m_tlas.accel != nullptr)
-  {
-    m_alloc->destroy(m_tlas);
-    m_tlas.accel = nullptr;
-  }
-  
-}
 
 //--------------------------------------------------------------------------------------------------
 // Keep the handle on the device
@@ -223,12 +215,12 @@ void HelloVulkan::createBeamBoundingBox()
   aabbs.reserve(1);
 
   Aabb beamBox;
-  beamBox.minimum = nvmath::vec3f(-m_beamRadius, -m_beamRadius, 0.0f);
-  beamBox.maximum = nvmath::vec3f(m_beamRadius, m_beamRadius, 2.0 * m_beamRadius);
+  beamBox.minimum = nvmath::vec3f(-1.0f, -1.0f, 0.0f);
+  beamBox.maximum = nvmath::vec3f(1.0f, 1.0f, 2.0f);
 
   Aabb photonBox;
-  photonBox.minimum = nvmath::vec3f(-m_photonRadius, -m_photonRadius, -m_photonRadius);
-  photonBox.maximum = nvmath::vec3f(m_photonRadius, m_photonRadius, m_photonRadius);
+  photonBox.minimum = nvmath::vec3f(-1.0f, -1.0f, -1.0);
+  photonBox.maximum = nvmath::vec3f(1.0f, 1.0f, 1.0f);
 
   aabbs.emplace_back(beamBox);
   aabbs.emplace_back(photonBox);
@@ -1073,8 +1065,9 @@ void HelloVulkan::beamtrace()
 
   cmdBuf = cmdBufGet.createCommandBuffer();
 
-  VkBuildAccelerationStructureFlagsKHR flags  = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-  bool                                 update = false;
+  VkBuildAccelerationStructureFlagsKHR flags =
+      VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
+  bool                                 update = m_pbBuilder.getAccelerationStructure() != nullptr;
   bool                                 motion = false;
 
   VkBufferDeviceAddressInfo bufferInfo{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, m_beamAsInfoBuffer.buffer};
