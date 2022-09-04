@@ -54,12 +54,15 @@ static void onErrorCallback(int error, const char* description)
 void renderUI(HelloVulkan& helloVk, bool useRaytracer)
 {
   ImGuiH::CameraWidget();
-  if(!useRaytracer && ImGui::CollapsingHeader("Light"))
+  if(!ImGui::CollapsingHeader("Light"))
   {
-    ImGui::RadioButton("Point", &helloVk.m_pcRaster.lightType, 0);
-    ImGui::SameLine();
-    ImGui::RadioButton("Infinite", &helloVk.m_pcRaster.lightType, 1);
-
+    if(!useRaytracer)
+    {
+      ImGui::RadioButton("Point", &helloVk.m_pcRaster.lightType, 0);
+      ImGui::SameLine();
+      ImGui::RadioButton("Infinite", &helloVk.m_pcRaster.lightType, 1);
+    }
+    
     ImGui::SliderFloat3("Position", &helloVk.m_pcRaster.lightPosition.x, -20.f, 20.f);
     ImGui::SliderFloat("Intensity", &helloVk.m_pcRaster.lightIntensity, 0.f, 150.f);
   }
@@ -230,6 +233,8 @@ int main(int argc, char** argv)
         {
             ImGuiH::Panel::Begin();
             ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
+            ImGui::ColorEdit3("Air color at light source", reinterpret_cast<float*>(&(helloVk.m_beamNearColor)));
+            ImGui::ColorEdit3("Air color at unit distance away from light source", reinterpret_cast<float*>(&(helloVk.m_beamUnitDistanceColor)));
             if(ImGui::Checkbox("Ray Tracer mode", &useRaytracer))  // Switch between raster and ray tracing
             helloVk.resetFrame();
             renderUI(helloVk, useRaytracer);

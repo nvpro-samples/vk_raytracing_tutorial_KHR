@@ -973,8 +973,8 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
   m_pcRay.numPhotonSources = m_numPhotonSamples;
 
   // A Programmable System for Artistic Volumetric Lighting(2011) Derek Nowrouzezahrai
-  vec3 beamNearColor         = vec3(1.0) * 30.0f;
-  vec3 beamUnitDistanceColor = vec3(2.3 / 2.55, 0.999, 0.999) * 28.0f;
+  vec3 beamNearColor         = vec3(m_beamNearColor) * m_beamNearColor.w * m_pcRaster.lightIntensity * 3.0f;
+  vec3 beamUnitDistanceColor = vec3(m_beamUnitDistanceColor) * m_beamUnitDistanceColor.w * m_pcRaster.lightIntensity * 3.0f;
   // all element of albedo must be equal or less than 1
   vec3  mediaAlbedo    = vec3(0.8);
 
