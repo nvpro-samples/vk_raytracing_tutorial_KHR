@@ -1019,6 +1019,9 @@ void HelloVulkan::beamtrace()
   vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pbPipeline);
   vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pbPipelineLayout, 0,
                           (uint32_t)descSets.size(), descSets.data(), 0, nullptr);
+
+  m_pcRay.numBeamSources   = m_usePhotonBeam ? m_numBeamSamples : 0;
+  m_pcRay.numPhotonSources = m_usePhotonMapping ? m_numPhotonSamples : 0;
   vkCmdPushConstants(cmdBuf, m_pbPipelineLayout,
                      VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
                      0, sizeof(PushConstantRay), &m_pcRay);
@@ -1028,7 +1031,7 @@ void HelloVulkan::beamtrace()
   auto& regions = m_pbSbtWrapper.getRegions();
   vkCmdTraceRaysKHR(cmdBuf, &regions[0], &regions[1], &regions[2], &regions[3],
                     // It seems 4096 is the maximum allowed value for the next 3 parameters, larger value does not lauhcn ray tracing
-                    4, 4, m_numPhotonSamples / 16);
+                    4, 4, MAX(m_numPhotonSamples, m_numBeamSamples) / 16);
 
   m_debug.endLabel(cmdBuf);
 
@@ -1296,6 +1299,9 @@ void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf)
   vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipeline);
   vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipelineLayout, 0,
                           (uint32_t)descSets.size(), descSets.data(), 0, nullptr);
+
+  m_pcRay.numBeamSources   = m_numBeamSamples;
+  m_pcRay.numPhotonSources = m_numPhotonSamples;
   vkCmdPushConstants(
       cmdBuf, 
       m_rtPipelineLayout,

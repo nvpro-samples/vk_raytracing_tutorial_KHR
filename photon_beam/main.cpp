@@ -120,6 +120,9 @@ void renderUI(HelloVulkan& helloVk, bool useRaytracer)
         ImGuiH::Control::Flags::Normal, 
         -0.99f, 0.99f
     );
+
+    ImGui::Checkbox("Surface Photon", &helloVk.m_usePhotonMapping);
+    ImGui::Checkbox("Photon Beam", &helloVk.m_usePhotonBeam);
 }
 
 //////////////////////////////////////////////////////////////////////////
