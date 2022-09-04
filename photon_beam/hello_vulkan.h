@@ -138,7 +138,6 @@ public:
   void createRtPipeline();
 
   void createPbDescriptorSet();
-  void updatePbDescriptorSet();
   void createPbPipeline();
 
   void raytrace(const VkCommandBuffer& cmdBuf);

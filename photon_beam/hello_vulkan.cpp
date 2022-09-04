@@ -860,11 +860,6 @@ void HelloVulkan::createPbDescriptorSet()
   vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
 
-void HelloVulkan::updatePbDescriptorSet()
-{
-
-}
-
 
 void HelloVulkan::createPbPipeline()
 {
@@ -982,7 +977,12 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
   vec3 beamUnitDistanceColor = vec3(2.3 / 2.55, 0.999, 0.999) * 28.0f;
   // all element of albedo must be equal or less than 1
   vec3  mediaAlbedo    = vec3(0.8);
-  float beamSourceDist = 15.0;
+
+  const auto& view = CameraManip.getMatrix();
+
+  vec3 eyePos = view * vec3(0, 0, 1);
+
+  float beamSourceDist = nvmath::length(m_pcRay.lightPosition - eyePos);
 
   vec3 unitBeamExtincRatio = beamNearColor / beamUnitDistanceColor;
   vec3 extinctCoff = vec3(std::log(unitBeamExtincRatio.x), std::log(unitBeamExtincRatio.y), std::log(unitBeamExtincRatio.z));

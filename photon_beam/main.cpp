@@ -210,9 +210,6 @@ int main(int argc, char** argv)
   helloVk.updatePostDescriptorSet();
 
 
- 
-
-
   helloVk.setupGlfwCallbacks(window);
   ImGui_ImplGlfw_InitForVulkan(window, true);
 
