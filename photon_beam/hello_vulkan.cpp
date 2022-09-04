@@ -43,6 +43,15 @@
 
 extern std::vector<std::string> defaultSearchPaths;
 
+void ResetAbleRaytracingBuilderKHR::resetTlas() {
+  if(m_alloc && m_tlas.accel != nullptr)
+  {
+    m_alloc->destroy(m_tlas);
+    m_tlas.accel = nullptr;
+  }
+  
+}
+
 //--------------------------------------------------------------------------------------------------
 // Keep the handle on the device
 // Initialize the tool to do all our allocations: buffers, images
@@ -418,6 +427,9 @@ void HelloVulkan::createTextureImages(const VkCommandBuffer& cmdBuf, tinygltf::M
 //
 void HelloVulkan::destroyResources()
 {
+  m_alloc.destroy(m_beamAsInfoBuffer);
+  m_alloc.destroy(m_beamAsCountReadBuffer);
+
   vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
   vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
   vkDestroyDescriptorPool(m_device, m_descPool, nullptr);
@@ -1003,8 +1015,11 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
   m_pcRay.airScatterCoff = scatterCoff;
 }
 
+
 void HelloVulkan::beamtrace()
 {
+  //m_pbBuilder.resetTlas();
+  
   nvvk::CommandPool cmdBufGet(m_device, m_graphicsQueueIndex);
   VkCommandBuffer   cmdBuf = cmdBufGet.createCommandBuffer();
 
@@ -1073,9 +1088,6 @@ void HelloVulkan::beamtrace()
   cmdBufGet.submitAndWait(cmdBuf);
   m_alloc.finalizeAndReleaseStaging();
   m_alloc.destroy(scratchBuffer);
-
-  m_alloc.destroy(m_beamAsInfoBuffer);
-  m_alloc.destroy(m_beamAsCountReadBuffer);
 }
 
 

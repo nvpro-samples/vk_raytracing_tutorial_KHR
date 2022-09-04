@@ -51,7 +51,7 @@ static void onErrorCallback(int error, const char* description)
 }
 
 // Extra UI
-void renderUI(HelloVulkan& helloVk, bool useRaytracer)
+void renderUI(HelloVulkan& helloVk, bool useRaytracer, bool& createBeamPhotonAS)
 {
     ImGuiH::CameraWidget();
     bool isCollapsed = ImGui::CollapsingHeader("Light");
@@ -123,6 +123,13 @@ void renderUI(HelloVulkan& helloVk, bool useRaytracer)
 
     ImGui::Checkbox("Surface Photon", &helloVk.m_usePhotonMapping);
     ImGui::Checkbox("Photon Beam", &helloVk.m_usePhotonBeam);
+
+    bool pressed = ImGui::SmallButton("Refresh Beam");
+    if(pressed)
+    {
+      //createBeamPhotonAS = true;
+
+    }
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -292,8 +299,9 @@ int main(int argc, char** argv)
             ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
 
             if(ImGui::Checkbox("Ray Tracer mode", &useRaytracer))  // Switch between raster and ray tracing
-            helloVk.resetFrame();
-            renderUI(helloVk, useRaytracer);
+                helloVk.resetFrame();
+            
+            renderUI(helloVk, useRaytracer, createBeamPhotonAS);
 
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
             ImGuiH::Control::Info("", "", "(F10) Toggle Pane", ImGuiH::Control::Flags::Disabled);
@@ -339,14 +347,14 @@ int main(int argc, char** argv)
             // Rendering Scene
             if(useRaytracer)
             {
-            helloVk.setBeamPushConstants(clearColor);
-            helloVk.raytrace(cmdBuf);
+                helloVk.setBeamPushConstants(clearColor);
+                helloVk.raytrace(cmdBuf);
             }
             else
             {
-            vkCmdBeginRenderPass(cmdBuf, &offscreenRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-            helloVk.rasterize(cmdBuf);
-            vkCmdEndRenderPass(cmdBuf);
+                vkCmdBeginRenderPass(cmdBuf, &offscreenRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+                helloVk.rasterize(cmdBuf);
+                vkCmdEndRenderPass(cmdBuf);
             }
         }
 

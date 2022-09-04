@@ -36,13 +36,13 @@
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
-//--------------------------------------------------------------------------------------------------
-// Simple rasterizer of OBJ objects
-// - Each OBJ loaded are stored in an `ObjModel` and referenced by a `ObjInstance`
-// - It is possible to have many `ObjInstance` referencing the same `ObjModel`
-// - Rendering is done in an offscreen framebuffer
-// - The image of the framebuffer is displayed in post-process in a full-screen quad
-//
+
+class ResetAbleRaytracingBuilderKHR : public nvvk::RaytracingBuilderKHR
+{
+public:
+  void resetTlas();
+};
+
 class HelloVulkan : public nvvk::AppBaseVk
 {
 public:
@@ -171,7 +171,7 @@ public:
 
   PushConstantRay m_pcRay{};
 
-  nvvk::RaytracingBuilderKHR m_pbBuilder;
+  ResetAbleRaytracingBuilderKHR                     m_pbBuilder;
   nvvk::DescriptorSetBindings m_pbDescSetLayoutBind;
   VkDescriptorPool            m_pbDescPool;
   VkDescriptorSetLayout       m_pbDescSetLayout;
