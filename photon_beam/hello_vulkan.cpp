@@ -975,14 +975,16 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
   // A Programmable System for Artistic Volumetric Lighting(2011) Derek Nowrouzezahrai
   const float minimumUnitDistantAlbedo = 0.001;
   vec3        mediaAlbedo              = vec3(0.8); // all element of albedo must be equal or less than 1
-  vec3 beamNearColor         = vec3(m_beamNearColor) * m_beamNearColor.w * m_beamColorIntensity;
-  vec3 beamUnitDistantColor = vec3(m_beamUnitDistantColor) * m_beamUnitDistantColor.w * m_beamColorIntensity;
+  vec3 beamNearColor         = vec3(m_beamNearColor) * m_beamNearColor.w;
+  vec3 beamUnitDistantColor = vec3(m_beamUnitDistantColor) * m_beamUnitDistantColor.w;
 
   vec3 unitDistantMinColor = beamNearColor * minimumUnitDistantAlbedo;
 
   beamUnitDistantColor.x = MIN(beamNearColor.x, MAX(beamUnitDistantColor.x, unitDistantMinColor.x));
   beamUnitDistantColor.y = MIN(beamNearColor.y, MAX(beamUnitDistantColor.y, unitDistantMinColor.y));
   beamUnitDistantColor.z = MIN(beamNearColor.z, MAX(beamUnitDistantColor.z, unitDistantMinColor.z));
+
+  m_beamUnitDistantColor = vec4(beamUnitDistantColor,1.0);
 
   vec3 unitDistantAlbedoInverse(0.0);
 
@@ -1002,6 +1004,8 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
   m_pcRay.sourceLight.x = (extinctCoff.x <= 0.00001) ? beamNearColor.x : m_pcRay.sourceLight.x / scatterCoff.x;
   m_pcRay.sourceLight.y = (extinctCoff.y <= 0.00001) ? beamNearColor.y : m_pcRay.sourceLight.y / scatterCoff.y;
   m_pcRay.sourceLight.z = (extinctCoff.z <= 0.00001) ? beamNearColor.z : m_pcRay.sourceLight.z / scatterCoff.z;
+
+  m_pcRay.sourceLight *= m_beamIntensity;
 
   m_pcRay.airExtinctCoff = extinctCoff;
   m_pcRay.airScatterCoff = scatterCoff;

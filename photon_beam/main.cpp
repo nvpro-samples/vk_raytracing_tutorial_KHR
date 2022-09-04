@@ -91,7 +91,7 @@ void renderUI(HelloVulkan& helloVk, bool useRaytracer)
     //ImGui::SliderFloat("Surface Photon Radius", &helloVk.m_photonRadius, 0.05f, 5.0f);
     //ImGui::SliderFloat("HG Assymetric Factor", &helloVk.m_hgAssymFactor, -0.99f, 0.99f);
 
-    ImGui::SliderFloat("Color Intensity", &helloVk.m_beamColorIntensity, 30.f, 150.f);
+    ImGui::SliderFloat("Light Intensity", &helloVk.m_beamIntensity, 0.0f, 150.f);
 
     ImGuiH::Control::Slider(
         std::string("Beam Radius"), "Sampling radius for beams", 
