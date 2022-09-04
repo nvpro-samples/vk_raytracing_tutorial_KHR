@@ -77,249 +77,260 @@ static int const SAMPLE_HEIGHT = 720;
 //
 int main(int argc, char** argv)
 {
-  UNUSED(argc);
+    UNUSED(argc);
 
-  // Setup GLFW window
-  glfwSetErrorCallback(onErrorCallback);
-  if(!glfwInit())
-  {
-    return 1;
-  }
-  glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-  GLFWwindow* window = glfwCreateWindow(SAMPLE_WIDTH, SAMPLE_HEIGHT, PROJECT_NAME, nullptr, nullptr);
+    // Setup GLFW window
+    glfwSetErrorCallback(onErrorCallback);
+    if(!glfwInit())
+    {
+        return 1;
+    }
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    GLFWwindow* window = glfwCreateWindow(SAMPLE_WIDTH, SAMPLE_HEIGHT, PROJECT_NAME, nullptr, nullptr);
 
-  // Setup camera
-  CameraManip.setWindowSize(SAMPLE_WIDTH, SAMPLE_HEIGHT);
-  CameraManip.setLookat(nvmath::vec3f(0, 0, 15), nvmath::vec3f(0, 0, 0), nvmath::vec3f(0, 1, 0));
+    // Setup camera
+    CameraManip.setWindowSize(SAMPLE_WIDTH, SAMPLE_HEIGHT);
+    CameraManip.setLookat(nvmath::vec3f(0, 0, 15), nvmath::vec3f(0, 0, 0), nvmath::vec3f(0, 1, 0));
 
-  // Setup Vulkan
-  if(!glfwVulkanSupported())
-  {
-    printf("GLFW: Vulkan Not Supported\n");
-    return 1;
-  }
+    // Setup Vulkan
+    if(!glfwVulkanSupported())
+    {
+        printf("GLFW: Vulkan Not Supported\n");
+        return 1;
+    }
 
-  // setup some basic things for the sample, logging file for example
-  NVPSystem system(PROJECT_NAME);
+    // setup some basic things for the sample, logging file for example
+    NVPSystem system(PROJECT_NAME);
 
-  // Search path for shaders and other media
-  defaultSearchPaths = {
-      NVPSystem::exePath() + PROJECT_RELDIRECTORY,
-      NVPSystem::exePath() + PROJECT_RELDIRECTORY "..",
-      std::string(PROJECT_NAME),
-  };
+    // Search path for shaders and other media
+    defaultSearchPaths = {
+        NVPSystem::exePath() + PROJECT_RELDIRECTORY,
+        NVPSystem::exePath() + PROJECT_RELDIRECTORY "..",
+        std::string(PROJECT_NAME),
+    };
 
-  // Vulkan required extensions
-  assert(glfwVulkanSupported() == 1);
-  uint32_t count{0};
-  auto     reqExtensions = glfwGetRequiredInstanceExtensions(&count);
+    // Vulkan required extensions
+    assert(glfwVulkanSupported() == 1);
+    uint32_t count{0};
+    auto     reqExtensions = glfwGetRequiredInstanceExtensions(&count);
 
-  // Requesting Vulkan extensions and layers
-  nvvk::ContextCreateInfo contextInfo;
-  contextInfo.setVersion(1, 2);                       // Using Vulkan 1.2
-  for(uint32_t ext_id = 0; ext_id < count; ext_id++)  // Adding required extensions (surface, win32, linux, ..)
+    // Requesting Vulkan extensions and layers
+    nvvk::ContextCreateInfo contextInfo;
+    contextInfo.setVersion(1, 2);                       // Using Vulkan 1.2
+    for(uint32_t ext_id = 0; ext_id < count; ext_id++)  // Adding required extensions (surface, win32, linux, ..)
     contextInfo.addInstanceExtension(reqExtensions[ext_id]);
-  contextInfo.addInstanceExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, true);  // Allow debug names
-  contextInfo.addDeviceExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);            // Enabling ability to present rendering
+    contextInfo.addInstanceExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, true);  // Allow debug names
+    contextInfo.addDeviceExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);            // Enabling ability to present rendering
 
-  // #VKRay: Activate the ray tracing extension
-  VkPhysicalDeviceAccelerationStructureFeaturesKHR accelFeature{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR};
-  contextInfo.addDeviceExtension(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, false, &accelFeature);  // To build acceleration structures
-  VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR};
-  contextInfo.addDeviceExtension(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, false, &rtPipelineFeature);  // To use vkCmdTraceRaysKHR
-  contextInfo.addDeviceExtension(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);  // Required by ray tracing pipeline
-  contextInfo.addDeviceExtension(VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
+    // #VKRay: Activate the ray tracing extension
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR accelFeature{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR};
+    contextInfo.addDeviceExtension(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, false, &accelFeature);  // To build acceleration structures
+    VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR};
+    contextInfo.addDeviceExtension(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, false, &rtPipelineFeature);  // To use vkCmdTraceRaysKHR
+    contextInfo.addDeviceExtension(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);  // Required by ray tracing pipeline
+    contextInfo.addDeviceExtension(VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
 
-  VkPhysicalDeviceShaderClockFeaturesKHR clockFeature{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_CLOCK_FEATURES_KHR};
-  contextInfo.addDeviceExtension(VK_KHR_SHADER_CLOCK_EXTENSION_NAME, false, &clockFeature);
+    VkPhysicalDeviceShaderClockFeaturesKHR clockFeature{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_CLOCK_FEATURES_KHR};
+    contextInfo.addDeviceExtension(VK_KHR_SHADER_CLOCK_EXTENSION_NAME, false, &clockFeature);
 
-  VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR};
-  contextInfo.addDeviceExtension(VK_KHR_RAY_QUERY_EXTENSION_NAME, false, &rayQueryFeatures);
+    VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR};
+    contextInfo.addDeviceExtension(VK_KHR_RAY_QUERY_EXTENSION_NAME, false, &rayQueryFeatures);
 
- /*
-  contextInfo.addDeviceExtension(VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME);
-  VkValidationFeaturesEXT      validationInfo{VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT};
-  VkValidationFeatureEnableEXT validationFeatureToEnable = VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT;
-  validationInfo.enabledValidationFeatureCount           = 1;
-  validationInfo.pEnabledValidationFeatures              = &validationFeatureToEnable;
-  contextInfo.instanceCreateInfoExt                      = &validationInfo;
-#ifdef _WIN32
-  _putenv_s("DEBUG_PRINTF_TO_STDOUT", "1");
-#else   // If not _WIN32
-  putenv("DEBUG_PRINTF_TO_STDOUT=1");
-#endif  // _WIN32
- */
-  // Creating Vulkan base application
-  nvvk::Context vkctx{};
-  vkctx.initInstance(contextInfo);
-  // Find all compatible devices
-  auto compatibleDevices = vkctx.getCompatibleDevices(contextInfo);
-  assert(!compatibleDevices.empty());
-  // Use a compatible device
-  vkctx.initDevice(compatibleDevices[0], contextInfo);
+    /*
+    contextInfo.addDeviceExtension(VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME);
+    VkValidationFeaturesEXT      validationInfo{VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT};
+    VkValidationFeatureEnableEXT validationFeatureToEnable = VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT;
+    validationInfo.enabledValidationFeatureCount           = 1;
+    validationInfo.pEnabledValidationFeatures              = &validationFeatureToEnable;
+    contextInfo.instanceCreateInfoExt                      = &validationInfo;
+    #ifdef _WIN32
+    _putenv_s("DEBUG_PRINTF_TO_STDOUT", "1");
+    #else   // If not _WIN32
+    putenv("DEBUG_PRINTF_TO_STDOUT=1");
+    #endif  // _WIN32
+    */
+    // Creating Vulkan base application
+    nvvk::Context vkctx{};
+    vkctx.initInstance(contextInfo);
+    // Find all compatible devices
+    auto compatibleDevices = vkctx.getCompatibleDevices(contextInfo);
+    assert(!compatibleDevices.empty());
+    // Use a compatible device
+    vkctx.initDevice(compatibleDevices[0], contextInfo);
 
-  // Create example
-  HelloVulkan helloVk;
+    // Create example
+    HelloVulkan helloVk;
 
-  // Window need to be opened to get the surface on which to draw
-  const VkSurfaceKHR surface = helloVk.getVkSurface(vkctx.m_instance, window);
-  vkctx.setGCTQueueWithPresent(surface);
+    // Window need to be opened to get the surface on which to draw
+    const VkSurfaceKHR surface = helloVk.getVkSurface(vkctx.m_instance, window);
+    vkctx.setGCTQueueWithPresent(surface);
 
-  helloVk.setup(vkctx.m_instance, vkctx.m_device, vkctx.m_physicalDevice, vkctx.m_queueGCT.familyIndex);
-  helloVk.createSwapchain(surface, SAMPLE_WIDTH, SAMPLE_HEIGHT);
-  helloVk.createDepthBuffer();
-  helloVk.createRenderPass();
-  helloVk.createFrameBuffers();
+    helloVk.setup(vkctx.m_instance, vkctx.m_device, vkctx.m_physicalDevice, vkctx.m_queueGCT.familyIndex);
+    helloVk.createSwapchain(surface, SAMPLE_WIDTH, SAMPLE_HEIGHT);
+    helloVk.createDepthBuffer();
+    helloVk.createRenderPass();
+    helloVk.createFrameBuffers();
 
-  // Setup Imgui
-  helloVk.initGUI(0);  // Using sub-pass 0
+    // Setup Imgui
+    helloVk.initGUI(0);  // Using sub-pass 0
 
-  helloVk.createBeamBoundingBox();
+    helloVk.createBeamBoundingBox();
 
-  // Creation of the example
-  helloVk.loadScene(nvh::findFile("media/scenes/cornellBox.gltf", defaultSearchPaths, true));
-
-
-  helloVk.createOffscreenRender();
-  helloVk.createDescriptorSetLayout();
-  helloVk.createGraphicsPipeline();
-  helloVk.createUniformBuffer();
-  helloVk.updateDescriptorSet();
-
-  // #VKRay
-  helloVk.initRayTracing();
-
-  helloVk.createBottomLevelAS();
-  helloVk.createTopLevelAS();
-
-  helloVk.createPbDescriptorSet();
-  helloVk.createPbPipeline();
-
-  helloVk.createBeamBoxBlas();
-
-  nvmath::vec4f clearColor   = nvmath::vec4f(0.52, 0.81, 0.92, 1.00f);
-  bool          useRaytracer = true;
-  bool          createBeamPhotonAS = true;
+    // Creation of the example
+    helloVk.loadScene(nvh::findFile("media/scenes/cornellBox.gltf", defaultSearchPaths, true));
 
 
-  helloVk.createRtDescriptorSet();
-  helloVk.createRtPipeline();
+    helloVk.createOffscreenRender();
+    helloVk.createDescriptorSetLayout();
+    helloVk.createGraphicsPipeline();
+    helloVk.createUniformBuffer();
+    helloVk.updateDescriptorSet();
 
-  helloVk.createPostDescriptor();
-  helloVk.createPostPipeline();
-  helloVk.updatePostDescriptorSet();
+    // #VKRay
+    helloVk.initRayTracing();
+
+    helloVk.createBottomLevelAS();
+    helloVk.createTopLevelAS();
+
+    helloVk.createPbDescriptorSet();
+    helloVk.createPbPipeline();
+
+    helloVk.createBeamBoxBlas();
+
+    nvmath::vec4f clearColor   = nvmath::vec4f(0.52, 0.81, 0.92, 1.00f);
+    bool          useRaytracer = true;
+    bool          createBeamPhotonAS = true;
 
 
-  helloVk.setupGlfwCallbacks(window);
-  ImGui_ImplGlfw_InitForVulkan(window, true);
+    helloVk.createRtDescriptorSet();
+    helloVk.createRtPipeline();
 
-  // Main loop
-  while(!glfwWindowShouldClose(window))
-  {
-    glfwPollEvents();
-    if(helloVk.isMinimized())
-      continue;
-
-    // Start the Dear ImGui frame
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
+    helloVk.createPostDescriptor();
+    helloVk.createPostPipeline();
+    helloVk.updatePostDescriptorSet();
 
 
-    // Show UI window.
-    if(helloVk.showGui())
+    helloVk.setupGlfwCallbacks(window);
+    ImGui_ImplGlfw_InitForVulkan(window, true);
+
+    // Main loop
+    while(!glfwWindowShouldClose(window))
     {
-      ImGuiH::Panel::Begin();
-      ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
-      if(ImGui::Checkbox("Ray Tracer mode", &useRaytracer))  // Switch between raster and ray tracing
-        helloVk.resetFrame();
-      renderUI(helloVk, useRaytracer);
-      ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-      ImGuiH::Control::Info("", "", "(F10) Toggle Pane", ImGuiH::Control::Flags::Disabled);
-      ImGuiH::Panel::End();
+        glfwPollEvents();
+        if(helloVk.isMinimized())
+            continue;
+
+        // Start the Dear ImGui frame
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+
+        // Show UI window.
+        if(helloVk.showGui())
+        {
+            ImGuiH::Panel::Begin();
+            ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
+            if(ImGui::Checkbox("Ray Tracer mode", &useRaytracer))  // Switch between raster and ray tracing
+            helloVk.resetFrame();
+            renderUI(helloVk, useRaytracer);
+            //ImGui::SliderFloat("Air Scattering Factor (negative back, postive front))", &(helloVk.m_hgAssymFactor), -0.99, 0.99,
+            //                 nullptr, 0);
+
+            ImGuiH::Control::Slider(
+                std::string("HG Assymetric Factor"),  // Name of the parameter
+            "Henyey and Greenstein Assymetric Factor for air. Positive: more front light scattering. Negative: more back light scattering.",
+            &(helloVk.m_hgAssymFactor), 
+            nullptr, ImGuiH::Control::Flags::Normal,
+            -0.99f, 0.99f
+            );
+
+            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+            ImGuiH::Control::Info("", "", "(F10) Toggle Pane", ImGuiH::Control::Flags::Disabled);
+            ImGuiH::Panel::End();
+        }
+
+        // Start rendering the scene
+        helloVk.prepareFrame();
+
+        // Start command buffer of this frame
+        auto                   curFrame = helloVk.getCurFrame();
+        const VkCommandBuffer& cmdBuf   = helloVk.getCommandBuffers()[curFrame];
+
+        VkCommandBufferBeginInfo beginInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        vkBeginCommandBuffer(cmdBuf, &beginInfo);
+
+        // Updating camera buffer
+        helloVk.updateUniformBuffer(cmdBuf);
+
+        // Clearing screen
+        std::array<VkClearValue, 2> clearValues{};
+        clearValues[0].color        = {{clearColor[0], clearColor[1], clearColor[2], clearColor[3]}};
+        clearValues[1].depthStencil = {1.0f, 0};
+
+        // Offscreen render pass
+        {
+            VkRenderPassBeginInfo offscreenRenderPassBeginInfo{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+            offscreenRenderPassBeginInfo.clearValueCount = 2;
+            offscreenRenderPassBeginInfo.pClearValues    = clearValues.data();
+            offscreenRenderPassBeginInfo.renderPass      = helloVk.m_offscreenRenderPass;
+            offscreenRenderPassBeginInfo.framebuffer     = helloVk.m_offscreenFramebuffer;
+            offscreenRenderPassBeginInfo.renderArea      = {{0, 0}, helloVk.getSize()};
+
+            if(useRaytracer && createBeamPhotonAS)
+            {
+            helloVk.setBeamPushConstants(clearColor);
+            helloVk.beamtrace();
+            helloVk.updateRtDescriptorSet();
+            createBeamPhotonAS = false;
+            }
+
+            // Rendering Scene
+            if(useRaytracer)
+            {
+            helloVk.setBeamPushConstants(clearColor);
+            helloVk.raytrace(cmdBuf);
+            }
+            else
+            {
+            vkCmdBeginRenderPass(cmdBuf, &offscreenRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+            helloVk.rasterize(cmdBuf);
+            vkCmdEndRenderPass(cmdBuf);
+            }
+        }
+
+        // 2nd rendering pass: tone mapper, UI
+        {
+            VkRenderPassBeginInfo postRenderPassBeginInfo{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+            postRenderPassBeginInfo.clearValueCount = 2;
+            postRenderPassBeginInfo.pClearValues    = clearValues.data();
+            postRenderPassBeginInfo.renderPass      = helloVk.getRenderPass();
+            postRenderPassBeginInfo.framebuffer     = helloVk.getFramebuffers()[curFrame];
+            postRenderPassBeginInfo.renderArea      = {{0, 0}, helloVk.getSize()};
+
+            // Rendering tonemapper
+            vkCmdBeginRenderPass(cmdBuf, &postRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+            helloVk.drawPost(cmdBuf);
+            // Rendering UI
+            ImGui::Render();
+            ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmdBuf);
+            vkCmdEndRenderPass(cmdBuf);
+        }
+
+        // Submit for display
+        vkEndCommandBuffer(cmdBuf);
+        helloVk.submitFrame();
     }
 
-    // Start rendering the scene
-    helloVk.prepareFrame();
+        // Cleanup
+        vkDeviceWaitIdle(helloVk.getDevice());
 
-    // Start command buffer of this frame
-    auto                   curFrame = helloVk.getCurFrame();
-    const VkCommandBuffer& cmdBuf   = helloVk.getCommandBuffers()[curFrame];
+        helloVk.destroyResources();
+        helloVk.destroy();
+        vkctx.deinit();
 
-    VkCommandBufferBeginInfo beginInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    vkBeginCommandBuffer(cmdBuf, &beginInfo);
+        glfwDestroyWindow(window);
+        glfwTerminate();
 
-    // Updating camera buffer
-    helloVk.updateUniformBuffer(cmdBuf);
-
-    // Clearing screen
-    std::array<VkClearValue, 2> clearValues{};
-    clearValues[0].color        = {{clearColor[0], clearColor[1], clearColor[2], clearColor[3]}};
-    clearValues[1].depthStencil = {1.0f, 0};
-
-    // Offscreen render pass
-    {
-      VkRenderPassBeginInfo offscreenRenderPassBeginInfo{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
-      offscreenRenderPassBeginInfo.clearValueCount = 2;
-      offscreenRenderPassBeginInfo.pClearValues    = clearValues.data();
-      offscreenRenderPassBeginInfo.renderPass      = helloVk.m_offscreenRenderPass;
-      offscreenRenderPassBeginInfo.framebuffer     = helloVk.m_offscreenFramebuffer;
-      offscreenRenderPassBeginInfo.renderArea      = {{0, 0}, helloVk.getSize()};
-
-      if(useRaytracer && createBeamPhotonAS)
-      {
-        helloVk.setBeamPushConstants(clearColor);
-        helloVk.beamtrace();
-        helloVk.updateRtDescriptorSet();
-        createBeamPhotonAS = false;
-      }
-
-      // Rendering Scene
-      if(useRaytracer)
-      {
-        helloVk.setBeamPushConstants(clearColor);
-        helloVk.raytrace(cmdBuf);
-      }
-      else
-      {
-        vkCmdBeginRenderPass(cmdBuf, &offscreenRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-        helloVk.rasterize(cmdBuf);
-        vkCmdEndRenderPass(cmdBuf);
-      }
+        return 0;
     }
-
-    // 2nd rendering pass: tone mapper, UI
-    {
-      VkRenderPassBeginInfo postRenderPassBeginInfo{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
-      postRenderPassBeginInfo.clearValueCount = 2;
-      postRenderPassBeginInfo.pClearValues    = clearValues.data();
-      postRenderPassBeginInfo.renderPass      = helloVk.getRenderPass();
-      postRenderPassBeginInfo.framebuffer     = helloVk.getFramebuffers()[curFrame];
-      postRenderPassBeginInfo.renderArea      = {{0, 0}, helloVk.getSize()};
-
-      // Rendering tonemapper
-      vkCmdBeginRenderPass(cmdBuf, &postRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-      helloVk.drawPost(cmdBuf);
-      // Rendering UI
-      ImGui::Render();
-      ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmdBuf);
-      vkCmdEndRenderPass(cmdBuf);
-    }
-
-    // Submit for display
-    vkEndCommandBuffer(cmdBuf);
-    helloVk.submitFrame();
-  }
-
-  // Cleanup
-  vkDeviceWaitIdle(helloVk.getDevice());
-
-  helloVk.destroyResources();
-  helloVk.destroy();
-  vkctx.deinit();
-
-  glfwDestroyWindow(window);
-  glfwTerminate();
-
-  return 0;
-}
