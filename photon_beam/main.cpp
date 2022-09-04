@@ -70,13 +70,13 @@ void renderUI(HelloVulkan& helloVk, bool useRaytracer, bool& createBeamPhotonAS)
     }
 
 
-    ImGui::ColorEdit3("", reinterpret_cast<float*>(&helloVk.m_beamNearColor), ImGuiColorEditFlags_NoSmallPreview);
+    ImGui::ColorEdit3("Near Color", reinterpret_cast<float*>(&helloVk.m_beamNearColor), ImGuiColorEditFlags_NoSmallPreview);
     ImGuiH::Control::Color(
         std::string("Near Color"), "Air color near the light source, seen at the eye position",
         reinterpret_cast<float*>(&(helloVk.m_beamNearColor))
     );
 
-    ImGui::ColorEdit3("", reinterpret_cast<float*>(&helloVk.m_beamUnitDistantColor), ImGuiColorEditFlags_NoSmallPreview);
+    ImGui::ColorEdit3("Distant Color", reinterpret_cast<float*>(&helloVk.m_beamUnitDistantColor), ImGuiColorEditFlags_NoSmallPreview);
     ImGuiH::Control::Color(
         std::string("Distant Color"),
         "Air color one unit distance away from the light source, at direction orthogonal from the "

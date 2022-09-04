@@ -991,7 +991,7 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
   m_pcRay.numPhotonSources = m_numPhotonSamples;
 
   // A Programmable System for Artistic Volumetric Lighting(2011) Derek Nowrouzezahrai
-  const float minimumUnitDistantAlbedo = 0.001;
+  const float minimumUnitDistantAlbedo = 0.1;
   vec3        mediaAlbedo              = vec3(0.8); // all element of albedo must be equal or less than 1
   vec3 beamNearColor         = vec3(m_beamNearColor) * m_beamNearColor.w;
   vec3 beamUnitDistantColor = vec3(m_beamUnitDistantColor) * m_beamUnitDistantColor.w;
