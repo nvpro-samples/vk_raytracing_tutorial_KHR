@@ -974,7 +974,18 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
 
   // A Programmable System for Artistic Volumetric Lighting(2011) Derek Nowrouzezahrai
   vec3 beamNearColor         = vec3(m_beamNearColor) * m_beamNearColor.w * m_pcRaster.lightIntensity * 3.0f;
-  vec3 beamUnitDistanceColor = vec3(m_beamUnitDistanceColor) * m_beamUnitDistanceColor.w * m_pcRaster.lightIntensity * 3.0f;
+  float maxNearColorVal      = beamNearColor.x > beamNearColor.y ? beamNearColor.x : beamNearColor.y;
+  maxNearColorVal             = maxNearColorVal < beamNearColor.z ? maxNearColorVal : beamNearColor.z;
+
+  vec3 beamUnitDistantColor = vec3(m_beamUnitDistantColor) * m_beamUnitDistantColor.w * m_pcRaster.lightIntensity * 3.0f;
+  float maxDistantColorVal = m_beamUnitDistantColor.x > m_beamUnitDistantColor.y ? m_beamUnitDistantColor.x : m_beamUnitDistantColor.y;
+  maxDistantColorVal = maxDistantColorVal < m_beamUnitDistantColor.z ? maxDistantColorVal : m_beamUnitDistantColor.z;
+
+  if(maxDistantColorVal > maxNearColorVal)
+  {
+    beamUnitDistantColor *= maxNearColorVal / maxDistantColorVal;
+  }
+
   // all element of albedo must be equal or less than 1
   vec3  mediaAlbedo    = vec3(0.8);
 
@@ -984,7 +995,7 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
 
   float beamSourceDist = nvmath::length(m_pcRay.lightPosition - eyePos);
 
-  vec3 unitBeamExtincRatio = beamNearColor / beamUnitDistanceColor;
+  vec3 unitBeamExtincRatio = beamNearColor / beamUnitDistantColor;
   vec3 extinctCoff = vec3(std::log(unitBeamExtincRatio.x), std::log(unitBeamExtincRatio.y), std::log(unitBeamExtincRatio.z));
 
   vec3 scatterCoff    = mediaAlbedo * extinctCoff;

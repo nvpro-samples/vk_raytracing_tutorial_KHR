@@ -80,7 +80,7 @@ public:
   uint32_t m_numPhotonSamples{64};
 
   nvmath::vec4f m_beamNearColor         = nvmath::vec4f(1.0f, 1.0f, 1.0f, 1.0f);
-  nvmath::vec4f m_beamUnitDistanceColor = nvmath::vec4f(2.3f / 2.55f, 0.999f, 0.999f, 1.0f) * 2.8f / 3.0f;
+  nvmath::vec4f m_beamUnitDistantColor = nvmath::vec4f(2.3f / 2.55f, 0.999f, 0.999f, 1.0f) * 2.8f / 3.0f;
   
   // number of photon samples * (expected surface intersection ) + number of number of beam samples * (expected number of scatter  + surface intersection )
   uint32_t m_maxNumBeams{m_numPhotonSamples * 16 + m_numBeamSamples * 32};

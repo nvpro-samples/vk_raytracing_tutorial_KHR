@@ -233,8 +233,19 @@ int main(int argc, char** argv)
         {
             ImGuiH::Panel::Begin();
             ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
-            ImGui::ColorEdit3("Air color at light source", reinterpret_cast<float*>(&(helloVk.m_beamNearColor)));
-            ImGui::ColorEdit3("Air color at unit distance away from light source", reinterpret_cast<float*>(&(helloVk.m_beamUnitDistanceColor)));
+            ImGuiH::Control::Color(
+                std::string("Near Light Air color"), 
+                "Air color near the light source, seen at the eye position", 
+                reinterpret_cast<float*>(&(helloVk.m_beamNearColor))
+            );
+
+            ImGuiH::Control::Color(
+                std::string("Near Light Air color"), 
+                "Air color one unit distance away from the light source, at direction orthogonal from the line between eye and the light source, seen at eye position.\n"
+                "Color will be scaled down if any channel exeed the value of Near Light Air Color", 
+                reinterpret_cast<float*>(&(helloVk.m_beamUnitDistantColor))
+            );
+
             if(ImGui::Checkbox("Ray Tracer mode", &useRaytracer))  // Switch between raster and ray tracing
             helloVk.resetFrame();
             renderUI(helloVk, useRaytracer);
@@ -290,10 +301,10 @@ int main(int argc, char** argv)
 
             if(useRaytracer && createBeamPhotonAS)
             {
-            helloVk.setBeamPushConstants(clearColor);
-            helloVk.beamtrace();
-            helloVk.updateRtDescriptorSet();
-            createBeamPhotonAS = false;
+                helloVk.setBeamPushConstants(clearColor);
+                helloVk.beamtrace();
+                helloVk.updateRtDescriptorSet();
+                createBeamPhotonAS = false;
             }
 
             // Rendering Scene
