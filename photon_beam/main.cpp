@@ -233,11 +233,9 @@ int main(int argc, char** argv)
             if(ImGui::Checkbox("Ray Tracer mode", &useRaytracer))  // Switch between raster and ray tracing
             helloVk.resetFrame();
             renderUI(helloVk, useRaytracer);
-            //ImGui::SliderFloat("Air Scattering Factor (negative back, postive front))", &(helloVk.m_hgAssymFactor), -0.99, 0.99,
-            //                 nullptr, 0);
 
             ImGuiH::Control::Slider(
-                std::string("HG Assymetric Factor"),  // Name of the parameter
+            std::string("HG Assymetric Factor"),  // Name of the parameter
             "Henyey and Greenstein Assymetric Factor for air. Positive: more front light scattering. Negative: more back light scattering.",
             &(helloVk.m_hgAssymFactor), 
             nullptr, ImGuiH::Control::Flags::Normal,
