@@ -37,6 +37,13 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 
+class ResetAbleRaytracingBuilderKHR : public nvvk::RaytracingBuilderKHR
+{
+public:
+  void resetTlas();
+};
+
+
 class HelloVulkan : public nvvk::AppBaseVk
 {
 public:
@@ -165,7 +172,7 @@ public:
 
   PushConstantRay m_pcRay{};
 
-  nvvk::RaytracingBuilderKHR                       m_pbBuilder;
+  ResetAbleRaytracingBuilderKHR                     m_pbBuilder;
   nvvk::DescriptorSetBindings m_pbDescSetLayoutBind;
   VkDescriptorPool            m_pbDescPool;
   VkDescriptorSetLayout       m_pbDescSetLayout;

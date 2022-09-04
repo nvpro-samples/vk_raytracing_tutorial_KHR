@@ -44,10 +44,17 @@
 extern std::vector<std::string> defaultSearchPaths;
 
 
-//--------------------------------------------------------------------------------------------------
-// Keep the handle on the device
-// Initialize the tool to do all our allocations: buffers, images
-//
+void ResetAbleRaytracingBuilderKHR::resetTlas()
+{
+  if(m_alloc && m_tlas.accel != nullptr)
+  {
+    vkDeviceWaitIdle(m_device);
+    m_alloc->destroy(m_tlas);
+    m_tlas.accel = nullptr;
+  }
+}
+
+
 void HelloVulkan::setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t queueFamily)
 {
   AppBaseVk::setup(instance, device, physicalDevice, queueFamily);
@@ -1010,7 +1017,7 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
 
 void HelloVulkan::beamtrace()
 {
-  //m_pbBuilder.resetTlas();
+  m_pbBuilder.resetTlas();
   
   nvvk::CommandPool cmdBufGet(m_device, m_graphicsQueueIndex);
   VkCommandBuffer   cmdBuf = cmdBufGet.createCommandBuffer();
@@ -1065,9 +1072,8 @@ void HelloVulkan::beamtrace()
 
   cmdBuf = cmdBufGet.createCommandBuffer();
 
-  VkBuildAccelerationStructureFlagsKHR flags =
-      VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
-  bool                                 update = m_pbBuilder.getAccelerationStructure() != nullptr;
+  VkBuildAccelerationStructureFlagsKHR flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+  bool                                 update = false;
   bool                                 motion = false;
 
   VkBufferDeviceAddressInfo bufferInfo{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, m_beamAsInfoBuffer.buffer};
