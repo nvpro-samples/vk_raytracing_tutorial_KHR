@@ -130,6 +130,9 @@ void renderUI(HelloVulkan& helloVk, bool useRaytracer, bool& createBeamPhotonAS)
       createBeamPhotonAS = true;
 
     }
+
+    if(ImGui::SmallButton("Set Defaults"))
+        helloVk.setDefaults();
 }
 
 //////////////////////////////////////////////////////////////////////////
