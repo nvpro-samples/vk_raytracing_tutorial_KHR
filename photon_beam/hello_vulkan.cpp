@@ -66,7 +66,7 @@ void HelloVulkan::setDefaults()
   m_beamIntensity        = 20.0f;
   m_usePhotonMapping = true;
   m_usePhotonBeam    = true;
-  m_hgAssymFactor    = 0.5;
+  m_hgAssymFactor    = -0.5;
 }
 
 void HelloVulkan::setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t queueFamily)
