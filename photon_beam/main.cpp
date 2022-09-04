@@ -240,9 +240,10 @@ int main(int argc, char** argv)
             );
 
             ImGuiH::Control::Color(
-                std::string("Near Light Air color"), 
+                std::string("Unit Distant from Light Air color"), 
                 "Air color one unit distance away from the light source, at direction orthogonal from the line between eye and the light source, seen at eye position.\n"
-                "Color will be scaled down if any channel exeed the value of Near Light Air Color", 
+                "Color will be scaled down if any channel exeed the same channel value of Near Light Air Color\n"
+                "Color will be scaled up if any channel goes bellow 0.1% of the same channel value of Near Light Air Color\n", 
                 reinterpret_cast<float*>(&(helloVk.m_beamUnitDistantColor))
             );
 

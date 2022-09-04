@@ -973,33 +973,31 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
   m_pcRay.numPhotonSources = m_numPhotonSamples;
 
   // A Programmable System for Artistic Volumetric Lighting(2011) Derek Nowrouzezahrai
+  const float minimumUnitDistantAlbedo = 0.001;
+  vec3        mediaAlbedo              = vec3(0.8); // all element of albedo must be equal or less than 1
   vec3 beamNearColor         = vec3(m_beamNearColor) * m_beamNearColor.w * m_pcRaster.lightIntensity * 3.0f;
-  float maxNearColorVal      = beamNearColor.x > beamNearColor.y ? beamNearColor.x : beamNearColor.y;
-  maxNearColorVal             = maxNearColorVal < beamNearColor.z ? maxNearColorVal : beamNearColor.z;
-
   vec3 beamUnitDistantColor = vec3(m_beamUnitDistantColor) * m_beamUnitDistantColor.w * m_pcRaster.lightIntensity * 3.0f;
-  float maxDistantColorVal = m_beamUnitDistantColor.x > m_beamUnitDistantColor.y ? m_beamUnitDistantColor.x : m_beamUnitDistantColor.y;
-  maxDistantColorVal = maxDistantColorVal < m_beamUnitDistantColor.z ? maxDistantColorVal : m_beamUnitDistantColor.z;
 
-  if(maxDistantColorVal > maxNearColorVal)
-  {
-    beamUnitDistantColor *= maxNearColorVal / maxDistantColorVal;
-  }
+  vec3 unitDistantMinColor = beamNearColor * minimumUnitDistantAlbedo;
 
-  // all element of albedo must be equal or less than 1
-  vec3  mediaAlbedo    = vec3(0.8);
+  beamUnitDistantColor.x = MIN(beamNearColor.x, MAX(beamUnitDistantColor.x, unitDistantMinColor.x));
+  beamUnitDistantColor.y = MIN(beamNearColor.y, MAX(beamUnitDistantColor.y, unitDistantMinColor.y));
+  beamUnitDistantColor.z = MIN(beamNearColor.z, MAX(beamUnitDistantColor.z, unitDistantMinColor.z));
+
+  vec3 unitDistantAlbedoInverse(0.0);
+
+  // do not allow division by zero
+  unitDistantAlbedoInverse.x = beamNearColor.x == 0.0f ? 1.0f : beamNearColor.x / beamUnitDistantColor.x;
+  unitDistantAlbedoInverse.y = beamNearColor.y == 0.0f ? 1.0f : beamNearColor.y / beamUnitDistantColor.y;
+  unitDistantAlbedoInverse.z = beamNearColor.z == 0.0f ? 1.0f : beamNearColor.z / beamUnitDistantColor.z;
 
   const auto& view = CameraManip.getMatrix();
-
   vec3 eyePos = view * vec3(0, 0, 1);
-
   float beamSourceDist = nvmath::length(m_pcRay.lightPosition - eyePos);
 
-  vec3 unitBeamExtincRatio = beamNearColor / beamUnitDistantColor;
-  vec3 extinctCoff = vec3(std::log(unitBeamExtincRatio.x), std::log(unitBeamExtincRatio.y), std::log(unitBeamExtincRatio.z));
-
+  vec3 extinctCoff = vec3(std::log(unitDistantAlbedoInverse.x), std::log(unitDistantAlbedoInverse.y), std::log(unitDistantAlbedoInverse.z));
   vec3 scatterCoff    = mediaAlbedo * extinctCoff;
-  m_pcRay.sourceLight = beamNearColor / scatterCoff * nvmath::pow(unitBeamExtincRatio, beamSourceDist);
+  m_pcRay.sourceLight = beamNearColor / scatterCoff * nvmath::pow(unitDistantAlbedoInverse, beamSourceDist);
 
   m_pcRay.airExtinctCoff = extinctCoff;
   m_pcRay.airScatterCoff = scatterCoff;
