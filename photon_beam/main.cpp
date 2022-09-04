@@ -54,66 +54,72 @@ static void onErrorCallback(int error, const char* description)
 void renderUI(HelloVulkan& helloVk, bool useRaytracer)
 {
     ImGuiH::CameraWidget();
-    if(!ImGui::CollapsingHeader("Light"))
-    {
-    if(useRaytracer)
-    {
-        ImGui::ColorEdit3("", reinterpret_cast<float*>(&helloVk.m_beamNearColor), ImGuiColorEditFlags_NoSmallPreview);
-        ImGuiH::Control::Color(
-            std::string("Near Color"), "Air color near the light source, seen at the eye position",
-            reinterpret_cast<float*>(&(helloVk.m_beamNearColor))
-        );
+    bool isCollapsed = ImGui::CollapsingHeader("Light");
+    if(isCollapsed)
+        return;
 
-        ImGui::ColorEdit3("", reinterpret_cast<float*>(&helloVk.m_beamUnitDistantColor), ImGuiColorEditFlags_NoSmallPreview);
-        ImGuiH::Control::Color(
-            std::string("Distant Color"),
-            "Air color one unit distance away from the light source, at direction orthogonal from the "
-            "line between eye and the light source, seen at eye position.\n"
-            "Each color channel will be adjusted to fit between 0.1% to 100% of the value in the same channel of Near Color\n",
-            reinterpret_cast<float*>(&(helloVk.m_beamUnitDistantColor))
-        );
+    ImGui::SliderFloat3("Position", &helloVk.m_pcRaster.lightPosition.x, -20.f, 20.f);
 
-        //ImGui::SliderFloat("Color Intensity", &helloVk.m_beamColorIntensity, 1.f, 150.f);
-        //ImGui::SliderFloat("Beam Radius", &helloVk.m_beamRadius, 0.05f, 5.0f);
-        //ImGui::SliderFloat("Surface Photon Radius", &helloVk.m_photonRadius, 0.05f, 5.0f);
-        //ImGui::SliderFloat("HG Assymetric Factor", &helloVk.m_hgAssymFactor, -0.99f, 0.99f);
-
-        ImGui::SliderFloat("Color Intensity", &helloVk.m_beamColorIntensity, 30.f, 150.f);
- 
-        ImGuiH::Control::Slider(
-            std::string("Beam Radius"), 
-            "Sampling radius for beams", &helloVk.m_beamRadius,
-            nullptr, ImGuiH::Control::Flags::Normal, 
-            0.05f, 5.0f
-        );
-
-        ImGuiH::Control::Slider(
-            std::string("Photon Radius"),  // Name of the parameter
-            "Sampling radius for surface photons", &helloVk.m_photonRadius, nullptr,
-            ImGuiH::Control::Flags::Normal, 
-            0.05f, 5.0f
-        );
-
-        ImGuiH::Control::Slider(
-            std::string("HG Assymetric Factor"),  // Name of the parameter
-            "Henyey and Greenstein Assymetric Factor for air.\n"
-            "Positive: more front light scattering.\n"
-            "Negative: more back light scattering.",
-            &helloVk.m_hgAssymFactor, nullptr, ImGuiH::Control::Flags::Normal, 
-            -0.99f, 0.99f
-        );
-                              
-    }
-    else
+    if(!useRaytracer)
     {
         ImGui::RadioButton("Point", &helloVk.m_pcRaster.lightType, 0);
         ImGui::SameLine();
         ImGui::RadioButton("Infinite", &helloVk.m_pcRaster.lightType, 1);
         ImGui::SliderFloat("Intensity", &helloVk.m_pcRaster.lightIntensity, 0.f, 150.f);
+        return;
     }
-    
-    ImGui::SliderFloat3("Position", &helloVk.m_pcRaster.lightPosition.x, -20.f, 20.f);
-    }
+
+
+    ImGui::ColorEdit3("", reinterpret_cast<float*>(&helloVk.m_beamNearColor), ImGuiColorEditFlags_NoSmallPreview);
+    ImGuiH::Control::Color(
+        std::string("Near Color"), "Air color near the light source, seen at the eye position",
+        reinterpret_cast<float*>(&(helloVk.m_beamNearColor))
+    );
+
+    ImGui::ColorEdit3("", reinterpret_cast<float*>(&helloVk.m_beamUnitDistantColor), ImGuiColorEditFlags_NoSmallPreview);
+    ImGuiH::Control::Color(
+        std::string("Distant Color"),
+        "Air color one unit distance away from the light source, at direction orthogonal from the "
+        "line between eye and the light source, seen at eye position.\n"
+        "Each color channel will be adjusted to fit between 0.1% to 100% of the value in the same "
+        "channel of Near Color\n",
+        reinterpret_cast<float*>(&(helloVk.m_beamUnitDistantColor))
+    );
+
+    //ImGui::SliderFloat("Color Intensity", &helloVk.m_beamColorIntensity, 1.f, 150.f);
+    //ImGui::SliderFloat("Beam Radius", &helloVk.m_beamRadius, 0.05f, 5.0f);
+    //ImGui::SliderFloat("Surface Photon Radius", &helloVk.m_photonRadius, 0.05f, 5.0f);
+    //ImGui::SliderFloat("HG Assymetric Factor", &helloVk.m_hgAssymFactor, -0.99f, 0.99f);
+
+    ImGui::SliderFloat("Color Intensity", &helloVk.m_beamColorIntensity, 30.f, 150.f);
+
+    ImGuiH::Control::Slider(
+        std::string("Beam Radius"), "Sampling radius for beams", 
+        &helloVk.m_beamRadius, 
+        nullptr,
+        ImGuiH::Control::Flags::Normal, 
+        0.05f, 5.0f
+    );
+
+    ImGuiH::Control::Slider(
+        std::string("Photon Radius"),  // Name of the parameter
+        "Sampling radius for surface photons", 
+        &helloVk.m_photonRadius, 
+        nullptr,
+        ImGuiH::Control::Flags::Normal, 
+        0.05f, 5.0f
+    );
+
+    ImGuiH::Control::Slider(
+        std::string("HG Assymetric Factor"),  // Name of the parameter
+        "Henyey and Greenstein Assymetric Factor for air.\n"
+        "Positive: more front light scattering.\n"
+        "Negative: more back light scattering.",
+        &helloVk.m_hgAssymFactor, 
+        nullptr, 
+        ImGuiH::Control::Flags::Normal, 
+        -0.99f, 0.99f
+    );
 }
 
 //////////////////////////////////////////////////////////////////////////
