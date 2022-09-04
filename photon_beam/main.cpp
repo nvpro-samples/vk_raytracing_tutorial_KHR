@@ -56,15 +56,44 @@ void renderUI(HelloVulkan& helloVk, bool useRaytracer)
   ImGuiH::CameraWidget();
   if(!ImGui::CollapsingHeader("Light"))
   {
-    if(!useRaytracer)
+    if(useRaytracer)
+    {
+      ImGuiH::Control::Color(std::string("Near Light Air Color"),
+                             "Air color near the light source, seen at the eye position",
+                             reinterpret_cast<float*>(&(helloVk.m_beamNearColor)));
+
+
+      ImGuiH::Control::Color(std::string("Unit Distant Air color"),
+                             "Air color one unit distance away from the light source, at direction orthogonal from the "
+                             "line between eye and the light source, seen at eye position.\n"
+                             "Color will be scaled down if any channel exeed the same channel value of Near Light Air "
+                             "Color\n"
+                             "Color will be scaled up if any channel goes bellow 0.1% of the same channel value of "
+                             "Near Light Air Color\n",
+                             reinterpret_cast<float*>(&(helloVk.m_beamUnitDistantColor)));
+
+      ImGui::SliderFloat("Color Intensity", &helloVk.m_beamColorIntensity, 30.f, 150.f);
+      ImGuiH::Control::Slider(std::string("HG Assymetric Factor"),  // Name of the parameter
+                              "Henyey and Greenstein Assymetric Factor for air. Positive: more front light "
+                              "scattering. Negative: more back light scattering.",
+                              &(helloVk.m_hgAssymFactor), nullptr, ImGuiH::Control::Flags::Normal, -0.99f, 0.99f);
+
+      ImGuiH::Control::Slider(std::string("Beam Radius"), "Sampling radius for beams in air", &(helloVk.m_beamRadius),
+                              nullptr, ImGuiH::Control::Flags::Normal, 0.05f, 5.0f);
+
+      ImGuiH::Control::Slider(std::string("Photon Radius"),  // Name of the parameter
+                              "Sampling radius for beams in air", &(helloVk.m_photonRadius), nullptr,
+                              ImGuiH::Control::Flags::Normal, 0.05f, 5.0f);
+    }
+    else
     {
       ImGui::RadioButton("Point", &helloVk.m_pcRaster.lightType, 0);
       ImGui::SameLine();
       ImGui::RadioButton("Infinite", &helloVk.m_pcRaster.lightType, 1);
+      ImGui::SliderFloat("Intensity", &helloVk.m_pcRaster.lightIntensity, 0.f, 150.f);
     }
     
     ImGui::SliderFloat3("Position", &helloVk.m_pcRaster.lightPosition.x, -20.f, 20.f);
-    ImGui::SliderFloat("Intensity", &helloVk.m_pcRaster.lightIntensity, 0.f, 150.f);
   }
 }
 
@@ -233,39 +262,10 @@ int main(int argc, char** argv)
         {
             ImGuiH::Panel::Begin();
             ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
-            ImGuiH::Control::Color(
-                std::string("Near Light Air color"), 
-                "Air color near the light source, seen at the eye position", 
-                reinterpret_cast<float*>(&(helloVk.m_beamNearColor))
-            );
-
-            ImGuiH::Control::Color(
-                std::string("Unit Distant from Light Air color"), 
-                "Air color one unit distance away from the light source, at direction orthogonal from the line between eye and the light source, seen at eye position.\n"
-                "Color will be scaled down if any channel exeed the same channel value of Near Light Air Color\n"
-                "Color will be scaled up if any channel goes bellow 0.1% of the same channel value of Near Light Air Color\n", 
-                reinterpret_cast<float*>(&(helloVk.m_beamUnitDistantColor))
-            );
 
             if(ImGui::Checkbox("Ray Tracer mode", &useRaytracer))  // Switch between raster and ray tracing
             helloVk.resetFrame();
             renderUI(helloVk, useRaytracer);
-
-            ImGuiH::Control::Slider(
-            std::string("HG Assymetric Factor"),  // Name of the parameter
-            "Henyey and Greenstein Assymetric Factor for air. Positive: more front light scattering. Negative: more back light scattering.",
-            &(helloVk.m_hgAssymFactor), 
-            nullptr, ImGuiH::Control::Flags::Normal,
-            -0.99f, 0.99f
-            );
-
-            ImGuiH::Control::Slider(std::string("Beam Radius"),  
-                                    "Sampling radius for beams in air",
-                                    &(helloVk.m_beamRadius), nullptr, ImGuiH::Control::Flags::Normal, 0.05f, 5.0f);
-
-            ImGuiH::Control::Slider(std::string("Photon Radius"),  // Name of the parameter
-                                    "Sampling radius for beams in air", &(helloVk.m_photonRadius), nullptr,
-                                    ImGuiH::Control::Flags::Normal, 0.05f, 5.0f);
 
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
             ImGuiH::Control::Info("", "", "(F10) Toggle Pane", ImGuiH::Control::Flags::Disabled);
