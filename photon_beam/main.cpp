@@ -197,14 +197,10 @@ int main(int argc, char** argv)
 
   helloVk.createBeamBoxBlas();
 
-   nvmath::vec4f clearColor   = nvmath::vec4f(0.52, 0.81, 0.92, 1.00f);
+  nvmath::vec4f clearColor   = nvmath::vec4f(0.52, 0.81, 0.92, 1.00f);
   bool          useRaytracer = true;
+  bool          createBeamPhotonAS = true;
 
-   helloVk.setBeamPushConstants(clearColor);
-  if(useRaytracer)
-  {
-    helloVk.beamtrace();
-  }
 
   helloVk.createRtDescriptorSet();
   helloVk.createRtPipeline();
@@ -273,9 +269,18 @@ int main(int argc, char** argv)
       offscreenRenderPassBeginInfo.framebuffer     = helloVk.m_offscreenFramebuffer;
       offscreenRenderPassBeginInfo.renderArea      = {{0, 0}, helloVk.getSize()};
 
+      if(useRaytracer && createBeamPhotonAS)
+      {
+        helloVk.setBeamPushConstants(clearColor);
+        helloVk.beamtrace();
+        helloVk.updateRtDescriptorSet();
+        createBeamPhotonAS = false;
+      }
+
       // Rendering Scene
       if(useRaytracer)
       {
+        helloVk.setBeamPushConstants(clearColor);
         helloVk.raytrace(cmdBuf);
       }
       else

@@ -860,56 +860,11 @@ void HelloVulkan::createPbDescriptorSet()
   vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
 
-//--------------------------------------------------------------------------------------------------
-// This descriptor set holds the Acceleration structure and the output image
-//
-void HelloVulkan::createRtDescriptorSet()
+void HelloVulkan::updatePbDescriptorSet()
 {
-  // Top-level acceleration structure, usable by both the ray generation and the closest hit (to shoot shadow rays)
-  m_rtDescSetLayoutBind.addBinding(RtxBindings::eBeamAS, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1,
-                                   VK_SHADER_STAGE_RAYGEN_BIT_KHR);  // TLAS
-  m_rtDescSetLayoutBind.addBinding(RtxBindings::eOutImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1,
-                                   VK_SHADER_STAGE_RAYGEN_BIT_KHR);  // Output image
-  m_rtDescSetLayoutBind.addBinding(RtxBindings::eBeamLookup, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
-                                   VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_INTERSECTION_BIT_KHR);  // Beam info
 
-  m_rtDescSetLayoutBind.addBinding(RtxBindings::eSurfaceAS, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR); 
-
-  m_rtDescSetLayoutBind.addBinding(RtxBindings::ePrimLookup, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
-                                   VK_SHADER_STAGE_RAYGEN_BIT_KHR);  // Primitive info
-
-  m_rtDescPool      = m_rtDescSetLayoutBind.createPool(m_device);
-  m_rtDescSetLayout = m_rtDescSetLayoutBind.createLayout(m_device);
-
-  VkDescriptorSetAllocateInfo allocateInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
-  allocateInfo.descriptorPool     = m_rtDescPool;
-  allocateInfo.descriptorSetCount = 1;
-  allocateInfo.pSetLayouts        = &m_rtDescSetLayout;
-  vkAllocateDescriptorSets(m_device, &allocateInfo, &m_rtDescSet);
-
-
-  VkAccelerationStructureKHR                   beamAS = m_pbBuilder.getAccelerationStructure();
-  VkWriteDescriptorSetAccelerationStructureKHR descBeamASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
-  descBeamASInfo.accelerationStructureCount = 1;
-  descBeamASInfo.pAccelerationStructures    = &beamAS;
-
-  VkAccelerationStructureKHR                   surfaceAS = m_rtBuilder.getAccelerationStructure();
-  VkWriteDescriptorSetAccelerationStructureKHR descSurfaceASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
-  descSurfaceASInfo.accelerationStructureCount = 1;
-  descSurfaceASInfo.pAccelerationStructures    = &surfaceAS;
-
-  VkDescriptorImageInfo  imageInfo{{}, m_offscreenColor.descriptor.imageView, VK_IMAGE_LAYOUT_GENERAL};
-  VkDescriptorBufferInfo beamInfoDesc{m_beamBuffer.buffer, 0, VK_WHOLE_SIZE};
-  VkDescriptorBufferInfo primitiveInfoDesc{m_primInfo.buffer, 0, VK_WHOLE_SIZE};
-
-  std::vector<VkWriteDescriptorSet> writes;
-  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eBeamAS, &descBeamASInfo));
-  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eOutImage, &imageInfo));
-  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eBeamLookup, &beamInfoDesc));
-  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eSurfaceAS, &descSurfaceASInfo));
-  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::ePrimLookup, &primitiveInfoDesc));
-  vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
+
 
 void HelloVulkan::createPbPipeline()
 {
@@ -957,18 +912,15 @@ void HelloVulkan::createPbPipeline()
   m_pbShaderGroups.push_back(group);
 
   // closest hit shader
-  group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR;
+  group.type             = VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR;
   group.generalShader    = VK_SHADER_UNUSED_KHR;
   group.closestHitShader = eClosestHit;
   m_pbShaderGroups.push_back(group);
 
 
   // Push constant: we want to be able to update constants used by the shaders
-  VkPushConstantRange pushConstant{
-      VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
-      0, 
-      sizeof(PushConstantRay)
-  };
+  VkPushConstantRange pushConstant{VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
+                                   0, sizeof(PushConstantRay)};
 
 
   VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
@@ -1011,40 +963,39 @@ void HelloVulkan::createPbPipeline()
     vkDestroyShaderModule(m_device, s.module, nullptr);
 }
 
-void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor) {
-      // Initializing push constant values
-      m_pcRay.clearColor     = clearColor;
-      m_pcRay.lightPosition  = m_pcRaster.lightPosition;
-      m_pcRay.lightType      = m_pcRaster.lightType;
-      m_pcRay.beamRadius     = m_beamRadius;
-      m_pcRay.photonRadius     = m_photonRadius;
-      m_pcRay.maxNumBeams    = m_maxNumBeams;
-      m_pcRay.maxNumSubBeams = m_maxNumSubBeams;
-      m_pcRay.airHGAssymFactor = m_hgAssymFactor;
-      m_pcRay.numBeamSources   = m_numBeamSamples;
-      m_pcRay.numPhotonSources  = m_numPhotonSamples;
+void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
+{
+  // Initializing push constant values
+  m_pcRay.clearColor       = clearColor;
+  m_pcRay.lightPosition    = m_pcRaster.lightPosition;
+  m_pcRay.lightType        = m_pcRaster.lightType;
+  m_pcRay.beamRadius       = m_beamRadius;
+  m_pcRay.photonRadius     = m_photonRadius;
+  m_pcRay.maxNumBeams      = m_maxNumBeams;
+  m_pcRay.maxNumSubBeams   = m_maxNumSubBeams;
+  m_pcRay.airHGAssymFactor = m_hgAssymFactor;
+  m_pcRay.numBeamSources   = m_numBeamSamples;
+  m_pcRay.numPhotonSources = m_numPhotonSamples;
 
-      // A Programmable System for Artistic Volumetric Lighting(2011) Derek Nowrouzezahrai
-      vec3  beamNearColor         = vec3(1.0) * 30.0f;
-      vec3  beamUnitDistanceColor = vec3(2.3/2.55, 0.999, 0.999) * 28.0f;
-      // all element of albedo must be equal or less than 1
-      vec3 mediaAlbedo            = vec3(0.8);
-      float beamSourceDist        = 15.0;
+  // A Programmable System for Artistic Volumetric Lighting(2011) Derek Nowrouzezahrai
+  vec3 beamNearColor         = vec3(1.0) * 30.0f;
+  vec3 beamUnitDistanceColor = vec3(2.3 / 2.55, 0.999, 0.999) * 28.0f;
+  // all element of albedo must be equal or less than 1
+  vec3  mediaAlbedo    = vec3(0.8);
+  float beamSourceDist = 15.0;
 
-      vec3 unitBeamExtincRatio = beamNearColor / beamUnitDistanceColor;
-      vec3 extinctCoff =
-          vec3(std::log(unitBeamExtincRatio.x), std::log(unitBeamExtincRatio.y), std::log(unitBeamExtincRatio.z));
+  vec3 unitBeamExtincRatio = beamNearColor / beamUnitDistanceColor;
+  vec3 extinctCoff = vec3(std::log(unitBeamExtincRatio.x), std::log(unitBeamExtincRatio.y), std::log(unitBeamExtincRatio.z));
 
-      vec3 scatterCoff   = mediaAlbedo * extinctCoff;
-      m_pcRay.sourceLight = beamNearColor / scatterCoff * nvmath::pow(unitBeamExtincRatio, beamSourceDist);
-   
-      m_pcRay.airExtinctCoff = extinctCoff;
-      m_pcRay.airScatterCoff = scatterCoff;
+  vec3 scatterCoff    = mediaAlbedo * extinctCoff;
+  m_pcRay.sourceLight = beamNearColor / scatterCoff * nvmath::pow(unitBeamExtincRatio, beamSourceDist);
 
-      //m_pcRay.airExtinctCoff = vec3(0.0);
-      //m_pcRay.airScatterCoff = vec3(0.0);
-      //m_pcRay.sourceLight    = vec3(300.0);
+  m_pcRay.airExtinctCoff = extinctCoff;
+  m_pcRay.airScatterCoff = scatterCoff;
 
+  //m_pcRay.airExtinctCoff = vec3(0.0);
+  //m_pcRay.airScatterCoff = vec3(0.0);
+  //m_pcRay.sourceLight    = vec3(300.0);
 }
 
 void HelloVulkan::beamtrace()
@@ -1066,15 +1017,9 @@ void HelloVulkan::beamtrace()
   resetBeamBuffer(cmdBuf);
 
   auto& regions = m_pbSbtWrapper.getRegions();
-  vkCmdTraceRaysKHR(
-      cmdBuf, 
-      &regions[0], 
-      &regions[1], 
-      &regions[2], 
-      &regions[3], 
-      // It seems 4096 is the maximum allowed value for the next 3 parameters, larger value does not lauhcn ray tracing
-      4, 4, 4096
-  );
+  vkCmdTraceRaysKHR(cmdBuf, &regions[0], &regions[1], &regions[2], &regions[3],
+                    // It seems 4096 is the maximum allowed value for the next 3 parameters, larger value does not lauhcn ray tracing
+                    4, 4, 4096);
 
   m_debug.endLabel(cmdBuf);
 
@@ -1094,17 +1039,11 @@ void HelloVulkan::beamtrace()
   VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
   barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
   barrier.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
-  vkCmdPipelineBarrier(
-      cmdBuf, 
-      VK_PIPELINE_STAGE_TRANSFER_BIT, 
-      VK_PIPELINE_STAGE_HOST_BIT, 
-      0, 
-      1, &barrier, 0, nullptr, 0, nullptr
-  );
+  vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 1, &barrier, 0, nullptr, 0, nullptr);
   cmdBufGet.submitAndWait(cmdBuf);
 
   void*    numBeamAsdata = m_alloc.map(m_beamAsCountReadBuffer);
-  uint32_t numBeamAs = *(reinterpret_cast<uint32_t*>(numBeamAsdata));
+  uint32_t numBeamAs     = *(reinterpret_cast<uint32_t*>(numBeamAsdata));
   m_alloc.unmap(m_beamAsCountReadBuffer);
 
   numBeamAs = numBeamAs > m_maxNumSubBeams ? m_maxNumBeams : numBeamAs;
@@ -1126,10 +1065,57 @@ void HelloVulkan::beamtrace()
   cmdBufGet.submitAndWait(cmdBuf);
   m_alloc.finalizeAndReleaseStaging();
   m_alloc.destroy(scratchBuffer);
-  
+
   m_alloc.destroy(m_beamAsInfoBuffer);
   m_alloc.destroy(m_beamAsCountReadBuffer);
+}
+
+
+//--------------------------------------------------------------------------------------------------
+// This descriptor set holds the Acceleration structure and the output image
+//
+void HelloVulkan::createRtDescriptorSet()
+{
+  // Top-level acceleration structure, usable by both the ray generation and the closest hit (to shoot shadow rays)
+  m_rtDescSetLayoutBind.addBinding(RtxBindings::eBeamAS, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1,
+                                   VK_SHADER_STAGE_RAYGEN_BIT_KHR);  // TLAS
+  m_rtDescSetLayoutBind.addBinding(RtxBindings::eOutImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1,
+                                   VK_SHADER_STAGE_RAYGEN_BIT_KHR);  // Output image
+  m_rtDescSetLayoutBind.addBinding(RtxBindings::eBeamLookup, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
+                                   VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_INTERSECTION_BIT_KHR);  // Beam info
+
+  m_rtDescSetLayoutBind.addBinding(RtxBindings::eSurfaceAS, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR); 
+
+  m_rtDescSetLayoutBind.addBinding(RtxBindings::ePrimLookup, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
+                                   VK_SHADER_STAGE_RAYGEN_BIT_KHR);  // Primitive info
+
+  m_rtDescPool      = m_rtDescSetLayoutBind.createPool(m_device);
+  m_rtDescSetLayout = m_rtDescSetLayoutBind.createLayout(m_device);
+
+  VkDescriptorSetAllocateInfo allocateInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+  allocateInfo.descriptorPool     = m_rtDescPool;
+  allocateInfo.descriptorSetCount = 1;
+  allocateInfo.pSetLayouts        = &m_rtDescSetLayout;
+  vkAllocateDescriptorSets(m_device, &allocateInfo, &m_rtDescSet);
+
+
   
+
+  VkAccelerationStructureKHR                   surfaceAS = m_rtBuilder.getAccelerationStructure();
+  VkWriteDescriptorSetAccelerationStructureKHR descSurfaceASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
+  descSurfaceASInfo.accelerationStructureCount = 1;
+  descSurfaceASInfo.pAccelerationStructures    = &surfaceAS;
+
+  VkDescriptorImageInfo  imageInfo{{}, m_offscreenColor.descriptor.imageView, VK_IMAGE_LAYOUT_GENERAL};
+  VkDescriptorBufferInfo beamInfoDesc{m_beamBuffer.buffer, 0, VK_WHOLE_SIZE};
+  VkDescriptorBufferInfo primitiveInfoDesc{m_primInfo.buffer, 0, VK_WHOLE_SIZE};
+
+  std::vector<VkWriteDescriptorSet> writes;
+  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eOutImage, &imageInfo));
+  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eBeamLookup, &beamInfoDesc));
+  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eSurfaceAS, &descSurfaceASInfo));
+  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::ePrimLookup, &primitiveInfoDesc));
+  vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
 
 
@@ -1141,8 +1127,16 @@ void HelloVulkan::updateRtDescriptorSet()
 {
   // (1) Output buffer
   VkDescriptorImageInfo imageInfo{{}, m_offscreenColor.descriptor.imageView, VK_IMAGE_LAYOUT_GENERAL};
-  VkWriteDescriptorSet  wds = m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eOutImage, &imageInfo);
-  vkUpdateDescriptorSets(m_device, 1, &wds, 0, nullptr);
+
+  VkAccelerationStructureKHR                   beamAS = m_pbBuilder.getAccelerationStructure();
+  VkWriteDescriptorSetAccelerationStructureKHR descBeamASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
+  descBeamASInfo.accelerationStructureCount = 1;
+  descBeamASInfo.pAccelerationStructures    = &beamAS;
+
+  std::vector<VkWriteDescriptorSet> writes;
+  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eBeamAS, &descBeamASInfo));
+  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eOutImage, &imageInfo));
+  vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
 
 
