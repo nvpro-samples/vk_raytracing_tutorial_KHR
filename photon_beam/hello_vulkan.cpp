@@ -997,14 +997,14 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
 
   vec3 extinctCoff = vec3(std::log(unitDistantAlbedoInverse.x), std::log(unitDistantAlbedoInverse.y), std::log(unitDistantAlbedoInverse.z));
   vec3 scatterCoff    = mediaAlbedo * extinctCoff;
-  m_pcRay.sourceLight = beamNearColor / scatterCoff * nvmath::pow(unitDistantAlbedoInverse, beamSourceDist);
+  m_pcRay.sourceLight = beamNearColor  * nvmath::pow(unitDistantAlbedoInverse, beamSourceDist);
+
+  m_pcRay.sourceLight.x = (extinctCoff.x <= 0.00001) ? beamNearColor.x : m_pcRay.sourceLight.x / scatterCoff.x;
+  m_pcRay.sourceLight.y = (extinctCoff.y <= 0.00001) ? beamNearColor.y : m_pcRay.sourceLight.y / scatterCoff.y;
+  m_pcRay.sourceLight.z = (extinctCoff.z <= 0.00001) ? beamNearColor.z : m_pcRay.sourceLight.z / scatterCoff.z;
 
   m_pcRay.airExtinctCoff = extinctCoff;
   m_pcRay.airScatterCoff = scatterCoff;
-
-  //m_pcRay.airExtinctCoff = vec3(0.0);
-  //m_pcRay.airScatterCoff = vec3(0.0);
-  //m_pcRay.sourceLight    = vec3(300.0);
 }
 
 void HelloVulkan::beamtrace()
