@@ -57,19 +57,13 @@ void main()
     vec3 beamDirection = normalize(beam.endPos - beam.startPos);
     float rayDist = gl_HitTEXT;
     vec3 vewingDirection = normalize(gl_WorldRayDirectionEXT) * -1.0;
- 
-    vec3 extinctCoff = pcRay.airExtinctCoff;
-    vec3 scatterCoff = pcRay.airScatterCoff; 
 
     // the target radiance direction is -1.0 * gl_WorldRayDirectionEXT, opposite of the camera ray
     float beamRayCosVal = dot(-gl_WorldRayDirectionEXT, beamDirection);
     float beamRayAbsSinVal = sqrt(1 - beamRayCosVal * beamRayCosVal);
  
-    vec3 attenuation;
-    attenuation.x = exp(-extinctCoff.x * (rayDist + beamDist));
-    attenuation.y = exp(-extinctCoff.y * (rayDist + beamDist));
-    attenuation.z = exp(-extinctCoff.z * (rayDist + beamDist));
-    vec3 radiance = heneyGreenPhaseFunc(beamRayCosVal, pcRay.airHGAssymFactor) * scatterCoff * beam.lightColor / float(pcRay.numBeamSources) * attenuation / (pcRay.beamRadius * beamRayAbsSinVal + 0.1e-10);
+    vec3 radiance = pcRay.airScatterCoff * exp(-pcRay.airExtinctCoff * (rayDist + beamDist)) * heneyGreenPhaseFunc(beamRayCosVal, pcRay.airHGAssymFactor)  
+    * beam.lightColor / float(pcRay.numBeamSources) / (pcRay.beamRadius * beamRayAbsSinVal + 0.1e-10);
 
     float rayBeamPointDist = length(worldPos - beamHit);
     //prd.hitValue += prd.weight * radiance * exp(-pcRay.beamRadius * rayBeamPointDist * rayBeamPointDist);
