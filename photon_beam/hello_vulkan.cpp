@@ -101,6 +101,7 @@ void HelloVulkan::updateUniformBuffer(const VkCommandBuffer& cmdBuf)
                        nullptr, 1, &afterBarrier, 0, nullptr);
 }
 
+// set the counter of the beams in the beam buffer to zero
 void HelloVulkan::resetBeamBuffer(const VkCommandBuffer& cmdBuf)
 {
 
@@ -112,20 +113,11 @@ void HelloVulkan::resetBeamBuffer(const VkCommandBuffer& cmdBuf)
   afterBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
   afterBarrier.buffer        = beamBuffer;
   afterBarrier.offset        = 0;
-  afterBarrier.size          = sizeof(uint);
+  afterBarrier.size          = sizeof(uint) * 2; // for sub beamphoton counter and beam counter
 
-  uint beamCount = 0;
-  vkCmdUpdateBuffer(cmdBuf, beamBuffer, 0, sizeof(uint), &beamCount);
-  vkCmdPipelineBarrier(
-      cmdBuf, 
-      VK_PIPELINE_STAGE_TRANSFER_BIT, 
-      beamUsageStages, 
-      VK_DEPENDENCY_DEVICE_GROUP_BIT, 
-      0, nullptr, 1, &afterBarrier, 0, nullptr
-  );
+  uint beamCounts[2] = {0, 0};
 
-  beamBuffer = m_beamAsInfoBuffer.buffer;
-  vkCmdUpdateBuffer(cmdBuf, beamBuffer, 0, sizeof(uint), &beamCount);
+  vkCmdUpdateBuffer(cmdBuf, beamBuffer, 0, sizeof(uint), &beamCounts);
   vkCmdPipelineBarrier(
       cmdBuf, 
       VK_PIPELINE_STAGE_TRANSFER_BIT, 
