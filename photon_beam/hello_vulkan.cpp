@@ -1019,7 +1019,7 @@ void HelloVulkan::beamtrace()
   auto& regions = m_pbSbtWrapper.getRegions();
   vkCmdTraceRaysKHR(cmdBuf, &regions[0], &regions[1], &regions[2], &regions[3],
                     // It seems 4096 is the maximum allowed value for the next 3 parameters, larger value does not lauhcn ray tracing
-                    4, 4, 4096);
+                    4, 4, m_numPhotonSamples / 16);
 
   m_debug.endLabel(cmdBuf);
 

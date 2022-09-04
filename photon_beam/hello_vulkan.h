@@ -73,8 +73,11 @@ public:
 
   float m_beamRadius{0.5f};
   float    m_photonRadius{0.5f};
-  uint32_t m_numBeamSamples{1024};
-  uint32_t m_numPhotonSamples{4 * 4 * 4096};
+  //uint32_t m_numBeamSamples{1024};
+  //uint32_t m_numPhotonSamples{4 * 4 * 4096};
+
+  uint32_t m_numBeamSamples{64};
+  uint32_t m_numPhotonSamples{64};
 
   nvmath::vec4f m_beamNearColor         = nvmath::vec4f(1.0f, 1.0f, 1.0f, 1.0f);
   nvmath::vec4f m_beamUnitDistanceColor = nvmath::vec4f(2.3f / 2.55f, 0.999f, 0.999f, 1.0f) * 2.8f / 3.0f;

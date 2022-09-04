@@ -247,6 +247,14 @@ int main(int argc, char** argv)
             -0.99f, 0.99f
             );
 
+            ImGuiH::Control::Slider(std::string("Beam Radius"),  
+                                    "Sampling radius for beams in air",
+                                    &(helloVk.m_beamRadius), nullptr, ImGuiH::Control::Flags::Normal, 0.05f, 5.0f);
+
+            ImGuiH::Control::Slider(std::string("Photon Radius"),  // Name of the parameter
+                                    "Sampling radius for beams in air", &(helloVk.m_photonRadius), nullptr,
+                                    ImGuiH::Control::Flags::Normal, 0.05f, 5.0f);
+
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
             ImGuiH::Control::Info("", "", "(F10) Toggle Pane", ImGuiH::Control::Flags::Disabled);
             ImGuiH::Panel::End();
