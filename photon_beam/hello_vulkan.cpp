@@ -84,6 +84,8 @@ void HelloVulkan::createBeamASCommandBuffer()
     fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
     vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_beamCounterReadFence);
     vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_pbBuildFence);
+
+    NAME_VK(m_beamBoxBuffer.buffer);
  
 }
 
@@ -1121,6 +1123,12 @@ void HelloVulkan::updateRtDescriptorSetBeamTlas()
   vkUpdateDescriptorSets(m_device, 1, &wds, 0, nullptr);
 }
 
+void HelloVulkan::storeReadSemaphore() {
+  if(m_readSemaphores.size() == m_swapChain.getImageCount())
+    return;
+  m_readSemaphores.emplace_back(m_swapChain.getActiveReadSemaphore());
+}
+
 void HelloVulkan::waitPbTlas() {
     VkResult result{VK_SUCCESS};
     do
@@ -1142,17 +1150,6 @@ void HelloVulkan::waitPbTlas() {
 void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
 {
     waitPbTlas();
-
-    std::vector<VkSemaphore> waitingSemaphores;
-    int                      numSemaphores = m_swapChain.getImageCount();
-    waitingSemaphores.reserve(numSemaphores);
-    VkPresentInfoKHR dummyInfo{};
-    for(int i = 0; i < numSemaphores; i++)
-    {
-      waitingSemaphores.emplace_back(m_swapChain.getActiveReadSemaphore());
-      m_swapChain.presentCustom(dummyInfo);
-    }
-
     // need a way to release all fences
     vkResetFences(m_device, 1, &m_pbBuildFence);
 
@@ -1231,9 +1228,10 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
     vkResetFences(m_device, 1, &m_beamCounterReadFence);
 
     VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
-    submitInfo.pWaitDstStageMask = nullptr;  // Pointer to the list of pipeline stages that the semaphore waits will occur at
-    submitInfo.pWaitSemaphores = waitingSemaphores.data();  // Semaphore(s) to wait upon before the submitted command buffer starts executing
-    submitInfo.waitSemaphoreCount   = static_cast<uint32_t>(waitingSemaphores.size());  // One wait semaphore
+    VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
+    submitInfo.pWaitDstStageMask = waitStages;  // Pointer to the list of pipeline stages that the semaphore waits will occur at
+    submitInfo.pWaitSemaphores = m_readSemaphores.data();  // Semaphore(s) to wait upon before the submitted command buffer starts executing
+    submitInfo.waitSemaphoreCount   = static_cast<uint32_t>(m_readSemaphores.size());  // One wait semaphore
     submitInfo.pSignalSemaphores  = nullptr;  // Semaphore(s) to be signaled when command buffers have completed
     submitInfo.signalSemaphoreCount = 0;              // One signal semaphore
     submitInfo.pCommandBuffers    = &m_pbBuildCommandBuffer;  // Command buffers(s) to execute in this batch (submission)
@@ -1266,9 +1264,8 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
     // Creating the TLAS
     nvvk::Buffer scratchBuffer;
     m_pbBuilder.cmdCreateTlas(m_pbBuildCommandBuffer, numBeamAs, instBufferAddr, scratchBuffer, flags, update, motion);
-
-    vkQueueSubmit(m_queue, 1, &submitInfo, m_pbBuildFence);
     vkEndCommandBuffer(m_pbBuildCommandBuffer);
+    vkQueueSubmit(m_queue, 1, &submitInfo, m_pbBuildFence);
     m_debug.endLabel(m_pbBuildCommandBuffer);
 
     waitPbTlas();
