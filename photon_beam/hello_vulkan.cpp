@@ -568,7 +568,6 @@ void HelloVulkan::onResize(int /*w*/, int /*h*/)
   createOffscreenRender();
   updatePostDescriptorSet();
   updateRtDescriptorSet();
-  resetFrame();
 }
 
 
@@ -1453,13 +1452,7 @@ void HelloVulkan::updateFrame()
 
   if(memcmp(&refCamMatrix.a00, &m.a00, sizeof(nvmath::mat4f)) != 0 || refFov != fov)
   {
-    resetFrame();
     refCamMatrix = m;
     refFov       = fov;
   }
-}
-
-void HelloVulkan::resetFrame()
-{
-
 }
