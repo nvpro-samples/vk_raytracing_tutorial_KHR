@@ -48,7 +48,6 @@ void ResetAbleRaytracingBuilderKHR::resetTlas()
 {
   if(m_alloc && m_tlas.accel != nullptr)
   {
-    vkDeviceWaitIdle(m_device);
     m_alloc->destroy(m_tlas);
     m_tlas.accel = nullptr;
   }

@@ -233,6 +233,7 @@ int main(int argc, char** argv)
     vkctx.setGCTQueueWithPresent(surface);
 
     helloVk.setup(vkctx.m_instance, vkctx.m_device, vkctx.m_physicalDevice, vkctx.m_queueGCT.familyIndex);
+    helloVk.setDefaults();
     helloVk.createSwapchain(surface, SAMPLE_WIDTH, SAMPLE_HEIGHT);
     helloVk.createDepthBuffer();
     helloVk.createRenderPass();
