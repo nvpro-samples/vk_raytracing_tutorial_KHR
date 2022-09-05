@@ -79,8 +79,8 @@ public:
 
   float m_beamRadius{0.5f};
   float    m_photonRadius{0.5f};
-  uint32_t m_numBeamSamples{1024};
-  uint32_t m_numPhotonSamples{4 * 4 * 4096};
+  uint32_t m_numBeamSamples{64};
+  uint32_t m_numPhotonSamples{64};
 
   //uint32_t m_numBeamSamples{64};
   //uint32_t m_numPhotonSamples{64};
@@ -154,6 +154,7 @@ public:
   void updateRtDescriptorSetBeamTlas();
   void createRtPipeline();
 
+  void createBeamASCommandBuffer();
   void createPbDescriptorSet();
   void createPbPipeline();
   void resetPbTlas();
@@ -176,6 +177,7 @@ public:
 
   PushConstantRay m_pcRay{};
 
+  VkCommandBuffer                                    m_pbBuildCommandBuffer;
   ResetAbleRaytracingBuilderKHR                     m_pbBuilder;
   nvvk::DescriptorSetBindings m_pbDescSetLayoutBind;
   VkDescriptorPool            m_pbDescPool;

@@ -69,6 +69,16 @@ void HelloVulkan::setDefaults()
   m_hgAssymFactor    = -0.5;
 }
 
+void HelloVulkan::createBeamASCommandBuffer()
+{
+  VkCommandBufferAllocateInfo allocateInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+  allocateInfo.commandPool        = m_cmdPool;
+  allocateInfo.commandBufferCount = 1;
+  allocateInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+
+  vkAllocateCommandBuffers(m_device, &allocateInfo, &m_pbBuildCommandBuffer);
+}
+
 void HelloVulkan::setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t queueFamily)
 {
   setDefaults();
@@ -708,6 +718,7 @@ void HelloVulkan::initRayTracing()
   m_pbBuilder.setup(m_device, &m_alloc, m_graphicsQueueIndex);
   m_sbtWrapper.setup(m_device, m_graphicsQueueIndex, &m_alloc, m_rtProperties);
   m_pbSbtWrapper.setup(m_device, m_graphicsQueueIndex, &m_alloc, m_rtProperties);
+  createBeamASCommandBuffer();
 
 }
 
@@ -1177,7 +1188,28 @@ void HelloVulkan::updateRtDescriptorSetBeamTlas()
 }
 
 void HelloVulkan::resetPbTlas() {
-  m_pbBuilder.resetTlas();
+
+    VkResult result{VK_SUCCESS};
+    do
+    {
+      result = vkWaitForFences(m_device, m_waitFences.size(), m_waitFences.data(), VK_TRUE, UINT64_MAX);
+    } while(result == VK_TIMEOUT);
+
+    if(result != VK_SUCCESS)
+    {  // This allows Aftermath to do things and later assert below
+        #ifdef _WIN32
+        Sleep(1000);
+        #else
+        usleep(1000);
+        #endif
+    }
+    assert(result == VK_SUCCESS);
+
+    // need a way to release all fences
+    vkResetFences(m_device, m_waitFences.size(), m_waitFences.data());
+
+
+    m_pbBuilder.resetTlas();
 }
 
 
