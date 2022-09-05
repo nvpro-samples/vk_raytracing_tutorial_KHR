@@ -151,10 +151,12 @@ public:
   void createBeamBoxBlas();
   void createRtDescriptorSet();
   void updateRtDescriptorSet();
+  void updateRtDescriptorSetBeamTlas();
   void createRtPipeline();
 
   void createPbDescriptorSet();
   void createPbPipeline();
+  void resetPbTlas();
 
   void raytrace(const VkCommandBuffer& cmdBuf);
   void beamtrace();

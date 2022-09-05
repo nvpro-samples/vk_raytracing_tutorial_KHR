@@ -124,12 +124,8 @@ void renderUI(HelloVulkan& helloVk, bool useRaytracer, bool& createBeamPhotonAS)
     ImGui::Checkbox("Surface Photon", &helloVk.m_usePhotonMapping);
     ImGui::Checkbox("Photon Beam", &helloVk.m_usePhotonBeam);
 
-    bool pressed = ImGui::SmallButton("Refresh Beam");
-    if(pressed)
-    {
-      createBeamPhotonAS = true;
-
-    }
+    if(ImGui::SmallButton("Refresh Beam"))
+        createBeamPhotonAS = true;
 
     if(ImGui::SmallButton("Set Defaults"))
         helloVk.setDefaults();
@@ -269,11 +265,14 @@ int main(int argc, char** argv)
 
     nvmath::vec4f clearColor   = nvmath::vec4f(0.52, 0.81, 0.92, 1.00f);
     bool          useRaytracer = true;
-    bool          createBeamPhotonAS = true;
-
+    
+    helloVk.setBeamPushConstants(clearColor);
+    helloVk.beamtrace();
+    bool createBeamPhotonAS = false;
 
     helloVk.createRtDescriptorSet();
     helloVk.createRtPipeline();
+    helloVk.updateRtDescriptorSetBeamTlas();
 
     helloVk.createPostDescriptor();
     helloVk.createPostPipeline();
@@ -339,11 +338,12 @@ int main(int argc, char** argv)
             offscreenRenderPassBeginInfo.framebuffer     = helloVk.m_offscreenFramebuffer;
             offscreenRenderPassBeginInfo.renderArea      = {{0, 0}, helloVk.getSize()};
 
-            if(useRaytracer && createBeamPhotonAS)
+            if(createBeamPhotonAS)
             {
+                helloVk.resetPbTlas();
                 helloVk.setBeamPushConstants(clearColor);
                 helloVk.beamtrace();
-                helloVk.updateRtDescriptorSet();
+                helloVk.updateRtDescriptorSetBeamTlas();
                 createBeamPhotonAS = false;
             }
 

@@ -1032,8 +1032,6 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
 
 void HelloVulkan::beamtrace()
 {
-  m_pbBuilder.resetTlas();
-  
   nvvk::CommandPool cmdBufGet(m_device, m_graphicsQueueIndex);
   VkCommandBuffer   cmdBuf = cmdBufGet.createCommandBuffer();
 
@@ -1132,9 +1130,11 @@ void HelloVulkan::createRtDescriptorSet()
   allocateInfo.pSetLayouts        = &m_rtDescSetLayout;
   vkAllocateDescriptorSets(m_device, &allocateInfo, &m_rtDescSet);
 
-
+  VkAccelerationStructureKHR                   beamAS = m_pbBuilder.getAccelerationStructure();
+  VkWriteDescriptorSetAccelerationStructureKHR descBeamASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
+  descBeamASInfo.accelerationStructureCount = 1;
+  descBeamASInfo.pAccelerationStructures    = &beamAS;
   
-
   VkAccelerationStructureKHR                   surfaceAS = m_rtBuilder.getAccelerationStructure();
   VkWriteDescriptorSetAccelerationStructureKHR descSurfaceASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
   descSurfaceASInfo.accelerationStructureCount = 1;
@@ -1145,6 +1145,7 @@ void HelloVulkan::createRtDescriptorSet()
   VkDescriptorBufferInfo primitiveInfoDesc{m_primInfo.buffer, 0, VK_WHOLE_SIZE};
 
   std::vector<VkWriteDescriptorSet> writes;
+  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eBeamAS, &descBeamASInfo));
   writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eOutImage, &imageInfo));
   writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eBeamLookup, &beamInfoDesc));
   writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eSurfaceAS, &descSurfaceASInfo));
@@ -1161,16 +1162,22 @@ void HelloVulkan::updateRtDescriptorSet()
 {
   // (1) Output buffer
   VkDescriptorImageInfo imageInfo{{}, m_offscreenColor.descriptor.imageView, VK_IMAGE_LAYOUT_GENERAL};
+  VkWriteDescriptorSet  wds = m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eOutImage, &imageInfo);
+  vkUpdateDescriptorSets(m_device, 1, &wds, 0, nullptr);
+}
 
+void HelloVulkan::updateRtDescriptorSetBeamTlas()
+{
   VkAccelerationStructureKHR                   beamAS = m_pbBuilder.getAccelerationStructure();
   VkWriteDescriptorSetAccelerationStructureKHR descBeamASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
   descBeamASInfo.accelerationStructureCount = 1;
   descBeamASInfo.pAccelerationStructures    = &beamAS;
+  VkWriteDescriptorSet wds = m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eBeamAS, &descBeamASInfo);
+  vkUpdateDescriptorSets(m_device, 1, &wds, 0, nullptr);
+}
 
-  std::vector<VkWriteDescriptorSet> writes;
-  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eBeamAS, &descBeamASInfo));
-  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eOutImage, &imageInfo));
-  vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+void HelloVulkan::resetPbTlas() {
+  m_pbBuilder.resetTlas();
 }
 
 
