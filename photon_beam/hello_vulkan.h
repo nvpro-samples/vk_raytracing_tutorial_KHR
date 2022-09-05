@@ -157,10 +157,10 @@ public:
   void createBeamASCommandBuffer();
   void createPbDescriptorSet();
   void createPbPipeline();
-  void resetPbTlas(const nvmath::vec4f& clearColor);
+  void waitPbTlas();
+  void buildPbTlas(const nvmath::vec4f& clearColor);
 
   void raytrace(const VkCommandBuffer& cmdBuf);
-  void beamtrace();
   void updateFrame();
   void resetFrame();
 
@@ -177,6 +177,9 @@ public:
 
   PushConstantRay m_pcRay{};
 
+  std::vector<VkSemaphore>                           m_readSemaphores;
+  VkFence                                           m_beamCounterReadFence;
+  VkFence                                           m_pbBuildFence;
   VkCommandBuffer                                    m_pbBuildCommandBuffer;
   ResetAbleRaytracingBuilderKHR                     m_pbBuilder;
   nvvk::DescriptorSetBindings m_pbDescSetLayoutBind;

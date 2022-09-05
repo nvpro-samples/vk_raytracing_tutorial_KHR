@@ -266,8 +266,7 @@ int main(int argc, char** argv)
     nvmath::vec4f clearColor   = nvmath::vec4f(0.52, 0.81, 0.92, 1.00f);
     bool          useRaytracer = true;
     
-    helloVk.setBeamPushConstants(clearColor);
-    helloVk.beamtrace();
+    helloVk.buildPbTlas(clearColor);
     bool createBeamPhotonAS = false;
 
     helloVk.createRtDescriptorSet();
@@ -312,10 +311,13 @@ int main(int argc, char** argv)
 
         if(createBeamPhotonAS)
         {
-          helloVk.resetPbTlas(clearColor);
-          helloVk.beamtrace();
+          helloVk.buildPbTlas(clearColor);
           helloVk.updateRtDescriptorSetBeamTlas();
           createBeamPhotonAS = false;
+        }
+        else
+        {
+          helloVk.waitPbTlas();
         }
 
         // Start rendering the scene

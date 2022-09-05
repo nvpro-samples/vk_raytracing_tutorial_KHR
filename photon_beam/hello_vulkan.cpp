@@ -54,6 +54,7 @@ void ResetAbleRaytracingBuilderKHR::resetTlas()
   }
 }
 
+
 void HelloVulkan::setDefaults()
 {
   const nvmath::vec4f defaultBeamNearColor{1.0f, 1.0f, 1.0f, 1.0f};
@@ -77,6 +78,13 @@ void HelloVulkan::createBeamASCommandBuffer()
   allocateInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 
   vkAllocateCommandBuffers(m_device, &allocateInfo, &m_pbBuildCommandBuffer);
+
+  
+    VkFenceCreateInfo fenceCreateInfo{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+    fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_beamCounterReadFence);
+    vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_pbBuildFence);
+ 
 }
 
 void HelloVulkan::setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t queueFamily)
@@ -244,7 +252,7 @@ void HelloVulkan::createGraphicsPipeline()
 void HelloVulkan::createBeamBoundingBox()
 {
   std::vector<Aabb> aabbs;
-  aabbs.reserve(1);
+  aabbs.reserve(2);
 
   Aabb beamBox;
   beamBox.minimum = nvmath::vec3f(-1.0f, -1.0f, 0.0f);
@@ -505,6 +513,9 @@ void HelloVulkan::destroyResources()
   vkDestroyDescriptorPool(m_device, m_rtDescPool, nullptr);
   vkDestroyDescriptorSetLayout(m_device, m_rtDescSetLayout, nullptr);
 
+  vkDestroyFence(m_device, m_beamCounterReadFence, nullptr);
+  vkDestroyFence(m_device, m_pbBuildFence, nullptr);
+
 
   m_alloc.deinit();
 }
@@ -700,9 +711,6 @@ void HelloVulkan::drawPost(VkCommandBuffer cmdBuf)
   m_debug.endLabel(cmdBuf);
 }
 
-//////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////
 
 //--------------------------------------------------------------------------------------------------
 // Initialize Vulkan ray tracing
@@ -719,7 +727,6 @@ void HelloVulkan::initRayTracing()
   m_sbtWrapper.setup(m_device, m_graphicsQueueIndex, &m_alloc, m_rtProperties);
   m_pbSbtWrapper.setup(m_device, m_graphicsQueueIndex, &m_alloc, m_rtProperties);
   createBeamASCommandBuffer();
-
 }
 
 void HelloVulkan::createBeamBoxBlas() 
@@ -1002,8 +1009,8 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
   m_pcRay.numPhotonSources = m_numPhotonSamples;
 
   // A Programmable System for Artistic Volumetric Lighting(2011) Derek Nowrouzezahrai
-  const float minimumUnitDistantAlbedo = 0.1;
-  vec3        mediaAlbedo              = vec3(0.8); // all element of albedo must be equal or less than 1
+  const float minimumUnitDistantAlbedo = 0.1f;
+  vec3        mediaAlbedo              = vec3(0.8f); // all element of albedo must be equal or less than 1
   vec3 beamNearColor         = vec3(m_beamNearColor) * m_beamNearColor.w;
   vec3 beamUnitDistantColor = vec3(m_beamUnitDistantColor) * m_beamUnitDistantColor.w;
 
@@ -1038,79 +1045,6 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
 
   m_pcRay.airExtinctCoff = extinctCoff;
   m_pcRay.airScatterCoff = scatterCoff;
-}
-
-
-void HelloVulkan::beamtrace()
-{
-  nvvk::CommandPool cmdBufGet(m_device, m_graphicsQueueIndex);
-  VkCommandBuffer   cmdBuf = cmdBufGet.createCommandBuffer();
-
-  m_debug.beginLabel(cmdBuf, "Beam trace");
-
-  std::vector<VkDescriptorSet> descSets{m_pbDescSet, m_descSet};
-
-  vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pbPipeline);
-  vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pbPipelineLayout, 0,
-                          (uint32_t)descSets.size(), descSets.data(), 0, nullptr);
-
-  m_pcRay.numBeamSources   = m_usePhotonBeam ? m_numBeamSamples : 0;
-  m_pcRay.numPhotonSources = m_usePhotonMapping ? m_numPhotonSamples : 0;
-  vkCmdPushConstants(cmdBuf, m_pbPipelineLayout,
-                     VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
-                     0, sizeof(PushConstantRay), &m_pcRay);
-
-  resetBeamBuffer(cmdBuf);
-
-  auto& regions = m_pbSbtWrapper.getRegions();
-  vkCmdTraceRaysKHR(cmdBuf, &regions[0], &regions[1], &regions[2], &regions[3],
-                    // It seems 4096 is the maximum allowed value for the next 3 parameters, larger value does not lauhcn ray tracing
-                    4, 4, MAX(m_numPhotonSamples, m_numBeamSamples) / 16);
-
-  m_debug.endLabel(cmdBuf);
-
-  cmdBufGet.submitAndWait(cmdBuf);
-
-
-  cmdBuf = cmdBufGet.createCommandBuffer();
-
-
-  VkBufferCopy cpy;
-  cpy.size      = sizeof(uint32_t);
-  cpy.srcOffset = 0;
-  cpy.dstOffset = 0;
-
-  vkCmdCopyBuffer(cmdBuf, m_beamBuffer.buffer, m_beamAsCountReadBuffer.buffer, 1, &cpy);
-
-  VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
-  barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-  barrier.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
-  vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 1, &barrier, 0, nullptr, 0, nullptr);
-  cmdBufGet.submitAndWait(cmdBuf);
-
-  void*    numBeamAsdata = m_alloc.map(m_beamAsCountReadBuffer);
-  uint32_t numBeamAs     = *(reinterpret_cast<uint32_t*>(numBeamAsdata));
-  m_alloc.unmap(m_beamAsCountReadBuffer);
-
-  numBeamAs = numBeamAs > m_maxNumSubBeams ? m_maxNumBeams : numBeamAs;
-
-  cmdBuf = cmdBufGet.createCommandBuffer();
-
-  VkBuildAccelerationStructureFlagsKHR flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-  bool                                 update = false;
-  bool                                 motion = false;
-
-  VkBufferDeviceAddressInfo bufferInfo{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, m_beamAsInfoBuffer.buffer};
-  VkDeviceAddress           instBufferAddr = vkGetBufferDeviceAddress(m_device, &bufferInfo);
-
-  // Creating the TLAS
-  nvvk::Buffer scratchBuffer;
-  m_pbBuilder.cmdCreateTlas(cmdBuf, numBeamAs, instBufferAddr, scratchBuffer, flags, update, motion);
-
-  // Finalizing and destroying temporary data
-  cmdBufGet.submitAndWait(cmdBuf);
-  m_alloc.finalizeAndReleaseStaging();
-  m_alloc.destroy(scratchBuffer);
 }
 
 
@@ -1187,26 +1121,40 @@ void HelloVulkan::updateRtDescriptorSetBeamTlas()
   vkUpdateDescriptorSets(m_device, 1, &wds, 0, nullptr);
 }
 
-void HelloVulkan::resetPbTlas(const nvmath::vec4f& clearColor)
-{
+void HelloVulkan::waitPbTlas() {
     VkResult result{VK_SUCCESS};
     do
     {
-      result = vkWaitForFences(m_device, m_waitFences.size(), m_waitFences.data(), VK_TRUE, UINT64_MAX);
+    result = vkWaitForFences(m_device, 1, &m_pbBuildFence, VK_TRUE, UINT64_MAX);
     } while(result == VK_TIMEOUT);
 
     if(result != VK_SUCCESS)
     {  // This allows Aftermath to do things and later assert below
-        #ifdef _WIN32
+    #ifdef _WIN32
         Sleep(1000);
-        #else
+    #else
         usleep(1000);
-        #endif
+    #endif
     }
     assert(result == VK_SUCCESS);
+}
+
+void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
+{
+    waitPbTlas();
+
+    std::vector<VkSemaphore> waitingSemaphores;
+    int                      numSemaphores = m_swapChain.getImageCount();
+    waitingSemaphores.reserve(numSemaphores);
+    VkPresentInfoKHR dummyInfo{};
+    for(int i = 0; i < numSemaphores; i++)
+    {
+      waitingSemaphores.emplace_back(m_swapChain.getActiveReadSemaphore());
+      m_swapChain.presentCustom(dummyInfo);
+    }
 
     // need a way to release all fences
-    vkResetFences(m_device, m_waitFences.size(), m_waitFences.data());
+    vkResetFences(m_device, 1, &m_pbBuildFence);
 
     m_pbBuilder.resetTlas();
     setBeamPushConstants(clearColor);
@@ -1214,6 +1162,12 @@ void HelloVulkan::resetPbTlas(const nvmath::vec4f& clearColor)
     // begin command
     vkResetCommandBuffer(m_pbBuildCommandBuffer, 0);
     m_debug.beginLabel(m_pbBuildCommandBuffer, "Beam trace");
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags            = 0;        // Optional
+    beginInfo.pInheritanceInfo = nullptr;  // Optional
+    vkBeginCommandBuffer(m_pbBuildCommandBuffer, &beginInfo);
 
     std::vector<VkDescriptorSet> descSets{m_pbDescSet, m_descSet};
 
@@ -1274,29 +1228,33 @@ void HelloVulkan::resetPbTlas(const nvmath::vec4f& clearColor)
 
     vkCmdCopyBuffer(m_pbBuildCommandBuffer, m_beamBuffer.buffer, m_beamAsCountReadBuffer.buffer, 1, &cpy);
 
-    VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
-    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    barrier.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
-    vkCmdPipelineBarrier(
-        m_pbBuildCommandBuffer, 
-        VK_PIPELINE_STAGE_TRANSFER_BIT, 
-        VK_PIPELINE_STAGE_HOST_BIT, 
-        0, 
-        1, &barrier, 
-        0, nullptr, 
-        0, nullptr
-    );
+    vkResetFences(m_device, 1, &m_beamCounterReadFence);
 
+    VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+    submitInfo.pWaitDstStageMask = nullptr;  // Pointer to the list of pipeline stages that the semaphore waits will occur at
+    submitInfo.pWaitSemaphores = waitingSemaphores.data();  // Semaphore(s) to wait upon before the submitted command buffer starts executing
+    submitInfo.waitSemaphoreCount   = static_cast<uint32_t>(waitingSemaphores.size());  // One wait semaphore
+    submitInfo.pSignalSemaphores  = nullptr;  // Semaphore(s) to be signaled when command buffers have completed
+    submitInfo.signalSemaphoreCount = 0;              // One signal semaphore
+    submitInfo.pCommandBuffers    = &m_pbBuildCommandBuffer;  // Command buffers(s) to execute in this batch (submission)
+    submitInfo.commandBufferCount = 1;                           // One command buffer
+    submitInfo.pNext              = nullptr;
+
+    // Submit to the graphics queue passing a wait fence
+    vkEndCommandBuffer(m_pbBuildCommandBuffer);
+    vkQueueSubmit(m_queue, 1, &submitInfo, m_beamCounterReadFence);
     m_debug.endLabel(m_pbBuildCommandBuffer);
-    cmdBufGet.submitAndWait(cmdBuf);
+
+    vkWaitForFences(m_device, 1, &m_beamCounterReadFence, VK_TRUE, UINT64_MAX);
 
     void*    numBeamAsdata = m_alloc.map(m_beamAsCountReadBuffer);
     uint32_t numBeamAs     = *(reinterpret_cast<uint32_t*>(numBeamAsdata));
     m_alloc.unmap(m_beamAsCountReadBuffer);
-
     numBeamAs = numBeamAs > m_maxNumSubBeams ? m_maxNumBeams : numBeamAs;
 
-    cmdBuf = cmdBufGet.createCommandBuffer();
+    vkResetCommandBuffer(m_pbBuildCommandBuffer, 0);
+    vkBeginCommandBuffer(m_pbBuildCommandBuffer, &beginInfo);
+    m_debug.beginLabel(m_pbBuildCommandBuffer, "Beam AS build");
 
     VkBuildAccelerationStructureFlagsKHR flags  = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
     bool                                 update = false;
@@ -1307,11 +1265,13 @@ void HelloVulkan::resetPbTlas(const nvmath::vec4f& clearColor)
 
     // Creating the TLAS
     nvvk::Buffer scratchBuffer;
-    m_pbBuilder.cmdCreateTlas(cmdBuf, numBeamAs, instBufferAddr, scratchBuffer, flags, update, motion);
+    m_pbBuilder.cmdCreateTlas(m_pbBuildCommandBuffer, numBeamAs, instBufferAddr, scratchBuffer, flags, update, motion);
 
-    // Finalizing and destroying temporary data
-    cmdBufGet.submitAndWait(cmdBuf);
-    m_alloc.finalizeAndReleaseStaging();
+    vkQueueSubmit(m_queue, 1, &submitInfo, m_pbBuildFence);
+    vkEndCommandBuffer(m_pbBuildCommandBuffer);
+    m_debug.endLabel(m_pbBuildCommandBuffer);
+
+    waitPbTlas();
     m_alloc.destroy(scratchBuffer);
 }
 
