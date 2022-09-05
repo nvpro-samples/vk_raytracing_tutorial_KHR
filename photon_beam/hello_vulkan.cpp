@@ -1178,9 +1178,9 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
                        VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
                        0, sizeof(PushConstantRay), &m_pcRay);
 
-    // reset beam count in the buffer
-    uint beamCounts[2] = {0, 0};
-    vkCmdUpdateBuffer(m_pbBuildCommandBuffer, m_beamBuffer.buffer, 0, sizeof(uint), &beamCounts);
+    // reset beam counts in the buffer
+    uint beamCounts[2] = {0,0};
+    vkCmdUpdateBuffer(m_pbBuildCommandBuffer, m_beamBuffer.buffer, 0, sizeof(uint) * 2, &beamCounts);
 
     // barrier for making ray traycing to proceed after the counters are reset to 0
     VkBufferMemoryBarrier counterBarrier{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
