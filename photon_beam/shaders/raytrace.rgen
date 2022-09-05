@@ -196,7 +196,7 @@ void main()
 
         prd.rayOrigin = prd.rayOrigin - viewingDirection * tMax;
         prd.rayOrigin += prd.rayDirection;
-        prd.weight *= pdfWeightedGltfBrdf(prd.rayDirection, viewingDirection, world_normal, albedo, mat.roughness, mat.metallic);
+        prd.weight *= exp(-pcRay.airExtinctCoff * tMax) * pdfWeightedGltfBrdf(prd.rayDirection, viewingDirection, world_normal, albedo, mat.roughness, mat.metallic);
         tMax = tMaxDefault;
 
     }
