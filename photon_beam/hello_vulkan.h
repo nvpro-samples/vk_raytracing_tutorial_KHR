@@ -96,6 +96,7 @@ public:
   float         m_beamIntensity;
   bool          m_usePhotonMapping;
   bool          m_usePhotonBeam;
+  bool          m_showDirectColor;
   float         m_hgAssymFactor;
 
   // Information pushed at each draw call

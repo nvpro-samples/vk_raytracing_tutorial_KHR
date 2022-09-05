@@ -68,6 +68,10 @@ void HelloVulkan::setDefaults()
   m_usePhotonMapping = true;
   m_usePhotonBeam    = true;
   m_hgAssymFactor    = 0.7;
+
+  m_numBeamSamples = 1024;
+  m_numPhotonSamples = 4 * 4 * 1024;
+  m_showDirectColor  = false;
 }
 
 void HelloVulkan::createBeamASCommandBuffer()
@@ -1008,6 +1012,7 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
   m_pcRay.airHGAssymFactor = m_hgAssymFactor;
   m_pcRay.numBeamSources   = m_numBeamSamples;
   m_pcRay.numPhotonSources = m_numPhotonSamples;
+  m_pcRay.showDirectColor  = m_showDirectColor ? 1 : 0;
 
   // A Programmable System for Artistic Volumetric Lighting(2011) Derek Nowrouzezahrai
   const float minimumUnitDistantAlbedo = 0.1f;

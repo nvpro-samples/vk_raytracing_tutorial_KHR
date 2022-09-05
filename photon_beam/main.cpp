@@ -51,7 +51,7 @@ static void onErrorCallback(int error, const char* description)
 }
 
 // Extra UI
-void renderUI(HelloVulkan& helloVk, bool useRaytracer, bool& createBeamPhotonAS)
+void renderUI(HelloVulkan& helloVk, bool useRaytracer, bool& createBeamPhotonAS, uint32_t& numPhotons, uint32_t& numBeams)
 {
     ImGuiH::CameraWidget();
     bool isCollapsed = ImGui::CollapsingHeader("Light");
@@ -123,12 +123,28 @@ void renderUI(HelloVulkan& helloVk, bool useRaytracer, bool& createBeamPhotonAS)
 
     ImGui::Checkbox("Surface Photon", &helloVk.m_usePhotonMapping);
     ImGui::Checkbox("Photon Beam", &helloVk.m_usePhotonBeam);
+    ImGui::Checkbox("Show Solid Beam/Surface Color", &helloVk.m_showDirectColor);
+    const uint32_t minValBeam = 1;
+    const uint32_t maxValBeam = 1024;
+    ImGui::SliderScalar(
+        "Sample Beams", ImGuiDataType_U32, &numBeams, &minValBeam, &maxValBeam, nullptr,ImGuiSliderFlags_None
+    );
+    const uint32_t minValPhoton      = 4 * 4;
+    const uint32_t maxValPhoton = 1024 * 4 * 4;
+    ImGui::SliderScalar(
+        "Sample Photons", ImGuiDataType_U32, &numPhotons, &minValPhoton, &maxValPhoton, nullptr, ImGuiSliderFlags_None
+    );
 
     if(ImGui::SmallButton("Refresh Beam"))
         createBeamPhotonAS = true;
 
     if(ImGui::SmallButton("Set Defaults"))
+    {
         helloVk.setDefaults();
+        numBeams   = helloVk.m_numBeamSamples;
+        numPhotons = helloVk.m_numPhotonSamples;
+    }
+        
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -281,6 +297,9 @@ int main(int argc, char** argv)
     helloVk.setupGlfwCallbacks(window);
     ImGui_ImplGlfw_InitForVulkan(window, true);
 
+    uint32_t newNumBeams = helloVk.m_numBeamSamples;
+    uint32_t newNumPhotons = helloVk.m_numPhotonSamples;
+
     // Main loop
     while(!glfwWindowShouldClose(window))
     {
@@ -300,7 +319,7 @@ int main(int argc, char** argv)
             ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
             ImGui::Checkbox("Ray Tracer mode", &useRaytracer);  // Switch between raster and ray tracing
 
-            renderUI(helloVk, useRaytracer, createBeamPhotonAS);
+            renderUI(helloVk, useRaytracer, createBeamPhotonAS, newNumPhotons, newNumBeams);
 
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
             ImGuiH::Control::Info("", "", "(F10) Toggle Pane", ImGuiH::Control::Flags::Disabled);
@@ -309,9 +328,11 @@ int main(int argc, char** argv)
 
         if(createBeamPhotonAS)
         {
-          helloVk.buildPbTlas(clearColor);
-          helloVk.updateRtDescriptorSetBeamTlas();
-          createBeamPhotonAS = false;
+            helloVk.m_numBeamSamples = newNumBeams;
+            helloVk.m_numPhotonSamples = newNumPhotons;
+            helloVk.buildPbTlas(clearColor);
+            helloVk.updateRtDescriptorSetBeamTlas();
+            createBeamPhotonAS = false;
         }
 
         // Start rendering the scene
