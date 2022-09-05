@@ -123,6 +123,7 @@ void renderUI(HelloVulkan& helloVk, bool useRaytracer, bool& createBeamPhotonAS)
 
     ImGui::Checkbox("Surface Photon", &helloVk.m_usePhotonMapping);
     ImGui::Checkbox("Photon Beam", &helloVk.m_usePhotonBeam);
+    ImGui::Checkbox("Show Solid Beam/Surface Color", &helloVk.m_showDirectColor);
 
     if(ImGui::SmallButton("Refresh Beam"))
         createBeamPhotonAS = true;

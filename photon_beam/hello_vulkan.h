@@ -79,8 +79,8 @@ public:
 
   float m_beamRadius{0.5f};
   float    m_photonRadius{0.5f};
-  uint32_t m_numBeamSamples{2048};
-  uint32_t m_numPhotonSamples{4 * 4 * 4096};
+  uint32_t m_numBeamSamples{4096};
+  uint32_t m_numPhotonSamples{4 * 4 * 1096};
 
   //uint32_t m_numBeamSamples{64};
   //uint32_t m_numPhotonSamples{64};
@@ -97,6 +97,7 @@ public:
   bool          m_usePhotonMapping;
   bool          m_usePhotonBeam;
   float         m_hgAssymFactor;
+  bool          m_showDirectColor;
 
   // Information pushed at each draw call
   PushConstantRaster m_pcRaster{

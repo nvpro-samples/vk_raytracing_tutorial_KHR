@@ -58,7 +58,7 @@ void ResetAbleRaytracingBuilderKHR::resetTlas()
 void HelloVulkan::setDefaults()
 {
   const nvmath::vec4f defaultBeamNearColor{1.0f, 1.0f, 1.0f, 1.0f};
-  const nvmath::vec4f defaultBeamUnitDistantColor{0.591, 0.704, 0.704, 1.0f};
+  const nvmath::vec4f defaultBeamUnitDistantColor{0.791, 0.904, 0.904, 1.0f};
 
   m_beamNearColor        = defaultBeamNearColor;
   m_beamUnitDistantColor = defaultBeamUnitDistantColor;
@@ -68,6 +68,7 @@ void HelloVulkan::setDefaults()
   m_usePhotonMapping = true;
   m_usePhotonBeam    = true;
   m_hgAssymFactor    = 0.7;
+  m_showDirectColor = false;
 }
 
 void HelloVulkan::createBeamASCommandBuffer()
@@ -1008,6 +1009,7 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
   m_pcRay.airHGAssymFactor = m_hgAssymFactor;
   m_pcRay.numBeamSources   = m_numBeamSamples;
   m_pcRay.numPhotonSources = m_numPhotonSamples;
+  m_pcRay.showDirectColor  = m_showDirectColor ? 1 : 0;
 
   // A Programmable System for Artistic Volumetric Lighting(2011) Derek Nowrouzezahrai
   const float minimumUnitDistantAlbedo = 0.1f;
