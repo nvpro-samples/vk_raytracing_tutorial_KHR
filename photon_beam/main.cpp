@@ -312,8 +312,7 @@ int main(int argc, char** argv)
 
         if(createBeamPhotonAS)
         {
-          helloVk.resetPbTlas();
-          helloVk.setBeamPushConstants(clearColor);
+          helloVk.resetPbTlas(clearColor);
           helloVk.beamtrace();
           helloVk.updateRtDescriptorSetBeamTlas();
           createBeamPhotonAS = false;

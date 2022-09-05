@@ -1187,8 +1187,8 @@ void HelloVulkan::updateRtDescriptorSetBeamTlas()
   vkUpdateDescriptorSets(m_device, 1, &wds, 0, nullptr);
 }
 
-void HelloVulkan::resetPbTlas() {
-
+void HelloVulkan::resetPbTlas(const nvmath::vec4f& clearColor)
+{
     VkResult result{VK_SUCCESS};
     do
     {
@@ -1208,8 +1208,111 @@ void HelloVulkan::resetPbTlas() {
     // need a way to release all fences
     vkResetFences(m_device, m_waitFences.size(), m_waitFences.data());
 
-
     m_pbBuilder.resetTlas();
+    setBeamPushConstants(clearColor);
+
+    // begin command
+    vkResetCommandBuffer(m_pbBuildCommandBuffer, 0);
+    m_debug.beginLabel(m_pbBuildCommandBuffer, "Beam trace");
+
+    std::vector<VkDescriptorSet> descSets{m_pbDescSet, m_descSet};
+
+    vkCmdBindPipeline(m_pbBuildCommandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pbPipeline);
+    vkCmdBindDescriptorSets(m_pbBuildCommandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pbPipelineLayout, 0,
+                            (uint32_t)descSets.size(), descSets.data(), 0, nullptr);
+
+    m_pcRay.numBeamSources   = m_usePhotonBeam ? m_numBeamSamples : 0;
+    m_pcRay.numPhotonSources = m_usePhotonMapping ? m_numPhotonSamples : 0;
+    vkCmdPushConstants(m_pbBuildCommandBuffer, m_pbPipelineLayout,
+                       VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
+                       0, sizeof(PushConstantRay), &m_pcRay);
+
+    // reset beam count in the buffer
+    uint beamCounts[2] = {0, 0};
+    vkCmdUpdateBuffer(m_pbBuildCommandBuffer, m_beamBuffer.buffer, 0, sizeof(uint), &beamCounts);
+
+    // barrier for making ray traycing to proceed after the counters are reset to 0
+    VkBufferMemoryBarrier counterBarrier{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
+    counterBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    counterBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    counterBarrier.buffer        = m_beamBuffer.buffer;
+    counterBarrier.offset        = 0;
+    counterBarrier.size          = sizeof(uint) * 2;  // for sub beamphoton counter and beam counter
+
+    vkCmdPipelineBarrier(
+        m_pbBuildCommandBuffer, 
+        VK_PIPELINE_STAGE_TRANSFER_BIT, 
+        VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+        0,
+        0, nullptr, 
+        1, &counterBarrier, 
+        0, nullptr
+    );
+
+    auto& regions = m_pbSbtWrapper.getRegions();
+    vkCmdTraceRaysKHR(m_pbBuildCommandBuffer, &regions[0], &regions[1], &regions[2], &regions[3],
+                      // It seems 4096 is the maximum allowed value for the next 3 parameters, larger value does not lauhcn ray tracing
+                      4, 4, MAX(m_numPhotonSamples, m_numBeamSamples) / 16);
+
+    counterBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    counterBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+    vkCmdPipelineBarrier(
+        m_pbBuildCommandBuffer, 
+        VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+        VK_PIPELINE_STAGE_TRANSFER_BIT, 
+        0, 
+        0, nullptr, 
+        1, &counterBarrier, 
+        0, nullptr
+    );
+
+    VkBufferCopy cpy;
+    cpy.size      = sizeof(uint32_t);
+    cpy.srcOffset = 0;
+    cpy.dstOffset = 0;
+
+    vkCmdCopyBuffer(m_pbBuildCommandBuffer, m_beamBuffer.buffer, m_beamAsCountReadBuffer.buffer, 1, &cpy);
+
+    VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+    vkCmdPipelineBarrier(
+        m_pbBuildCommandBuffer, 
+        VK_PIPELINE_STAGE_TRANSFER_BIT, 
+        VK_PIPELINE_STAGE_HOST_BIT, 
+        0, 
+        1, &barrier, 
+        0, nullptr, 
+        0, nullptr
+    );
+
+    m_debug.endLabel(m_pbBuildCommandBuffer);
+    cmdBufGet.submitAndWait(cmdBuf);
+
+    void*    numBeamAsdata = m_alloc.map(m_beamAsCountReadBuffer);
+    uint32_t numBeamAs     = *(reinterpret_cast<uint32_t*>(numBeamAsdata));
+    m_alloc.unmap(m_beamAsCountReadBuffer);
+
+    numBeamAs = numBeamAs > m_maxNumSubBeams ? m_maxNumBeams : numBeamAs;
+
+    cmdBuf = cmdBufGet.createCommandBuffer();
+
+    VkBuildAccelerationStructureFlagsKHR flags  = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+    bool                                 update = false;
+    bool                                 motion = false;
+
+    VkBufferDeviceAddressInfo bufferInfo{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, m_beamAsInfoBuffer.buffer};
+    VkDeviceAddress           instBufferAddr = vkGetBufferDeviceAddress(m_device, &bufferInfo);
+
+    // Creating the TLAS
+    nvvk::Buffer scratchBuffer;
+    m_pbBuilder.cmdCreateTlas(cmdBuf, numBeamAs, instBufferAddr, scratchBuffer, flags, update, motion);
+
+    // Finalizing and destroying temporary data
+    cmdBufGet.submitAndWait(cmdBuf);
+    m_alloc.finalizeAndReleaseStaging();
+    m_alloc.destroy(scratchBuffer);
 }
 
 
