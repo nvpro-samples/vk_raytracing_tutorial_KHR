@@ -119,8 +119,15 @@ vec3 heneyGreenPhaseFuncSampling(inout uint seed, in vec3 incomingLightDir, floa
   float r2 = rnd(seed);
 
   float g2    = g * g;
-  float val1  = (1.0f - g2) / (1.0f - g + 2.0 * r1 * g);
-  float cos_theta = 0.5f / g * (1 + g2 - val1 * val1);
+  float r12       = r1 * r1;
+  float numerator = g * (2.0f * r12 + 2.0f - 1.0f * r1) + 2.0f * r - 1.0f + g2 * g * (2.0f * r12 - 1.0f * r1) + 2.0f * g2 - 1.0f;
+  float denom     = 1.0 + g2 * (4.0 * r1 * r1 + 1.0 - 2.0 * r1) + g * (4.0 * r1 - 1.0);
+
+  if(denom == 0.0)
+  {
+    denom += 0.000001;
+  }
+  float cos_theta = numerator / denom
   float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
   float phi   = 2.0f * M_PI * r2;
 
