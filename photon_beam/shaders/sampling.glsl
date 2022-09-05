@@ -100,43 +100,48 @@ void createCoordinateSystem(in vec3 N, out vec3 Nt, out vec3 Nb)
 
 
 // Henyey-Greenstein phase function
-float heneyGreenPhaseFunc(float cosTheta, float assymFactor)
+float heneyGreenPhaseFunc(float cosTheta, float g)
 {
   // assymetriy factor
   // this value must be between -1 to 1
   // 0 value gives uniform phase function
   // value > 0 gives light out-scattering forward
   // value < 0 gives light out-scattering backward
-  float g     = assymFactor;
-  float denom = 1 + g * g + 2 * g * cosTheta;
+  float g2    = g * g;
+  float denom = 1 + g2 - 2 * g * cosTheta;
 
-  return (1 - g * g) / (denom * sqrt(denom)) / (4 * M_PI);
+  return (1 - g2) / (denom * sqrt(denom)) / (4 * M_PI);
 }
 
-vec3 heneyGreenPhaseFuncSampling(inout uint seed, in vec3 incomingLightDir, float assymFactor)
+vec3 heneyGreenPhaseFuncSampling(inout uint seed, in vec3 incomingLightDir, float g)
 {
-  float val1 = heneyGreenPhaseFunc(1.0, assymFactor);
-  float val2 = heneyGreenPhaseFunc(-1.0, assymFactor);
+  float r1 = rnd(seed);
+  float r2 = rnd(seed);
 
-  float maxVal = max(val1, val2);
+  float g2    = g * g;
+  float val1  = (1.0f - g2) / (1.0f - g + 2.0 * r1 * g);
+  float cos_theta = 0.5f / g * (1 + g2 - val1 * val1);
+  float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
+  float phi   = 2.0f * M_PI * r2;
 
-  if(assymFactor == 0.0)
-    return uniformSamplingSphere(seed);
+  vec3 ret = vec3(sin_theta * cos(phi), cos_theta, sin_theta * sin(phi));
 
-  while(true)
+  vec3 normal = -incomingLightDir;
+  // if normal vector is (0,1,0) or (0, -1, 0) set the right direction to (1, 0, 0)
+  vec3 normalRight = vec3(1, 0, 0);
+
+  // if normal vector is not (0,1,0) or (0, -1, 0)
+  // project the ray direction to xz plane and rotate 90 degree clockwise to get the right direction
+  if(normal.x != 0.0 || normal.z != 0.0)
   {
-
-    vec3 rayDirection = uniformSamplingSphere(seed);
-
-    float phaseVal = heneyGreenPhaseFunc(dot(rayDirection, incomingLightDir), assymFactor);
-
-    float cutline = rnd(seed) * maxVal;
-
-    if(cutline < phaseVal)
-      return rayDirection;
-        
+    normalRight = normalize(vec3(normal.z, 0, -normal.x));
   }
+  vec3 normalFront = cross(normal, normalRight);
 
+  ret = ret.x * normalRight + ret.y * normal + ret.z * normalFront;
+
+  // normalize at last step in order to avoid some floating point error;
+  return normalize(ret);
 }
 
 // PDF for half vector
