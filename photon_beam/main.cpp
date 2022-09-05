@@ -310,6 +310,15 @@ int main(int argc, char** argv)
             ImGuiH::Panel::End();
         }
 
+        if(createBeamPhotonAS)
+        {
+          helloVk.resetPbTlas();
+          helloVk.setBeamPushConstants(clearColor);
+          helloVk.beamtrace();
+          helloVk.updateRtDescriptorSetBeamTlas();
+          createBeamPhotonAS = false;
+        }
+
         // Start rendering the scene
         helloVk.prepareFrame();
 
@@ -337,15 +346,6 @@ int main(int argc, char** argv)
             offscreenRenderPassBeginInfo.renderPass      = helloVk.m_offscreenRenderPass;
             offscreenRenderPassBeginInfo.framebuffer     = helloVk.m_offscreenFramebuffer;
             offscreenRenderPassBeginInfo.renderArea      = {{0, 0}, helloVk.getSize()};
-
-            if(createBeamPhotonAS)
-            {
-                helloVk.resetPbTlas();
-                helloVk.setBeamPushConstants(clearColor);
-                helloVk.beamtrace();
-                helloVk.updateRtDescriptorSetBeamTlas();
-                createBeamPhotonAS = false;
-            }
 
             if(useRaytracer)
             {
