@@ -123,8 +123,7 @@ struct PushConstantRay
 
   uint numBeamSources;
   uint numPhotonSources;
-  uint showDirectColor;
-  uint padding;
+  uint padding[2];
 };
 
 // Structure used for retrieving the primitive information in the closest hit

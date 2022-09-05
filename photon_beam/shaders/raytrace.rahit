@@ -52,13 +52,6 @@ layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 void main()
 {
     PhotonBeam beam = beams[gl_InstanceCustomIndexEXT];
-
-    if(pcRay.showDirectColor == 1)
-    {
-        prd.hitValue = beam.lightColor  / max(max(pcRay.sourceLight.x, pcRay.sourceLight.y), pcRay.sourceLight.z);
-        return;
-    }    
-
     vec3 worldPos = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
     float beamDist = length(beamHit - beam.startPos);
     vec3 beamDirection = normalize(beam.endPos - beam.startPos);
