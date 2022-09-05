@@ -315,10 +315,6 @@ int main(int argc, char** argv)
           helloVk.updateRtDescriptorSetBeamTlas();
           createBeamPhotonAS = false;
         }
-        else
-        {
-          helloVk.waitPbTlas();
-        }
 
         // Start rendering the scene
         helloVk.prepareFrame();
