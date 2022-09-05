@@ -38,13 +38,9 @@ void main()
         + gl_LaunchSizeEXT.z * gl_LaunchIDEXT.y + gl_LaunchIDEXT.z;
 
   // Initialize the random number
-  uint seed = tea(launchIndex, int(clockARB()));
+  uint seed = tea(launchIndex, int(clockARB() + 3));
 
-  vec3 hemiSphereNormal = vec3(0,0,1);
-  if (rnd(seed) < 0.5)
-    hemiSphereNormal.z = -1;
-
-  vec3 rayDirection = samplingHemisphere(seed, vec3(1,0,0), vec3(0,1,0), hemiSphereNormal);
+  vec3 rayDirection = uniformSamplingSphere(seed);
 
   uint  rayFlags = gl_RayFlagsOpaqueEXT;
   float tMin     = 0.001;
