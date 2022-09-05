@@ -79,16 +79,16 @@ public:
 
   float m_beamRadius{0.5f};
   float    m_photonRadius{0.5f};
-  uint32_t m_numBeamSamples{64};
-  uint32_t m_numPhotonSamples{64};
+  uint32_t m_numBeamSamples{1024};
+  uint32_t m_numPhotonSamples{4 * 4 * 1024};
 
   //uint32_t m_numBeamSamples{64};
   //uint32_t m_numPhotonSamples{64};
   
-  // number of photon samples * (expected surface intersection ) + number of number of beam samples * (expected number of scatter  + surface intersection )
-  uint32_t m_maxNumBeams{m_numPhotonSamples * 16 + m_numBeamSamples * 32};
+  // max(number of photon samples, number of number of beam samples) * (expected number of scatter  + surface intersection )
+  uint32_t m_maxNumBeams{MAX(m_numBeamSamples, m_numPhotonSamples) * 32};
   // number of beam samples * (expected number of scatter  + surface intersection ) * (expected length of the beam / (radius * 2)) 
-  uint32_t m_maxNumSubBeams{m_numBeamSamples * 32 * 128};
+  uint32_t m_maxNumSubBeams{m_numBeamSamples * 32 * 32};
 
 
   nvmath::vec4f m_beamNearColor;
