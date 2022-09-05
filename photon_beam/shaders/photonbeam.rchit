@@ -58,35 +58,36 @@ layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 
 bool randomScatterOccured(const vec3 world_position){
     float min_extinct = min(min(pcRay.airExtinctCoff.x, pcRay.airExtinctCoff.y), pcRay.airExtinctCoff.z);
-    return false;
-    if (min_extinct <= 0.0)
+    if (min_extinct <= 0.001)
         return false;
 
-    vec3 albedo = pcRay.airScatterCoff / pcRay.airExtinctCoff;
-    float absorptionProb = 1.0 - max(max(albedo.x, albedo.y), albedo.z);
-
-   float max_extinct = max(max(pcRay.airExtinctCoff.x, pcRay.airExtinctCoff.y), pcRay.airExtinctCoff.z);
+    float max_extinct = max(max(pcRay.airExtinctCoff.x, pcRay.airExtinctCoff.y), pcRay.airExtinctCoff.z);
 
     // random walk within participating media(air) scattering
     float rayLength = length(prd.rayOrigin - world_position);
-    float airScatterAt = 30.0;
+    float airScatterAt = -log(1.0 - rnd(prd.seed)) / max_extinct;
 
     if (rayLength < airScatterAt) {
         return false;
     }
 
-    vec3 rayOrigin = prd.rayOrigin + prd.rayDirection * airScatterAt;
-    vec3 rayDirection = heneyGreenPhaseFuncSampling(prd.seed, prd.rayDirection, pcRay.airHGAssymFactor);
-    vec3 weight = exp(-pcRay.airExtinctCoff * airScatterAt);
+    vec3 albedo = pcRay.airScatterCoff / pcRay.airExtinctCoff;
+    float absorptionProb = 1.0 - max(max(albedo.x, albedo.y), albedo.z);
 
     // use russian roulett to decide whether scatter or absortion occurs
     if (rnd(prd.seed) <= absorptionProb){
         prd.weight = vec3(0.0);
     }
+    else {
+         prd.weight = exp(-pcRay.airExtinctCoff * airScatterAt);
+    }
+   
+    vec3 rayOrigin = prd.rayOrigin + prd.rayDirection * airScatterAt;
+    vec3 rayDirection = heneyGreenPhaseFuncSampling(prd.seed, prd.rayDirection, pcRay.airHGAssymFactor);
 
+    
     prd.rayOrigin    = rayOrigin;
     prd.rayDirection = rayDirection;
-    prd.weight       = weight;
     prd.instanceIndex = -1;
 
     return true;
