@@ -1,21 +1,49 @@
-# NVIDIA Vulkan Ray Tracing Tutorial - glTF Scene
+﻿# Photon mapping
 
 ![img](images/vk_ray_tracing_gltf_KHR.png)
 
 
-This example is the result of the modification of the [simple ray tracing](../ray_tracing__simple) tutorial.
-Instead of loading separated OBJ objects, the example was modified to load glTF scene files containing multiple objects.
+The example is result of modification of [glTF Scene](../ray_tracing__gltf) tutorial.
 
-This example is not about shading, but using more complex data than OBJ.
+When this example made bellow version of nvpro core was used.
 
-For a more complete version, see
+https://github.com/nvpro-samples/nvpro_core/commit/1d82623cf8fc0e3881150b5d0f0aef920d9af627
 
-* https://github.com/nvpro-samples/vk_raytrace
-* https://github.com/nvpro-samples/vk_shaded_gltfscene
+This example has been modified a lot from the original work. You may want to check difference at bellow page.
+
+[Compare with glTF Scene](https://github.com/donguklim/vk_raytracing_tutorial_KHR/compare/photon-beam-copied-from-gltf...donguklim:vk_raytracing_tutorial_KHR:phton-beam?expand=1)
+
+This example uses different rendering technique.
+
+While the original work omitted some features in shading material, this example loaded all features required for implementing 
+[BRDF in glTF specification](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#appendix-b-brdf-implementation) for surface reflection.
+
+For rendering this example uses 
+
+- Photon beam method for volumetric radiance estimation, with 
+- Photon mapping method for surface reflection
+- Simple raytracing for specular reflection.
+
+For more detailed background of the techinques used you may check references.
+
+
+## References
+
+ - ### Photon Mapping
+    - Jensen, Henrik. (2001). A Practical Guide to Global Illumination using Photon Maps.
+ - ### Photon Beam
+    - Derek Nowrouzezahrai, Jared Johnson, Andrew Selle, Dylan Lacewell, Michael Kaschalk, Wojciech Jarosz. A programmable system for artistic volumetric lighting. ACM Transactions on Graphics (Proceedings of SIGGRAPH), 30(4):29:1–29:8, August 2011.
+    - Wojciech Jarosz, Derek Nowrouzezahrai, Iman Sadeghi, Henrik Wann Jensen. A comprehensive theory of volumetric radiance estimation using photon points and beams. ACM Transactions on Graphics (Presented at SIGGRAPH), 30(1):5:1–5:19, January 2011.
+ - ### BRDF Sampling
+    - J. Zhang, On sampling of scattering phase functions, Astronomy and Computing, Volume 29, 2019, 100329, ISSN 2213-1337, https://doi.org/10.1016/j.ascom.2019.100329.
+    - https://schuttejoe.github.io/post/ggximportancesamplingpart1/
+    - https://agraphicsguy.wordpress.com/2015/11/01/sampling-microfacet-brdf/
 
 
 
-## Scene Data
+
+
+## Beam Generation
 
 The OBJ models were loaded and stored in four buffers: 
 
