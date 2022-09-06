@@ -399,4 +399,31 @@ Positive g yields more front scattering. Negative g yields more back scattering.
 <img src="images/photon_beam_only_negative_0dot7g2.png" width="400">
 </p>
 
+Bellow images are result of photon mapping with only 64 sample lights.
+Left shows the actual beams, and right is the solid color of the beam.
+
+#### g = 0
+<p>
+<img src="images/photon_beam_only_zero_g3.png" width="400">
+<img src="images/photon_beam_only_zero_g3_solid_color.png" width="400">
+</p>
+
+#### g = 0.7
+<p>
+<img src="images/photon_beam_only_0dot7g3.png" width="400">
+<img src="images/photon_beam_only_0dot7g3_solid_color.png" width="400">
+</p>
+
+#### g = 0.-7
+<p>
+<img src="images/photon_beam_only_negative_0dot7g3.png" width="400">
+<img src="images/photon_beam_only_negative_0dot7g3_solid_color.png" width="400">
+</p>
+
+
+### Surface Radiance
+
+As you see in Above images, photon mapping method alone is not enough to describe the lighting.
+Omitting the radiance from surface makes the world mythycaly dark.
+So photon mapping method is added to reflect the surface light.
 
