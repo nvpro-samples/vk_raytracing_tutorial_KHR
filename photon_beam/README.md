@@ -458,3 +458,79 @@ Bellow is result after increased the number of sample lights to 65536.
 <img src="images/only_photon_mapping3.png" width="400">
 <img src="images/only_photon_mapping3_points.png" width="400">
 <img src="images/only_photon_mapping3_added_beam.png" width="400">
+
+### Specular Reflection
+
+In above images, you may have noticed the two black balls with some small spotted high lilghts.
+Those balls have zero roguhness. They only yield specular reflection.
+
+Both photon mapping and photon beam methods are not good for specular reflection.
+This is because specular reflections only account photons or beams with exactly or almost exactly matching the reflection angle of the eye ray on the surface.
+Even if there is a photon exactly matching or almost matching the target reflection angle, 
+calculating this kind of radiance with Monte Carlo method often yields division by zero, or an infinite randiance.
+
+In the end, almost always no specular reflection at all by the sample phtons or beams, or very rarely infinite or too large radiance from one or two sample phtons or beams.
+
+So forget drawing specular reflection with photon beam or photon mapping method, and just use ray tracing.
+
+#### The method used
+
+1. Ray generation shader shoot ray and accumulate radiance until the ray hits the first solid surface
+2. If the hit material has roughness larger than 0.01, end ray tracing and return the radiance
+3. Else, sample the new direction from microfacet distribution. (It gives a constant direction if roughness is 0.0).
+4. Shoot ray again to the sampled direction to get specular radiance.
+
+#### **`raytrace.rgen`**
+~~~~C
+    uint num_iteration = 2;
+    for(int i=0; i < num_iteration; i ++)
+    {
+        // get the t value to surface
+        rayQueryEXT rayQuery;
+        rayQueryInitializeEXT(rayQuery,              // Ray query
+                                surfaceAS,                  // Top-level acceleration structure
+                                gl_RayFlagsOpaqueEXT,  // Ray flags, here saying "treat all geometry as opaque"
+                                0xFF,                  // 8-bit instance mask, here saying "trace against all instances"
+                                prd.rayOrigin,             // Ray origin
+                                0.0,                   // Minimum t-value
+                                prd.rayDirection,          // Ray direction
+                                tMax);              // Maximum t-value
+
+        ....
+
+        vec3 viewingDirection = -prd.rayDirection;
+        if (mat.roughness > 0.01)
+            break;
+
+        ....
+
+        prd.rayOrigin = prd.rayOrigin - viewingDirection * tMax;
+        prd.rayOrigin += prd.rayDirection;
+        prd.weight *= exp(-pcRay.airExtinctCoff * tMax) * pdfWeightedGltfBrdf(prd.rayDirection, viewingDirection, world_normal, albedo, mat.roughness, mat.metallic);
+        tMax = tMaxDefault;
+
+        ...
+~~~~
+
+
+### Further Improvements
+
+This is of course just my toy project for learning Vulkan.
+There can be many ways for improvements.
+
+Some things that I would like to mentions are
+
+#### Adaptive Beam width
+
+If you have actually run this code, you can notice how unatural the beam lights are with constant width. 
+
+You may implement the adaptive beam width mentioned  Wojciech Jarosz et. al(2011) in above reference.
+
+### Multiple participating media
+
+I applied a constant homogeneous scattering and estinct cofficients to the whole air rendered in the scene.
+
+However, you may only want to apply different values in different volumes in restricted region of the space.
+
+Making clouds, or smokes for example, with heterogeneous scatteinrg and extinction.
+
