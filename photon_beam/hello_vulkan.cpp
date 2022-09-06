@@ -1221,7 +1221,9 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
     );
 
     counterBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-    counterBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    counterBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT;
+
+
 
     vkCmdPipelineBarrier(
         m_pbBuildCommandBuffer, 
