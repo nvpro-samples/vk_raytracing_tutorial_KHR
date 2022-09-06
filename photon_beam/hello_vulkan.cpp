@@ -67,7 +67,7 @@ void HelloVulkan::setDefaults()
   m_beamIntensity        = 30.0f;
   m_usePhotonMapping = true;
   m_usePhotonBeam    = true;
-  m_hgAssymFactor    = 0.7;
+  m_hgAssymFactor    = 0.0;
   m_showDirectColor = false;
 
   m_numBeamSamples = 1024;
