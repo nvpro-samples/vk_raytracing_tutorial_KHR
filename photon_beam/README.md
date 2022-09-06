@@ -381,35 +381,22 @@ Bellow 6 images are images only with volumetric radiance from photon beam method
 Images are taken with different Henry-Greenstein assymetric factor g value and media cofficients.
 Positive g yields more front scattering. Negative g yields more back scattering. Zero g yields uniform scateering in all spherical direction.
 
-#### g = 0, with low media extinction
-<img style="float: right;" src="images/photon_beam_only_zero_g.png" width="400">
-<img style="float: left;" src="images/photon_beam_only_zero_g2.png" width="400">
+#### g = 0
+<p>
+<img src="images/photon_beam_only_zero_g.png" width="400">
+<img src="images/photon_beam_only_zero_g2.png" width="400">
+</p>
 
-#### g = 0.7, with low media extinction
-<img style="float: right;" src="images/photon_beam_only_0dot7g.png" width="400">
-<img style="float: left;" src="images/photon_beam_only_zero_g2.png" width="400">
+#### g = 0.7
+<p>
+<img src="images/photon_beam_only_0dot7g.png" width="400">
+<img src="images/photon_beam_only_0dot7g2.png" width="400">
+</p>
 
-#### g = 0.-7, with low media extinction
-<img style="float: right;" src="images/photon_beam_only_negative_0dot7g.png" width="400">
-<img style="float: left;" src="images/photon_beam_only_zero_g2.png" width="400">
+#### g = 0.-7
+<p>
+<img src="images/photon_beam_only_negative_0dot7g.png" width="400">
+<img src="images/photon_beam_only_negative_0dot7g2.png" width="400">
+</p>
 
-
-## Other changes
-
-Small other changes were done, a different scene, different camera and light position.
-
-Camera position
-~~~~C
-  CameraManip.setLookat(nvmath::vec3f(0, 0, 15), nvmath::vec3f(0, 0, 0), nvmath::vec3f(0, 1, 0));
-~~~~
-
-Scene
-~~~~C
-  helloVk.loadScene(nvh::findFile("media/scenes/cornellBox.gltf", defaultSearchPaths, true));
-~~~~
-
-Light Position
-~~~~C
-    nvmath::vec3f lightPosition{0.f, 4.5f, 0.f};
-~~~~
 
