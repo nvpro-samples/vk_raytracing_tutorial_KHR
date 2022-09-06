@@ -399,7 +399,7 @@ Positive g yields more front scattering. Negative g yields more back scattering.
 <img src="images/photon_beam_only_negative_0dot7g2.png" width="400">
 </p>
 
-Bellow images are result of photon mapping with only 64 sample lights.
+Bellow images are result of photon mapping with only 64 sample lights with shorter sampling radius.
 Left shows the actual beams, and right is the solid color of the beam.
 
 #### g = 0
@@ -427,3 +427,34 @@ As you see in Above images, photon mapping method alone is not enough to describ
 Omitting the radiance from surface makes the world mythycaly dark.
 So photon mapping method is added to reflect the surface light.
 
+
+#### Photon mapping examples (16384 light samples)
+Result without photon beam
+
+<img src="images/only_photon_mapping.png" width="400"></p>
+
+The actual photons hit on the surface.
+
+<img src="images/only_photon_mapping_points.png" width="400">
+
+The result when you add back the beam.
+
+<img src="images/only_photon_mapping_added_beam.png" width="400">
+
+
+
+#### Photon mapping examples (16384 light samples, increased light intensity)
+Bellow is the result after increased light intensity.
+The quality has improved significantly, but with coast. Moving camera has become significantly slower.
+
+<img src="images/only_photon_mapping2.png" width="400">
+<img src="images/only_photon_mapping2_points.png" width="400">
+<img src="images/only_photon_mapping2_added_beam.png" width="400">
+
+#### Photon mapping examples (65536 light samples, increased light intensity)
+Still the quality of the result seems to low.
+Bellow is result after increased the number of sample lights to 65536.
+
+<img src="images/only_photon_mapping3.png" width="400">
+<img src="images/only_photon_mapping3_points.png" width="400">
+<img src="images/only_photon_mapping3_added_beam.png" width="400">
