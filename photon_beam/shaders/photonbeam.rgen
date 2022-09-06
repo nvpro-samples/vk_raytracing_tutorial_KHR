@@ -97,10 +97,10 @@ void main()
      // this value must be either 0 or 1
     uint numSurfacePhoton =  (prd.instanceIndex >= 0 )? 1: 0;
 
-    if (launchIndex  > pcRay.numBeamSources)
+    if (launchIndex  >= pcRay.numBeamSources)
         num_split = 0;
 
-    if (launchIndex  > pcRay.numPhotonSources)
+    if (launchIndex  >= pcRay.numPhotonSources)
         numSurfacePhoton = 0;
     
     if (numSurfacePhoton + num_split < 1)
