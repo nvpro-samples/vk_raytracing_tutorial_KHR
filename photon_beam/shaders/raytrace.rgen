@@ -58,7 +58,12 @@ layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 
 void main()
 {
-    uint seed = tea(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, 1);
+    uint launchIndex = gl_LaunchSizeEXT.y * gl_LaunchSizeEXT.z * gl_LaunchIDEXT.x 
+        + gl_LaunchSizeEXT.z * gl_LaunchIDEXT.y + gl_LaunchIDEXT.z;
+
+    // Initialize the random number
+    uint seed = tea(launchIndex, int(clockARB()));
+
     Indices   indices   = Indices(sceneDesc.indexAddress);
     Normals   normals   = Normals(sceneDesc.normalAddress);
     TexCoords texCoords = TexCoords(sceneDesc.uvAddress);
