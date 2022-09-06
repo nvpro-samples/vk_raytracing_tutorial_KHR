@@ -1,6 +1,10 @@
 ﻿# Photon mapping
 
+
+<p>
 <img src="images/default_image.png" width="400">
+<img src="images/default_image2.png" width="400">
+</p>
 
 This example uses photon beam method to describe radiance by volumetric radiance.
 Also combined with photon mapping method describe surface radiance.
