@@ -57,12 +57,13 @@ void ResetAbleRaytracingBuilderKHR::resetTlas()
 void HelloVulkan::setDefaults()
 {
   const nvmath::vec4f defaultBeamNearColor{1.0f, 1.0f, 1.0f, 1.0f};
-  const nvmath::vec4f defaultBeamUnitDistantColor{0.791, 0.904, 0.904, 1.0f};
+  const nvmath::vec4f defaultBeamUnitDistantColor{2.3 / 2.55, 0.95, 0.95, 1.0f};
+
 
   m_beamNearColor        = defaultBeamNearColor;
   m_beamUnitDistantColor = defaultBeamUnitDistantColor;
-  m_beamRadius   = 0.5;
-  m_photonRadius = 0.5;
+  m_beamRadius   = 0.6;
+  m_photonRadius = 1.0;
   m_beamIntensity        = 30.0f;
   m_usePhotonMapping = true;
   m_usePhotonBeam    = true;

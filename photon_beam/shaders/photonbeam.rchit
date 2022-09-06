@@ -70,6 +70,9 @@ bool randomScatterOccured(const vec3 world_position){
     if (rayLength < airScatterAt) {
         return false;
     }
+    
+    prd.rayOrigin = prd.rayOrigin + prd.rayDirection * airScatterAt;
+    prd.instanceIndex = -1;
 
     vec3 albedo = pcRay.airScatterCoff / pcRay.airExtinctCoff;
     float absorptionProb = 1.0 - max(max(albedo.x, albedo.y), albedo.z);
@@ -77,18 +80,11 @@ bool randomScatterOccured(const vec3 world_position){
     // use russian roulett to decide whether scatter or absortion occurs
     if (rnd(prd.seed) <= absorptionProb){
         prd.weight = vec3(0.0);
+        return true;
     }
-    else {
-         prd.weight = exp(-pcRay.airExtinctCoff * airScatterAt);
-    }
-   
-    vec3 rayOrigin = prd.rayOrigin + prd.rayDirection * airScatterAt;
-    vec3 rayDirection = heneyGreenPhaseFuncSampling(prd.seed, prd.rayDirection, pcRay.airHGAssymFactor);
 
-    
-    prd.rayOrigin    = rayOrigin;
-    prd.rayDirection = rayDirection;
-    prd.instanceIndex = -1;
+    prd.weight = exp(-pcRay.airExtinctCoff * airScatterAt);
+    prd.rayDirection = heneyGreenPhaseFuncSampling(prd.seed, prd.rayDirection, pcRay.airHGAssymFactor);
 
     return true;
 }
