@@ -2,6 +2,9 @@
 
 <img src="images/default_image.png" width="400">
 
+This example uses photon beam method to describe radiance by volumetric radiance.
+Also combined with photon mapping method describe surface radiance.
+
 The example is result of modification of [glTF Scene](../ray_tracing__gltf) tutorial.
 
 When this example made bellow version of nvpro core was used.
@@ -10,14 +13,12 @@ https://github.com/nvpro-samples/nvpro_core/commit/1d82623cf8fc0e3881150b5d0f0ae
 
 This example has been modified a lot from the original work. You may want to check difference at bellow page.
 
-[Compare with glTF Scene](https://github.com/donguklim/vk_raytracing_tutorial_KHR/compare/photon-beam-copied-from-gltf...donguklim:vk_raytracing_tutorial_KHR:phton-beam?expand=1)
-
-This example uses different rendering technique.
+[Compare with glTF Scene](https://github.com/donguklim/vk_raytracing_tutorial_KHR/compare/photon-beam-copied-from-gltf...donguklim:vk_raytracing_tutorial_KHR:master?expand=1)
 
 While the original work omitted some features in shading material, this example loaded all features required for implementing 
 [BRDF in glTF specification](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#appendix-b-brdf-implementation) for surface reflection.
 
-For rendering this example uses 
+For rendering, this example uses 
 
 - Photon beam method for volumetric radiance estimation, with 
 - Photon mapping method for surface reflection
