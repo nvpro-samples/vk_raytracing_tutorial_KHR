@@ -6,6 +6,8 @@
 #extension GL_ARB_shader_clock : enable
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
+//#extension GL_EXT_debug_printf : require
+
 #include "raycommon.glsl"
 #include "sampling.glsl"
 #include "host_device.h"
@@ -38,9 +40,9 @@ void main()
         + gl_LaunchSizeEXT.z * gl_LaunchIDEXT.y + gl_LaunchIDEXT.z;
 
   // Initialize the random number
-  uint seed = tea(launchIndex, int(clockARB()));
+  prd.seed = tea(launchIndex, int(clockARB()));
 
-  vec3 rayDirection = uniformSamplingSphere(seed);
+  vec3 rayDirection = uniformSamplingSphere(prd.seed);
 
   uint  rayFlags = gl_RayFlagsOpaqueEXT;
   float tMin     = 0.001;
