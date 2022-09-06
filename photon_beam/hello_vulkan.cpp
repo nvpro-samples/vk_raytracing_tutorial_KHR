@@ -1194,6 +1194,17 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
 
     vkQueueWaitIdle(m_queue);
 
+    uint num_semaphores = m_pbBuilderSemaphores.size();
+    VkSemaphoreWaitInfo waitInfo;
+    waitInfo.sType          = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+    waitInfo.pNext          = NULL;
+    waitInfo.flags          = 0;
+    waitInfo.semaphoreCount = num_semaphores;
+    waitInfo.pSemaphores    = m_pbBuilderSemaphores.data();
+    waitInfo.pValues        = m_pbBuilderSemaphoresWaitValues.data();
+
+    vkWaitSemaphores(m_device, &waitInfo, UINT64_MAX);
+
     m_pbBuilder.resetTlas();
     vkQueueWaitIdle(m_queue);
     setBeamPushConstants(clearColor);
@@ -1277,38 +1288,11 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
         1, 
         &cpy
     );
-
-    vkResetFences(m_device, 1, &m_beamCounterReadFence);
-
-    uint num_semaphores = m_pbBuilderSemaphores.size();
-    std::vector<VkPipelineStageFlags> waitStages;
-    waitStages.reserve(num_semaphores);
-    for(int i = 0; i < num_semaphores; i++)
-    {
-      waitStages.emplace_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
-    }
-
-    VkTimelineSemaphoreSubmitInfo timelineInfo;
-    timelineInfo.sType                     = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
-    timelineInfo.pNext                     = NULL;
-    timelineInfo.waitSemaphoreValueCount   = num_semaphores;
-    timelineInfo.pWaitSemaphoreValues      = m_pbBuilderSemaphoresWaitValues.data();
-    timelineInfo.signalSemaphoreValueCount = 0;
-    timelineInfo.pSignalSemaphoreValues    = nullptr;
+    vkEndCommandBuffer(m_pbBuildCommandBuffer);
 
     VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
-    submitInfo.pWaitDstStageMask           = waitStages.data();
-    submitInfo.pNext                       = &timelineInfo;
-    submitInfo.waitSemaphoreCount          = num_semaphores;
-    submitInfo.pWaitSemaphores             = m_pbBuilderSemaphores.data();
-    submitInfo.signalSemaphoreCount        = 0;
-    submitInfo.pSignalSemaphores           = nullptr;
-    submitInfo.pCommandBuffers             = &m_pbBuildCommandBuffer;
-    submitInfo.commandBufferCount          = 1;
-
-    /*
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
-    submitInfo.pWaitDstStageMask = waitStages;
+    submitInfo.pWaitDstStageMask = nullptr;
     submitInfo.pWaitSemaphores = nullptr; 
     submitInfo.waitSemaphoreCount   = 0;
     submitInfo.pSignalSemaphores  = nullptr;
@@ -1316,10 +1300,9 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
     submitInfo.pCommandBuffers    = &m_pbBuildCommandBuffer;
     submitInfo.commandBufferCount = 1;
     submitInfo.pNext              = nullptr;
-    */
 
     // Submit to the graphics queue passing a wait fence
-    vkEndCommandBuffer(m_pbBuildCommandBuffer);
+    vkResetFences(m_device, 1, &m_beamCounterReadFence);
     vkQueueSubmit(m_queue, 1, &submitInfo, m_beamCounterReadFence);
     m_debug.endLabel(m_pbBuildCommandBuffer);
 
@@ -1358,6 +1341,7 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
     );
     vkEndCommandBuffer(m_pbBuildCommandBuffer);
 
+    VkTimelineSemaphoreSubmitInfo timelineInfo;
     timelineInfo.sType                     = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
     timelineInfo.pNext                     = NULL;
     timelineInfo.waitSemaphoreValueCount   = 0;
