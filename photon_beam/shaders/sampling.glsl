@@ -113,7 +113,8 @@ float heneyGreenPhaseFunc(float cosTheta, float g)
   return (1 - g2) / (denom * sqrt(denom)) / (4 * M_PI);
 }
 
-vec3 heneyGreenPhaseFuncSampling(inout uint seed, in vec3 incomingLightDir, float g)
+// normal is incoming ray direction start from the light source 
+vec3 heneyGreenPhaseFuncSampling(inout uint seed, in vec3 normal, float g)
 {
   float r1 = rnd(seed);
   float r2 = rnd(seed);
@@ -133,7 +134,6 @@ vec3 heneyGreenPhaseFuncSampling(inout uint seed, in vec3 incomingLightDir, floa
 
   vec3 ret = vec3(sin_theta * cos(phi), cos_theta, sin_theta * sin(phi));
 
-  vec3 normal = -incomingLightDir;
   // if normal vector is (0,1,0) or (0, -1, 0) set the right direction to (1, 0, 0)
   vec3 normalRight = vec3(1, 0, 0);
 
