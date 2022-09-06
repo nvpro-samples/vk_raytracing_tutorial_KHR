@@ -555,6 +555,7 @@ void HelloVulkan::destroyResources()
   vkDestroyDescriptorPool(m_device, m_rtDescPool, nullptr);
   vkDestroyDescriptorSetLayout(m_device, m_rtDescSetLayout, nullptr);
 
+  vkFreeCommandBuffers(m_device, m_cmdPool, 1, &m_pbBuildCommandBuffer);
   for(auto& semaphore : m_pbBuilderSemaphores)
   {
     vkDestroySemaphore(m_device, semaphore, nullptr);
@@ -1264,8 +1265,6 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
     counterBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
     counterBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT;
 
-
-
     vkCmdPipelineBarrier(
         m_pbBuildCommandBuffer, 
         VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
@@ -1510,35 +1509,35 @@ void HelloVulkan::createRtPipeline()
 //
 void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf)
 {
-  updateFrame();
+    updateFrame();
 
-  m_debug.beginLabel(cmdBuf, "Ray trace");
+    m_debug.beginLabel(cmdBuf, "Ray trace");
 
-  std::vector<VkDescriptorSet> descSets{m_rtDescSet, m_descSet};
-  vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipeline);
-  vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipelineLayout, 0,
-                          (uint32_t)descSets.size(), descSets.data(), 0, nullptr);
+    std::vector<VkDescriptorSet> descSets{m_rtDescSet, m_descSet};
+    vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipeline);
+    vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipelineLayout, 0,
+                            (uint32_t)descSets.size(), descSets.data(), 0, nullptr);
 
-  m_pcRay.numBeamSources   = m_numBeamSamples;
-  m_pcRay.numPhotonSources = m_numPhotonSamples;
-  vkCmdPushConstants(
-      cmdBuf, 
-      m_rtPipelineLayout,
-      VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR 
-      | VK_SHADER_STAGE_INTERSECTION_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
-      0, sizeof(PushConstantRay), &m_pcRay
-  );
-
-
-  auto& regions = m_sbtWrapper.getRegions();
-  vkCmdTraceRaysKHR(
-      cmdBuf, 
-      &regions[0], &regions[1], &regions[2], &regions[3], 
-      m_size.width, m_size.height, 1
-  );
+    m_pcRay.numBeamSources   = m_numBeamSamples;
+    m_pcRay.numPhotonSources = m_numPhotonSamples;
+    vkCmdPushConstants(
+        cmdBuf, 
+        m_rtPipelineLayout,
+        VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR 
+        | VK_SHADER_STAGE_INTERSECTION_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
+        0, sizeof(PushConstantRay), &m_pcRay
+    );
 
 
-  m_debug.endLabel(cmdBuf);
+    auto& regions = m_sbtWrapper.getRegions();
+    vkCmdTraceRaysKHR(
+        cmdBuf, 
+        &regions[0], &regions[1], &regions[2], &regions[3], 
+        m_size.width, m_size.height, 1
+    );
+
+
+    m_debug.endLabel(cmdBuf);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -1558,4 +1557,62 @@ void HelloVulkan::updateFrame()
     refCamMatrix = m;
     refFov       = fov;
   }
+}
+
+void HelloVulkan::submitFrame()
+{
+  uint32_t imageIndex = m_swapChain.getActiveImageIndex();
+  vkResetFences(m_device, 1, &m_waitFences[imageIndex]);
+
+  // In case of using NVLINK
+  const uint32_t                deviceMask  = m_useNvlink ? 0b0000'0011 : 0b0000'0001;
+  const std::array<uint32_t, 2> deviceIndex = {0, 1};
+
+  VkDeviceGroupSubmitInfo deviceGroupSubmitInfo{VK_STRUCTURE_TYPE_DEVICE_GROUP_SUBMIT_INFO_KHR};
+  deviceGroupSubmitInfo.waitSemaphoreCount            = 2;
+  deviceGroupSubmitInfo.commandBufferCount            = 1;
+  deviceGroupSubmitInfo.pCommandBufferDeviceMasks     = &deviceMask;
+  //deviceGroupSubmitInfo.signalSemaphoreCount          = m_useNvlink ? 2 : 1;
+  deviceGroupSubmitInfo.signalSemaphoreCount          = 2;
+  deviceGroupSubmitInfo.pSignalSemaphoreDeviceIndices = deviceIndex.data();
+  deviceGroupSubmitInfo.pWaitSemaphoreDeviceIndices   = deviceIndex.data();
+
+  VkSemaphore semaphoreRead  = m_swapChain.getActiveReadSemaphore();
+  VkSemaphore semaphoreWrite = m_swapChain.getActiveWrittenSemaphore();
+
+  VkSemaphore waitSemaphors[2] = {m_pbBuilderSemaphores[imageIndex], semaphoreRead};
+  VkSemaphore signalSemaphors[2] = {m_pbBuilderSemaphores[imageIndex], semaphoreWrite};
+
+  //uint64_t waitValues[2]   = {m_pbBuilderSemaphoresWaitValues[imageIndex], 0};
+  //uint64_t signalVaules[2] = {m_pbBuilderSemaphoresSignalValues[imageIndex], 0};
+  VkTimelineSemaphoreSubmitInfo timelineInfo;
+  timelineInfo.sType                     = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+  timelineInfo.pNext                     = NULL;
+  timelineInfo.waitSemaphoreValueCount   = 2;
+  timelineInfo.pWaitSemaphoreValues      = &m_pbBuilderSemaphoresWaitValues[imageIndex];
+  timelineInfo.signalSemaphoreValueCount = 2;
+  timelineInfo.pSignalSemaphoreValues    = &m_pbBuilderSemaphoresSignalValues[imageIndex];
+  timelineInfo.pNext                     = &deviceGroupSubmitInfo;
+
+  // Pipeline stage at which the queue submission will wait (via pWaitSemaphores)
+  const VkPipelineStageFlags waitStageMask[2] = {VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+  // The submit info structure specifies a command buffer queue submission batch
+  VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+  submitInfo.pWaitDstStageMask = waitStageMask;  // Pointer to the list of pipeline stages that the semaphore waits will occur at
+  submitInfo.pWaitSemaphores = waitSemaphors;  // Semaphore(s) to wait upon before the submitted command buffer starts executing
+  submitInfo.waitSemaphoreCount   = 2;                // One wait semaphore
+  submitInfo.pSignalSemaphores    = signalSemaphors;  // Semaphore(s) to be signaled when command buffers have completed
+  submitInfo.signalSemaphoreCount = 2;                // One signal semaphore
+  submitInfo.pCommandBuffers = &m_commandBuffers[imageIndex];  // Command buffers(s) to execute in this batch (submission)
+  submitInfo.commandBufferCount = 1;                           // One command buffer
+  submitInfo.pNext              = &timelineInfo;
+
+  // Submit to the graphics queue passing a wait fence
+  vkQueueSubmit(m_queue, 1, &submitInfo, m_waitFences[imageIndex]);
+
+  m_pbBuilderSemaphoresWaitValues[imageIndex] += 1;
+  m_pbBuilderSemaphoresSignalValues[imageIndex] += 1;
+
+  // Presenting frame
+  m_swapChain.present(m_queue);
 }

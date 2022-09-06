@@ -166,6 +166,7 @@ public:
 
   void raytrace(const VkCommandBuffer& cmdBuf);
   void updateFrame();
+  void submitFrame();
   void submitRayTrace(const VkCommandBuffer& cmdBuf);
 
   VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
