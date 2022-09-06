@@ -166,6 +166,7 @@ public:
 
   void raytrace(const VkCommandBuffer& cmdBuf);
   void updateFrame();
+  void submitRayTrace(const VkCommandBuffer& cmdBuf);
 
   VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
   nvvk::RaytracingBuilderKHR                      m_rtBuilder;
@@ -182,7 +183,10 @@ public:
 
   VkFence                                           m_beamCounterReadFence;
   VkFence                                           m_pbBuildFence;
-  VkCommandBuffer                                    m_pbBuildCommandBuffer;
+  std::vector<VkSemaphore>                          m_pbBuilderSemaphores;
+  std::vector<uint64_t>                             m_pbBuilderSemaphoresWaitValues;
+  std::vector<uint64_t>                             m_pbBuilderSemaphoresSignalValues;
+  VkCommandBuffer                                   m_pbBuildCommandBuffer;
   ResetAbleRaytracingBuilderKHR                     m_pbBuilder;
   nvvk::DescriptorSetBindings m_pbDescSetLayoutBind;
   VkDescriptorPool            m_pbDescPool;

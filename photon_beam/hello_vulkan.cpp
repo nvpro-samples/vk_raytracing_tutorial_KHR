@@ -89,6 +89,31 @@ void HelloVulkan::createBeamASCommandBuffer()
     vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_beamCounterReadFence);
     vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_pbBuildFence);
 
+    auto num_images = m_swapChain.getImageCount();
+    m_pbBuilderSemaphores.reserve(num_images);
+    m_pbBuilderSemaphoresWaitValues.reserve(num_images);
+    m_pbBuilderSemaphoresSignalValues.reserve(num_images);
+
+    for(int i = 0; i < num_images; i++)
+    {
+        VkSemaphoreTypeCreateInfo timelineCreateInfo;
+        timelineCreateInfo.sType         = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+        timelineCreateInfo.pNext         = NULL;
+        timelineCreateInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+        timelineCreateInfo.initialValue  = 0;
+
+        VkSemaphoreCreateInfo createInfo;
+        createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        createInfo.pNext = &timelineCreateInfo;
+        createInfo.flags = 0;
+
+        VkSemaphore timelineSemaphore;
+        m_pbBuilderSemaphores.emplace_back(timelineSemaphore);
+        vkCreateSemaphore(m_device, &createInfo, NULL, &m_pbBuilderSemaphores[i]);
+        m_pbBuilderSemaphoresWaitValues.emplace_back(0);
+        m_pbBuilderSemaphoresSignalValues.emplace_back(1);
+    }
+
     NAME_VK(m_beamBoxBuffer.buffer);
  
 }
@@ -529,6 +554,11 @@ void HelloVulkan::destroyResources()
   vkDestroyPipelineLayout(m_device, m_rtPipelineLayout, nullptr);
   vkDestroyDescriptorPool(m_device, m_rtDescPool, nullptr);
   vkDestroyDescriptorSetLayout(m_device, m_rtDescSetLayout, nullptr);
+
+  for(auto& semaphore : m_pbBuilderSemaphores)
+  {
+    vkDestroySemaphore(m_device, semaphore, nullptr);
+  }
 
   vkDestroyFence(m_device, m_beamCounterReadFence, nullptr);
   vkDestroyFence(m_device, m_pbBuildFence, nullptr);
