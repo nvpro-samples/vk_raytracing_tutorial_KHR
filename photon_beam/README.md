@@ -1,7 +1,6 @@
 ﻿# Photon mapping
 
-![img](images/vk_ray_tracing_gltf_KHR.png)
-
+<img src="images/default_image.png" width="400">
 
 The example is result of modification of [glTF Scene](../ray_tracing__gltf) tutorial.
 
@@ -40,32 +39,269 @@ For more detailed background of the techinques used you may check references.
     - https://agraphicsguy.wordpress.com/2015/11/01/sampling-microfacet-brdf/
 
 
+## General Process
+
+1. Build Model Accelerated Structure
+    - Load the scene and save the 3D model in the accelerated structure.
+2. Light Generation 
+    - Use ray tracing method to simulate light. 
+    - Save light interactions as photons and beams.
+3. Build Light Accelerated Structure 
+    - Build Accelerated structure that contains the beams and photons. 
+4. Ray tracing. 
+    - Accumulate beam and photon radiance to draw the image.
 
 
+## Surface Accelerated Strucrue Generation 
+This process is almost the same as the [glTF Scene](../ray_tracing__gltf).
 
-## Beam Generation
+In addition, roughness and metallic factors are also loaded for calculating BRDF equation provided by glTF specification.
 
-The OBJ models were loaded and stored in four buffers: 
-
-* vertices: array of structure of position, normal, texcoord, color
-* indices: index of the vertex, every three makes a triangle
-* materials: the wavefront material structure
-* material index: material index per triangle.
-
-Since we could have multiple OBJ, we would have arrays of those buffers.
-
-With glTF scene, the data will be organized differently a choice we have made for convenience. Instead of having structure of vertices,  
-positions, normals and other attributes will be in separate buffers. There will be one single position buffer,
-for all geometries of the scene, same for indices and other attributes. But for each geometry there is the information
-of the number of elements and offsets. 
-
-From the source tutorial, we will not need the following and therefore remove it:
-
+#### **`shaders/host_device.h`**
 ~~~~C
-  std::vector<ObjModel>    m_objModel;   // Model on host
-  std::vector<ObjDesc>     m_objDesc;    // Model description for device access
-  std::vector<ObjInstance> m_instances;  // Scene model instances
+  struct GltfShadeMaterial
+{
+  vec4 pbrBaseColorFactor;
+  vec3 emissiveFactor;
+  int  pbrBaseColorTexture;
+  float metallic;
+  float roughness;
+  uint   padding[2];
+};
 ~~~~
+`uint   padding[2]` is for data alilghment in Vulkan buffer. When the struct data is copied to buffer, it must be multiple of size of the largest field, which is  `vec4`.
+#### **`hello_vulkan.cpp`**
+~~~~CPP
+// Copying all materials, only the elements we need
+  std::vector<GltfShadeMaterial> shadeMaterials;
+  for(const auto& m : m_gltfScene.m_materials)
+  {
+    shadeMaterials.emplace_back(
+        GltfShadeMaterial{
+            m.baseColorFactor, 
+            m.emissiveFactor, 
+            m.baseColorTexture, 
+            m.metallicFactor, 
+            m.roughnessFactor
+        }
+    );
+  }
+  m_materialBuffer = m_alloc.createBuffer(
+      cmdBuf, 
+      shadeMaterials,
+      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+  );
+~~~~
+
+## Light Generation
+
+Lights are simulated using Vulkan raytracing.
+
+Light generation and image drawing process will have separate descriptor sets, pipelines, shader bounding tables, shader scripts for ray tracing.
+
+Bellow are the shader files used by light simulation.
+
+- [Ray Generation Shader - photonbeam.rchit](shaders/photonbeam.rgen)
+- [Close Hit Shader - photonbeam.rchit](shaders/photonbeam.rchit)
+- [Miss Shader - photonbeam.rmiss](shaders/photonbeam.rmiss)
+
+In this process the accelerated structure that contains surface objects is used to simulate lights and surface interaction.
+Bellow structs is used to save the light data.
+
+### Accelerated structure and Light data
+
+#### **`shaders/host_device.h`**
+~~~~C
+struct PhotonBeam
+{
+  vec3  startPos;
+  uint	mediaIndex;
+  vec3  endPos;
+  float radius;
+  vec3  lightColor;
+  int   hitInstanceIndex;
+};
+~~~~
+
+Currently, `radius` and `mediaIndex` are not used. 
+
+You may want to use them if you want to constrcut light with different width radius and more than one type of volumetric media.
+
+In this example, all lights have the same constant width, and the air is the only one participating media, so the two fields are only used as paddings.
+
+The data for accelerate structure that will contain lights are saved as following struct.
+
+#### **`shaders/host_device.h`**
+~~~~C
+struct ShaderVkAccelerationStructureInstanceKHR
+{
+  float                      matrix[3][4];
+  uint                   instanceCustomIndexAndmask;
+  uint                   instanceShaderBindingTableRecordOffsetAndflags;
+  uint64_t                   accelerationStructureReference;
+};
+~~~~
+This struct is used as `VkAccelerationStructureInstanceKHR`. It is made only for saving `VkAccelerationStructureInstanceKHR` in shader script. 
+
+The buffer for saving light data and accelerated structure instance info data are referenced in ray generation shader as shown bellow.
+
+#### **`shaders/photonbeam.rgen`**
+~~~~C
+layout(std430, set = 0, binding = 2) restrict buffer PhotonBeams{
+
+    uint subBeamCount;
+    uint beamCount;
+    uint _padding_beams[2];
+	PhotonBeam beams[];
+};
+
+layout(std430, set = 0, binding = 3) restrict buffer PhotonBeamsAs{
+	ShaderVkAccelerationStructureInstanceKHR subBeams[];
+};
+~~~~
+`subBeamCount` and `beamCount` are counters of the data.
+The light generation process will stop if any one of the counter reaches to the maximum and filled all allocated space in the buffer.
+`atomicAdd` function is used to increase count.
+
+#### **`shaders/photonbeam.rgen`**
+~~~~C
+    beamIndex = atomicAdd(beamCount, 1);
+    
+    ...
+
+    subBeamIndex = atomicAdd(subBeamCount, num_split + numSurfacePhoton);
+~~~~
+
+#### Surface Photon
+Only one accelerated structure instance is saved for surface photon interaction.
+
+The AS will be saved as a ball with the sampling radius.
+
+One `PhotonBeam` is referenced by one photon AS.
+
+Photons are located on the surface.
+
+#### Beam
+Beams in participating media will be sub-divided by its sampling radius.
+
+The AS will be saved as a cylinder with the sampling radius.
+
+One `PhotonBeam` is referenced by one or more beam AS.
+
+### Light Path
+
+A single invokation of the ray tracing process represents a path traveled by the light. 
+Light may scatter or reflect on a surface until it gets absorbed.
+A new `PhotonBeam` instance is generated if light scatters of reflects.
+
+#### Media Scattering
+A Light beam may randomly scatter or get absorbed in the middle of the air before it reaches a sold surface.
+
+The probability of scattering, absortion, and the scattering length is dependent to the scattering cofficient and extinct cofficient of the volumetric media the light is passing through.
+
+In the case of scattering a new light instance is generated with direction sampled from Henrey-Greenstein Phase function.
+
+
+#### Surface Reflection
+Light beam reaching a surface is reflected or absorbed.
+
+The reflection direction is sampled by microfacet distribution.If the direction is bellow the surface, it is considered to be absorbed.
+The refleccted light's power is weighted by `BRDF value / p` where p is the PDF value of the microfacet distribution.
+
+
+## Light Acceleration Structure
+
+The AS that will contain the light is built with following step.
+
+Copy the counter of `ShaderVkAccelerationStructureInstanceKHR` instances generated, to a host visible memory.
+
+Use fence to wait until the copy is finished.
+
+#### **`hello_vulkan.cpp`**
+~~~~C
+    VkBufferCopy cpy;
+    cpy.size      = sizeof(uint32_t);
+    cpy.srcOffset = 0;
+    cpy.dstOffset = 0;
+
+    vkCmdCopyBuffer(
+        m_pbBuildCommandBuffer, 
+        m_beamBuffer.buffer, 
+        m_beamAsCountReadBuffer.buffer, 
+        1, 
+        &cpy
+    );
+
+    vkResetFences(m_device, 1, &m_beamCounterReadFence);
+
+    VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+    VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
+    submitInfo.pWaitDstStageMask = waitStages;  
+    submitInfo.pWaitSemaphores = nullptr;  
+    submitInfo.waitSemaphoreCount   = 0;  
+    submitInfo.pSignalSemaphores  = nullptr; 
+    submitInfo.signalSemaphoreCount = 0;              
+    submitInfo.pCommandBuffers    = &m_pbBuildCommandBuffer;  
+    submitInfo.commandBufferCount = 1;                           
+    submitInfo.pNext              = nullptr;
+
+    // Submit to the graphics queue passing a wait fence
+    vkEndCommandBuffer(m_pbBuildCommandBuffer);
+    vkQueueSubmit(m_queue, 1, &submitInfo, m_beamCounterReadFence);
+~~~~
+
+Read the host visible memory and get the counter value in CPU side.
+
+#### **`hello_vulkan.cpp`**
+~~~~C
+    vkWaitForFences(m_device, 1, &m_beamCounterReadFence, VK_TRUE, UINT64_MAX);
+
+    void*    numBeamAsdata = m_alloc.map(m_beamAsCountReadBuffer);
+    uint32_t numBeamAs     = *(reinterpret_cast<uint32_t*>(numBeamAsdata));
+    m_alloc.unmap(m_beamAsCountReadBuffer);
+    numBeamAs = numBeamAs > m_maxNumSubBeams ? m_maxNumBeams : numBeamAs;
+~~~~
+
+Run the AS build command and wait on CPU side until it is finished.
+#### **`hello_vulkan.cpp`**
+~~~~C
+    vkResetCommandBuffer(m_pbBuildCommandBuffer, 0);
+    vkBeginCommandBuffer(m_pbBuildCommandBuffer, &beginInfo);
+    m_debug.beginLabel(m_pbBuildCommandBuffer, "Beam AS build");
+
+    VkBuildAccelerationStructureFlagsKHR flags  
+        = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+    bool                                 update = false;
+    bool                                 motion = false;
+
+    VkBufferDeviceAddressInfo bufferInfo{
+        VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, 
+        nullptr, 
+        m_beamAsInfoBuffer.buffer
+    };
+    VkDeviceAddress instBufferAddr = vkGetBufferDeviceAddress(m_device, &bufferInfo);
+
+    // Creating the TLAS
+    nvvk::Buffer scratchBuffer;
+    m_pbBuilder.cmdCreateTlas(
+        m_pbBuildCommandBuffer, 
+        numBeamAs, 
+        instBufferAddr, 
+        scratchBuffer, 
+        flags, 
+        update, 
+        motion
+    );
+    vkEndCommandBuffer(m_pbBuildCommandBuffer);
+    vkQueueSubmit(m_queue, 1, &submitInfo, m_pbBuildFence);
+    m_debug.endLabel(m_pbBuildCommandBuffer);
+
+    waitPbTlas();
+~~~~
+
+Now all requird ASs are built, and image can be drawn.
+
+
 
 In `host_device.h` we will add new host/device structures: PrimMeshInfo, SceneDesc and GltfShadeMaterial.
 

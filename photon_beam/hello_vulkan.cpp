@@ -330,10 +330,21 @@ void HelloVulkan::loadScene(const std::string& filename)
   std::vector<GltfShadeMaterial> shadeMaterials;
   for(const auto& m : m_gltfScene.m_materials)
   {
-    shadeMaterials.emplace_back(GltfShadeMaterial{m.baseColorFactor, m.emissiveFactor, m.baseColorTexture, m.metallicFactor, m.roughnessFactor});
+    shadeMaterials.emplace_back(
+        GltfShadeMaterial{
+            m.baseColorFactor, 
+            m.emissiveFactor, 
+            m.baseColorTexture, 
+            m.metallicFactor, 
+            m.roughnessFactor
+        }
+    );
   }
-  m_materialBuffer = m_alloc.createBuffer(cmdBuf, shadeMaterials,
-                                          VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+  m_materialBuffer = m_alloc.createBuffer(
+      cmdBuf, 
+      shadeMaterials,
+      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+  );
 
   // The following is used to find the primitive mesh information in the CHIT
   std::vector<PrimMeshInfo> primLookup;
@@ -1202,9 +1213,12 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
     );
 
     auto& regions = m_pbSbtWrapper.getRegions();
-    vkCmdTraceRaysKHR(m_pbBuildCommandBuffer, &regions[0], &regions[1], &regions[2], &regions[3],
-                      // It seems 4096 is the maximum allowed value for the next 3 parameters, larger value does not lauhcn ray tracing
-                      4, 4, MAX(m_numPhotonSamples, m_numBeamSamples) / 16);
+    vkCmdTraceRaysKHR(
+        m_pbBuildCommandBuffer, 
+        &regions[0], &regions[1], &regions[2], &regions[3],
+         // It seems 4096 is the maximum allowed value for the next 3 parameters, larger value does not lauhcn ray tracing
+         4, 4, MAX(m_numPhotonSamples, m_numBeamSamples) / 16
+    );
 
     counterBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
     counterBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -1224,19 +1238,25 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
     cpy.srcOffset = 0;
     cpy.dstOffset = 0;
 
-    vkCmdCopyBuffer(m_pbBuildCommandBuffer, m_beamBuffer.buffer, m_beamAsCountReadBuffer.buffer, 1, &cpy);
+    vkCmdCopyBuffer(
+        m_pbBuildCommandBuffer, 
+        m_beamBuffer.buffer, 
+        m_beamAsCountReadBuffer.buffer, 
+        1, 
+        &cpy
+    );
 
     vkResetFences(m_device, 1, &m_beamCounterReadFence);
 
     VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
-    submitInfo.pWaitDstStageMask = waitStages;  // Pointer to the list of pipeline stages that the semaphore waits will occur at
-    submitInfo.pWaitSemaphores = nullptr;  // Semaphore(s) to wait upon before the submitted command buffer starts executing
-    submitInfo.waitSemaphoreCount   = 0;  // One wait semaphore
-    submitInfo.pSignalSemaphores  = nullptr;  // Semaphore(s) to be signaled when command buffers have completed
-    submitInfo.signalSemaphoreCount = 0;              // One signal semaphore
-    submitInfo.pCommandBuffers    = &m_pbBuildCommandBuffer;  // Command buffers(s) to execute in this batch (submission)
-    submitInfo.commandBufferCount = 1;                           // One command buffer
+    submitInfo.pWaitDstStageMask = waitStages;
+    submitInfo.pWaitSemaphores = nullptr; 
+    submitInfo.waitSemaphoreCount   = 0;
+    submitInfo.pSignalSemaphores  = nullptr;
+    submitInfo.signalSemaphoreCount = 0;
+    submitInfo.pCommandBuffers    = &m_pbBuildCommandBuffer;
+    submitInfo.commandBufferCount = 1;
     submitInfo.pNext              = nullptr;
 
     // Submit to the graphics queue passing a wait fence
@@ -1259,12 +1279,24 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
     bool                                 update = false;
     bool                                 motion = false;
 
-    VkBufferDeviceAddressInfo bufferInfo{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, m_beamAsInfoBuffer.buffer};
-    VkDeviceAddress           instBufferAddr = vkGetBufferDeviceAddress(m_device, &bufferInfo);
+    VkBufferDeviceAddressInfo bufferInfo{
+        VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, 
+        nullptr, 
+        m_beamAsInfoBuffer.buffer
+    };
+    VkDeviceAddress instBufferAddr = vkGetBufferDeviceAddress(m_device, &bufferInfo);
 
     // Creating the TLAS
     nvvk::Buffer scratchBuffer;
-    m_pbBuilder.cmdCreateTlas(m_pbBuildCommandBuffer, numBeamAs, instBufferAddr, scratchBuffer, flags, update, motion);
+    m_pbBuilder.cmdCreateTlas(
+        m_pbBuildCommandBuffer, 
+        numBeamAs, 
+        instBufferAddr, 
+        scratchBuffer, 
+        flags, 
+        update, 
+        motion
+    );
     vkEndCommandBuffer(m_pbBuildCommandBuffer);
     vkQueueSubmit(m_queue, 1, &submitInfo, m_pbBuildFence);
     m_debug.endLabel(m_pbBuildCommandBuffer);
@@ -1272,7 +1304,6 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
     waitPbTlas();
     m_alloc.destroy(scratchBuffer);
 }
-
 
 //--------------------------------------------------------------------------------------------------
 // Pipeline for the ray tracer: all shaders, raygen, chit, miss
