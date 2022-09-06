@@ -80,7 +80,11 @@ void main()
     // so do not use this kernel
     //prd.hitValue += prd.weight * radiance * pow((1 - rayBeamPointDist / pcRay.beamRadius), 0.5);
 
-    prd.hitValue += prd.weight * radiance * (1 - rayBeamPointDist / pcRay.beamRadius);
+    // using 1.1 - rayBeamPointDist / pcRay.beamRadius instead of 1.0 - rayBeamPointDist / pcRay.beamRadius
+    // solved ocassional black dot problem
+    prd.hitValue += prd.weight * radiance * pow((1.1 - rayBeamPointDist / pcRay.beamRadius), 0.5);
+
+    //prd.hitValue += prd.weight * radiance * (1 - rayBeamPointDist / pcRay.beamRadius);
     //prd.hitValue += prd.weight * radiance * exp(-rayBeamPointDist / pcRay.beamRadius);
     //prd.hitValue += prd.weight * radiance;
 
