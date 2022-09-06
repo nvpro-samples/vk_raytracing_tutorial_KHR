@@ -69,6 +69,9 @@ void HelloVulkan::setDefaults()
   m_usePhotonBeam    = true;
   m_hgAssymFactor    = 0.7;
   m_showDirectColor = false;
+
+  m_numBeamSamples = 1024;
+  m_numPhotonSamples = 4 * 4 * 1024;
 }
 
 void HelloVulkan::createBeamASCommandBuffer()
