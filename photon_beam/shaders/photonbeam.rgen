@@ -38,7 +38,7 @@ void main()
         + gl_LaunchSizeEXT.z * gl_LaunchIDEXT.y + gl_LaunchIDEXT.z;
 
   // Initialize the random number
-  uint seed = tea(launchIndex, int(clockARB() + 3));
+  uint seed = tea(launchIndex, int(clockARB()));
 
   vec3 rayDirection = uniformSamplingSphere(seed);
 

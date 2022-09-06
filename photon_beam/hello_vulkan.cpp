@@ -1150,6 +1150,7 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
     vkQueueWaitIdle(m_queue);
 
     m_pbBuilder.resetTlas();
+    vkQueueWaitIdle(m_queue);
     setBeamPushConstants(clearColor);
 
     // begin command
