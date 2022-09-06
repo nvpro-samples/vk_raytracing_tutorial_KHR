@@ -128,6 +128,9 @@ vec3 heneyGreenPhaseFuncSampling(inout uint seed, in vec3 normal, float g)
   {
     denom += 0.000001;
   }
+
+  // cos theta == 1 -> front scattering, result direction is exactly same as the incoming light direction(direction start from the light source)
+  // cos theta == -1 -> back ward scattering, result direction is opposite of the incoming light direction(direction start from the light source)
   float cos_theta = numerator / denom;
   float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
   float phi   = 2.0f * M_PI * r2;
