@@ -41,33 +41,47 @@ void main()
     const vec3 rayBeamCross = cross(rayDirection, beamDirection);
 
     //ray and beam are parallel
-    // if ray beam does not overlap there exists a unique pair of closest points
-    // if ray and beam overlap just pick any closest points
+    // if ray touches beam cylinder
+    // just picking  any closest point is okay. The attenuation value will be the same for any of the closest point pairs.
     if (length(rayBeamCross) < 0.1e-10)
     {
         float beamEndAt = dot(beam.endPos - rayOrigin, rayDirection);
         float beamStartAt = dot(beam.startPos - rayOrigin, rayDirection);
         
-        // ray does not touch the beam cylinder
+        // ray and beam segments do not overlap
+        // then ray does not touch beam cylinder
         if (beamEndAt > rayLength && beamStartAt > rayLength)
         {
            return;
         }
 
-        // ray and beam cylinder overlap
+        vec3 rayPoint;
+        float rayPointAt;
+        vec3 beamPoint;
+
+        // ray and beam segments overlap, pick beam start position or end position as the closest point
         if (beamEndAt <= rayLength)
-        {
+        {   
+            rayPointAt = beamEndAt;
+            beamPoint = beam.endPos;
             beamHit = beam.endPos;
-            reportIntersectionEXT(beamEndAt, 0);
-            return
+
         }
         else
         {
-            beamHit = beam.startPos;
-            reportIntersectionEXT(beamEndAt, 0);
-            return
+            rayPointAt = beamStartAt;
+            beamPoint = beam.StartPos
         }
-      
+
+        if(length(beamPoint - rayPoint) >  pcRay.beamRadius)
+        {
+            return;
+        }
+
+        beamHit = beamPoint;
+        rayPointAt = length(rayPoint - rayOrigin);
+        reportIntersectionEXT(rayPointAt, 0);
+        return;
     }
 
     vec3 norm1 = cross(rayDirection, rayBeamCross);
