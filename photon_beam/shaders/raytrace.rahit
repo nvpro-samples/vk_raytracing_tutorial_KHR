@@ -72,21 +72,15 @@ void main()
     vec3 radiance = pcRay.airScatterCoff * exp(-pcRay.airExtinctCoff * (rayDist + beamDist)) * heneyGreenPhaseFunc(beamRayCosVal, pcRay.airHGAssymFactor)  
     * beam.lightColor / float(pcRay.numBeamSources) / (pcRay.beamRadius * beamRayAbsSinVal + 0.1e-10);
 
-    float rayBeamPointDist = length(worldPos - beamHit);
-    //prd.hitValue += prd.weight * radiance * exp(-pcRay.beamRadius * rayBeamPointDist * rayBeamPointDist);
+    float rayBeamCylinderCenterDist = length(cross(worldPos - beam.startPos, beamDirection));
+    //prd.hitValue += prd.weight * radiance * exp(-pcRay.beamRadius * rayBeamCylinderCenterDist * rayBeamCylinderCenterDist);
 
-    // using pow((1 - rayBeamPointDist / pcRay.beamRadius), 0.5) kernel cause several tiny black point noise to occur when eye position changes, 
-    // probably dueto sudden drop of radiance value at the end of the beam cylinder
-    // so do not use this kernel
-    //prd.hitValue += prd.weight * radiance * pow((1 - rayBeamPointDist / pcRay.beamRadius), 0.5);
+    // prd.hitValue += prd.weight * radiance * pow((1.1 - rayBeamCylinderCenterDist / pcRay.beamRadius), 2.2);
+    prd.hitValue += prd.weight * radiance * pow((1.0 - rayBeamCylinderCenterDist / pcRay.beamRadius), 0.5);
 
-    // using 1.1 - rayBeamPointDist / pcRay.beamRadius instead of 1.0 - rayBeamPointDist / pcRay.beamRadius
-    // solved ocassional black dot problem
-    //prd.hitValue += prd.weight * radiance * pow((1.1 - rayBeamPointDist / pcRay.beamRadius), 0.5);
-
-    //prd.hitValue += prd.weight * radiance * (1 - rayBeamPointDist / pcRay.beamRadius);
-    //prd.hitValue += prd.weight * radiance * exp(-rayBeamPointDist / pcRay.beamRadius);
-    prd.hitValue += prd.weight * radiance;
+    //prd.hitValue += prd.weight * radiance * (1.1 - rayBeamCylinderCenterDist / pcRay.beamRadius);
+    //prd.hitValue += prd.weight * radiance * exp(-rayBeamCylinderCenterDist / pcRay.beamRadius);
+    //prd.hitValue += prd.weight * radiance;
 
     ignoreIntersectionEXT;
 }
