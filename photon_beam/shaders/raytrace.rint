@@ -70,7 +70,7 @@ void main()
         else
         {
             rayPointAt = beamStartAt;
-            beamPoint = beam.StartPos
+            beamPoint = beam.startPos;
         }
 
         if(length(beamPoint - rayPoint) >  pcRay.beamRadius)
@@ -97,47 +97,53 @@ void main()
     if(beamPointAt < 0)
     {
         beamPoint = beam.startPos;
-        rayPoint = rayOrigin + rayDirection * dot(beamPoint - rayOrigin, beamDirection) / dot(beamDirection, rayDirection);
     }
     else if(beamPointAt > beamLength)
     {
         beamPoint = beam.endPos;
-        rayPoint = rayOrigin + rayDirection * dot(beamPoint - rayOrigin, beamDirection) / dot(beamDirection, rayDirection);
     }
   
     if(rayPointAt < 0)
     {
         rayPoint = rayOrigin;
-        beamPoint = beam.startPos + beamDirection * dot(rayPoint - beam.startPos, beamDirection);
     }
     else if(rayPointAt > rayLength)
     {
         rayPoint = rayEnd;
-        beamPoint = beam.startPos + beamDirection * dot(rayPoint - beam.startPos, beamDirection);
     }
 
-
-    // return none if the distance between the nearest points is longer than the beam radius
-    if(length(beamPoint - rayPoint) >  pcRay.beamRadius)
+    if (beamPointAt < 0 || beamLength < beamPointAt)
     {
-        //reportIntersectionEXT(-1, 0);
+        rayPoint = rayOrigin + min(max(0.0f, dot(rayDirection, beamPoint - rayOrigin)), rayLength);
+    }
+
+    if(rayPointAt < 0 || rayLength < rayPointAt)
+    {
+        beamPoint = beam.startPos + min(max(0.0f, dot(beamDirection, rayPoint - beam.startPos)), beamLength);
+    }
+
+    // check if the raypoint projected at beam is within the beam line segment
+    if(dot(beamDirection, rayPoint - beam.startPos) > beamLength)
+    {
         return;
     }
-    
 
+    // check if ray point is within the beam radius
+    if(length(beamPoint - rayPoint) >  pcRay.beamRadius)
+    {
+        return;
+    }
+
+    // Now check if ray is intersecting with this sub beam.
     float beamBoxStartAt = length(vec3(gl_ObjectToWorldEXT * vec4(0.0,0.0,0.0, 1.0)) - beam.startPos);
     beamPointAt = length(beamPoint - beam.startPos);
 
-    // return none if this subbeam does not contain the beam point
     if(beamPointAt < beamBoxStartAt || beamBoxStartAt + pcRay.beamRadius * 2 <= beamPointAt)
     {
-        //reportIntersectionEXT(-1, 0);
         return;
     }
 
     beamHit = beamPoint;
-  
-
     rayPointAt = length(rayPoint - rayOrigin);
     reportIntersectionEXT(rayPointAt, 0);
 }
