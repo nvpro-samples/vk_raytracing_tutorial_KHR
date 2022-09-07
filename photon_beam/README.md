@@ -548,7 +548,7 @@ If you have actually run this code, you can notice how unatural the beam lights 
 
 You may implement the adaptive beam width mentioned  Wojciech Jarosz et. al(2011) in above reference.
 
-### Multiple participating media
+#### Multiple participating media
 
 I applied a constant homogeneous scattering and estinct cofficients to the whole air rendered in the scene.
 
