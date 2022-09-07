@@ -295,10 +295,6 @@ Run the AS build command and wait on CPU side until it is finished.
         motion
     );
     vkEndCommandBuffer(m_pbBuildCommandBuffer);
-    vkQueueSubmit(m_queue, 1, &submitInfo, m_pbBuildFence);
-    m_debug.endLabel(m_pbBuildCommandBuffer);
-
-    waitPbTlas();
 ~~~~
 
 Now all requird ASs are built, and image can be drawn.
