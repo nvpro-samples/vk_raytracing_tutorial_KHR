@@ -48,7 +48,7 @@ void main()
   float tMin     = 0.001;
   float tMax     = 10000.0;
 
-  float minmumLightIntensitySquare = 0.1e-20;
+  float minmumLightIntensitySquare = 0.0001;
 
   prd.rayOrigin    = pcRay.lightPosition;
   prd.rayDirection = rayDirection;
@@ -188,7 +188,7 @@ void main()
     rayDirection = prd.rayDirection;
 
     // if light intensity is weak, assume the light has been absored and make a new light
-    if (length(beamColor) < minmumLightIntensitySquare){
+    if (max(max(beamColor.x, beamColor.y), beamColor.z) < minmumLightIntensitySquare){
         return;
     }
   }

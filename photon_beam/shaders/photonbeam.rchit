@@ -56,7 +56,7 @@ layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 // clang-format on
 
 
-bool randomScatterOccured(const vec3 world_position){
+bool randomScatterOccured(const in vec3 world_position){
     float min_extinct = min(min(pcRay.airExtinctCoff.x, pcRay.airExtinctCoff.y), pcRay.airExtinctCoff.z);
     if (min_extinct <= 0.001)
         return false;
