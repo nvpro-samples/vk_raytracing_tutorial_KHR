@@ -143,13 +143,20 @@ void main()
     // https://en.wikipedia.org/wiki/Path_tracing
     // Material of the object
     GltfShadeMaterial mat       = materials.m[matIndex];
-    float cos_theta = dot(-prd.rayDirection, world_normal);
-
     vec3 rayOrigin    = world_position;
+
+    float cos_theta = dot(-prd.rayDirection, world_normal);
+    if (cos_theta <= 0)
+    {
+        prd.rayOrigin    = rayOrigin;
+        prd.weight = vec3(0.0);
+        return; 
+    }
+    
     vec3 rayDirection = microfacetReflectedLightSampling(prd.seed, prd.rayDirection, world_normal, mat.roughness);
 
     // rays reflected toward inside of the surface are considered to be absorbd
-    if(dot(world_normal, rayDirection) < 0)
+    if(dot(world_normal, rayDirection) <= 0)
     {
         prd.rayOrigin    = rayOrigin;
         prd.rayDirection = rayDirection;
