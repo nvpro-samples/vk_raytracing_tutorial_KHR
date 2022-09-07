@@ -528,6 +528,29 @@ So forget drawing specular reflection with photon beam or photon mapping method,
 
 <img src="images/with_specular_lights.png" width="400">
 
+### Control by Colors
+
+In the result program, you do not set the scattering cofficent, extinct cofficient, and the power of light source directly.
+Instead you can set air albedo value, which is scattering coffcient / extinct cofficient, and near beam color and a unit distant color.
+
+This control is based on the article  A programmable system for artistic volumetric lighting(D Nowrouzezahrai).
+
+Bean near color is the color of the beam you expect to view when the beam is at the light source, and eye position is at the default distance(which is set to 15 units).
+
+Distant color is the color of the beam you expect to view when the beam is 1 unit away from the light source in the direction orthogonal to the line segment between the eye and the light source.
+
+When only one beam is sampled, and the direction is orthogonal to the viewer, viewer can obviously see how beam changes from near color to distant color.
+
+<p>
+<img src="images/control_colors.png" width="400">
+<img src="images/control_colors_result.png" width="400">
+</p>
+
+<p>
+<img src="images/control_colors2.png" width="400">
+<img src="images/control_colors_result2.png" width="400">
+</p>
+
 ### Further Improvements
 
 This is of course just my toy project for learning Vulkan.
