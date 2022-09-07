@@ -26,7 +26,7 @@ layout(location = 0) rayPayloadInEXT hitPayload prd;
 
 void main()
 {
-	const float missingBeamLength = 12.0f;
+	const float missingBeamLength = 17.0f;
 	prd.instanceIndex = -1;
 	prd.rayOrigin += prd.rayDirection * missingBeamLength;
     prd.weight = vec3(0.0);
