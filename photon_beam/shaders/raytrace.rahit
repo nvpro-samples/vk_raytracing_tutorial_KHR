@@ -75,8 +75,8 @@ void main()
     float rayBeamCylinderCenterDist = length(cross(worldPos - beam.startPos, beamDirection));
     //prd.hitValue += prd.weight * radiance * exp(-pcRay.beamRadius * rayBeamCylinderCenterDist * rayBeamCylinderCenterDist);
 
-    // prd.hitValue += prd.weight * radiance * pow((1.1 - rayBeamCylinderCenterDist / pcRay.beamRadius), 2.2);
-    prd.hitValue += prd.weight * radiance * pow((1.0 - rayBeamCylinderCenterDist / pcRay.beamRadius), 0.5);
+    //prd.hitValue += prd.weight * radiance * pow((1.1 - rayBeamCylinderCenterDist / pcRay.beamRadius), 2.2);
+    prd.hitValue += prd.weight * radiance * pow((1.1 - rayBeamCylinderCenterDist / pcRay.beamRadius), 0.5);
 
     //prd.hitValue += prd.weight * radiance * (1.1 - rayBeamCylinderCenterDist / pcRay.beamRadius);
     //prd.hitValue += prd.weight * radiance * exp(-rayBeamCylinderCenterDist / pcRay.beamRadius);
