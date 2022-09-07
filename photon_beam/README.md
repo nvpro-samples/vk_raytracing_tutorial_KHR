@@ -533,11 +533,18 @@ So forget drawing specular reflection with photon beam or photon mapping method,
 This is of course just my toy project for learning Vulkan.
 There can be many ways for improvements.
 
-Some things that I would like to mentions are
+#### Fix Beam cylinder popping out back side
+
+<img src="images/light_cylinder_popping_out.png" width="600">
+
+This is currently the most obvious problem.
+The cylinder that contains the beam segment will pop out at back face of meshes.
+A beam line segment itself does not pass through a surface mesh, but its cylinder edges may.
+However, this would not be a problem in most cases since back face is not visible to viewer.
 
 #### Adaptive Beam width
 
-If you have actually run this code, you can notice how unatural the beam lights are with constant width. 
+Some people may feel unatural that all beam lights have constant thickness along their paths. 
 
 You may implement the adaptive beam width mentioned  Wojciech Jarosz et. al(2011) in above reference.
 
@@ -548,4 +555,5 @@ I applied a constant homogeneous scattering and estinct cofficients to the whole
 However, you may only want to apply different values in different volumes in restricted region of the space.
 
 Making clouds, or smokes for example, with heterogeneous scatteinrg and extinction.
+
 
