@@ -1169,32 +1169,9 @@ void HelloVulkan::updateRtDescriptorSetBeamTlas()
   vkUpdateDescriptorSets(m_device, 1, &wds, 0, nullptr);
 }
 
-void HelloVulkan::waitPbTlas() {
-    VkResult result{VK_SUCCESS};
-    do
-    {
-    result = vkWaitForFences(m_device, 1, &m_pbBuildFence, VK_TRUE, UINT64_MAX);
-    } while(result == VK_TIMEOUT);
-
-    if(result != VK_SUCCESS)
-    {  // This allows Aftermath to do things and later assert below
-    #ifdef _WIN32
-        Sleep(1000);
-    #else
-        usleep(1000);
-    #endif
-    }
-    assert(result == VK_SUCCESS);
-}
 
 void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
 {
-    waitPbTlas();
-    // need a way to release all fences
-    vkResetFences(m_device, 1, &m_pbBuildFence);
-
-    vkQueueWaitIdle(m_queue);
-
     uint num_semaphores = m_pbBuilderSemaphores.size();
     VkSemaphoreWaitInfo waitInfo;
     waitInfo.sType          = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
@@ -1207,7 +1184,6 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
     vkWaitSemaphores(m_device, &waitInfo, UINT64_MAX);
 
     m_pbBuilder.resetTlas();
-    vkQueueWaitIdle(m_queue);
     setBeamPushConstants(clearColor);
 
     // begin command
@@ -1355,6 +1331,8 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
     submitInfo.signalSemaphoreCount        = num_semaphores;
     submitInfo.pSignalSemaphores           = m_pbBuilderSemaphores.data();
 
+    vkResetFences(m_device, 1, &m_pbBuildFence);
+    
     vkQueueSubmit(m_queue, 1, &submitInfo, m_pbBuildFence);
 
     for(int i = 0; i < num_semaphores; i++)
@@ -1363,11 +1341,10 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
       m_pbBuilderSemaphoresSignalValues[i] += 1;
     }
 
-    //vkQueueSubmit(m_queue, 1, &submitInfo, m_pbBuildFence);
+    vkWaitForFences(m_device, 1, &m_pbBuildFence, VK_TRUE, UINT64_MAX);
+    m_alloc.destroy(scratchBuffer);
     m_debug.endLabel(m_pbBuildCommandBuffer);
 
-    waitPbTlas();
-    m_alloc.destroy(scratchBuffer);
 }
 
 //--------------------------------------------------------------------------------------------------
