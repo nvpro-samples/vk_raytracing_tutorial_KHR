@@ -70,6 +70,12 @@ void main()
     float beamDist = length(beam.startPos - beam.endPos);
     float rayDist = gl_HitTEXT;
     vec3 vewingDirection = normalize(gl_WorldRayDirectionEXT) * -1.0;
+
+    if (dot(towardLightDirection, prd.hitNormal) <= 0 || dot(vewingDirection, prd.hitNormal) <= 0)
+    {   
+        ignoreIntersectionEXT;
+        return;
+    }
     
     vec3 radiance = exp(-pcRay.airExtinctCoff * (rayDist + beamDist)) 
     * gltfBrdf(towardLightDirection, vewingDirection, prd.hitNormal, prd.hitAlbedo, prd.hitRoughness, prd.hitMetallic) 
