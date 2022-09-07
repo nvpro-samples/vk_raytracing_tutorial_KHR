@@ -478,7 +478,7 @@ Bellow is result after increased the number of sample lights to 65536.
 <img src="images/only_photon_mapping3_points.png" width="400">
 <img src="images/beam_photon_mapping3.png" width="400">
 
-You can see that increasing the number of sample has improved the quality, but with a coast.
+You can see that increasing the number of sample has improved the quality, but with some coast.
 Moving camera in above scene is significantly slow.
 
 ### Specular Reflection
