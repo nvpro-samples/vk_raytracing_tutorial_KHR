@@ -1,21 +1,18 @@
-﻿# Photon mapping
-
+﻿# Photon Beam
 
 <p>
 <img src="images/default_image.png" width="400">
 <img src="images/default_image2.png" width="400">
 </p>
 
-This example uses photon beam method to describe radiance by volumetric radiance.
-Also combined with photon mapping method describe surface radiance.
+This example aims to describe volumetric radiance from participating media.
 
-The example is result of modification of [glTF Scene](../ray_tracing__gltf) tutorial.
-
-When this example made bellow version of nvpro core was used.
+This example used bellow version nvpro-core codes.
 
 https://github.com/nvpro-samples/nvpro_core/commit/1d82623cf8fc0e3881150b5d0f0aef920d9af627
 
-This example has been modified a lot from the original work. You may want to check difference at bellow page.
+The example is result of modification of [glTF Scene](../ray_tracing__gltf) tutorial.
+It has been modified a lot from [glTF Scene](../ray_tracing__gltf). You may want to check difference at bellow page.
 
 [Compare with glTF Scene](https://github.com/donguklim/vk_raytracing_tutorial_KHR/compare/photon-beam-copied-from-gltf...donguklim:vk_raytracing_tutorial_KHR:master?expand=1)
 
@@ -28,7 +25,7 @@ For rendering, this example uses
 - Photon mapping method for surface reflection
 - Simple raytracing for specular reflection.
 
-For more detailed background of the techinques used you may check references.
+For more detailed background of the techinques used, you may check following references.
 
 
 ## References
