@@ -8,6 +8,9 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_buffer_reference2 : require
 
+
+#extension GL_EXT_debug_printf : require
+
 #include "gltf.glsl"
 #include "raycommon.glsl"
 #include "sampling.glsl"
@@ -40,38 +43,27 @@ void main()
     float beamLength = length(beam.endPos - beam.startPos);
     const vec3 rayBeamCross = cross(rayDirection, beamDirection);
 
-    //ray and beam are parallel
-    // if ray touches beam cylinder
-    // just picking  any closest point is okay. The attenuation value will be the same for any of the closest point pairs.
-    if (length(rayBeamCross) < 0.1e-10)
+
+    // check if the ray hits beam cylinder when the beam cylinder has infinite radius
+    float rayStartOnBeamAt = dot(beamDirection, rayOrigin - beam.startPos);
+    float rayEndOnBeamAt = dot(beamDirection, rayEnd - beam.startPos);
+
+    if((rayStartOnBeamAt < 0 && rayEndOnBeamAt < 0) || (beamLength < rayStartOnBeamAt && beamLength < rayEndOnBeamAt))
     {
-        float beamEndAt = dot(beam.endPos - rayOrigin, rayDirection);
-        float beamStartAt = dot(beam.startPos - rayOrigin, rayDirection);
+        return;
+    }
+
+
+    //if ray and beam are parallel or almost parallel
+    // Need to choose the beam point that gives shortest ray length
+    if (length(rayBeamCross) <  0.1e-4)
+    {
         
-        // ray and beam segments do not overlap
-        // then ray does not touch beam cylinder
-        if (beamEndAt > rayLength && beamStartAt > rayLength)
-        {
-           return;
-        }
+        float beamEndOnRayAt = min(rayLength, max(0, dot(beam.endPos - rayOrigin, rayDirection)));
+        float beamStartOnRayAt = min(rayLength, max(0, dot(beam.startPos - rayOrigin, rayDirection)));
 
-        vec3 rayPoint;
-        float rayPointAt;
-        vec3 beamPoint;
-
-        // ray and beam segments overlap, pick beam start position or end position as the closest point
-        if (beamEndAt <= rayLength)
-        {   
-            rayPointAt = beamEndAt;
-            beamPoint = beam.endPos;
-            beamHit = beam.endPos;
-
-        }
-        else
-        {
-            rayPointAt = beamStartAt;
-            beamPoint = beam.startPos;
-        }
+        vec3 rayPoint = rayOrigin + rayDirection * min(beamEndOnRayAt, beamStartOnRayAt);
+        vec3 beamPoint = beam.startPos + beamDirection * dot(rayPoint - beam.startPos, beamDirection);
 
         if(length(beamPoint - rayPoint) >  pcRay.beamRadius)
         {
@@ -79,8 +71,7 @@ void main()
         }
 
         beamHit = beamPoint;
-        rayPointAt = length(rayPoint - rayOrigin);
-        reportIntersectionEXT(rayPointAt, 0);
+        reportIntersectionEXT(length(rayPoint - rayOrigin), 0);
         return;
     }
 
@@ -114,18 +105,20 @@ void main()
 
     if (beamPointAt < 0 || beamLength < beamPointAt)
     {
-        rayPoint = rayOrigin + min(max(0.0f, dot(rayDirection, beamPoint - rayOrigin)), rayLength);
+        rayPoint = rayOrigin + rayDirection * min(max(0.0f, dot(rayDirection, beamPoint - rayOrigin)), rayLength);
     }
 
     if(rayPointAt < 0 || rayLength < rayPointAt)
     {
-        beamPoint = beam.startPos + min(max(0.0f, dot(beamDirection, rayPoint - beam.startPos)), beamLength);
+        beamPoint = beam.startPos + beamDirection + min(max(0.0f, dot(beamDirection, rayPoint - beam.startPos)), beamLength);
     }
 
-    // check if the raypoint projected at beam is within the beam line segment
-    if(dot(beamDirection, rayPoint - beam.startPos) > beamLength)
+    // Now check if ray is intersecting with this sub beam.
+    float beamBoxStartAt = length(vec3(gl_ObjectToWorldEXT * vec4(0.0,0.0,0.0, 1.0)) - beam.startPos);
+    beamPointAt = length(beamPoint - beam.startPos);
+    if(beamPointAt < beamBoxStartAt || beamBoxStartAt + pcRay.beamRadius * 2 <= beamPointAt)
     {
-        return;
+       return;
     }
 
     // check if ray point is within the beam radius
@@ -134,16 +127,6 @@ void main()
         return;
     }
 
-    // Now check if ray is intersecting with this sub beam.
-    float beamBoxStartAt = length(vec3(gl_ObjectToWorldEXT * vec4(0.0,0.0,0.0, 1.0)) - beam.startPos);
-    beamPointAt = length(beamPoint - beam.startPos);
-
-    if(beamPointAt < beamBoxStartAt || beamBoxStartAt + pcRay.beamRadius * 2 <= beamPointAt)
-    {
-        return;
-    }
-
     beamHit = beamPoint;
-    rayPointAt = length(rayPoint - rayOrigin);
-    reportIntersectionEXT(rayPointAt, 0);
+    reportIntersectionEXT(length(rayPoint - rayOrigin), 0);
 }
