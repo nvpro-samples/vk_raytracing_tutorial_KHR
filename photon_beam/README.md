@@ -533,7 +533,7 @@ So forget drawing specular reflection with photon beam or photon mapping method,
 This is of course just my toy project for learning Vulkan.
 There can be many ways for improvements.
 
-#### Fix Beam cylinder popping out back side
+#### Fix Beam cylinder popping out back face
 
 <img src="images/light_cylinder_popping_out.png" width="600">
 
