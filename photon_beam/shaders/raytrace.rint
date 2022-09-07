@@ -39,6 +39,37 @@ void main()
     vec3 beamDirection = normalize(beam.endPos - beam.startPos);
     float beamLength = length(beam.endPos - beam.startPos);
     const vec3 rayBeamCross = cross(rayDirection, beamDirection);
+
+    //ray and beam are parallel
+    // if ray beam does not overlap there exists a unique pair of closest points
+    // if ray and beam overlap just pick any closest points
+    if (length(rayBeamCross) < 0.1e-10)
+    {
+        float beamEndAt = dot(beam.endPos - rayOrigin, rayDirection);
+        float beamStartAt = dot(beam.startPos - rayOrigin, rayDirection);
+        
+        // ray does not touch the beam cylinder
+        if (beamEndAt > rayLength && beamStartAt > rayLength)
+        {
+           return;
+        }
+
+        // ray and beam cylinder overlap
+        if (beamEndAt <= rayLength)
+        {
+            beamHit = beam.endPos;
+            reportIntersectionEXT(beamEndAt, 0);
+            return
+        }
+        else
+        {
+            beamHit = beam.startPos;
+            reportIntersectionEXT(beamEndAt, 0);
+            return
+        }
+      
+    }
+
     vec3 norm1 = cross(rayDirection, rayBeamCross);
     vec3 norm2 = cross(beamDirection, rayBeamCross); 
 
