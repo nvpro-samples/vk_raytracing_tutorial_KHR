@@ -1057,6 +1057,12 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
   m_pcRay.numPhotonSources = m_numPhotonSamples;
   m_pcRay.showDirectColor  = m_showDirectColor ? 1 : 0;
 
+  // Bellow sets scatter and extinct cofficients and source light power, 
+  // given the distance from the light source, 
+  // the color near the light source
+  // the color a unit distance away from the light soruce,
+  // and the value of scatter/extinct cofficent
+  // the method is based on the following article 
   // A Programmable System for Artistic Volumetric Lighting(2011) Derek Nowrouzezahrai
   const float minimumUnitDistantAlbedo = 0.1f;
   vec3 beamNearColor         = vec3(m_beamNearColor) * m_beamNearColor.w;
@@ -1077,9 +1083,9 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
   unitDistantAlbedoInverse.y = beamNearColor.y == 0.0f ? 1.0f : beamNearColor.y / beamUnitDistantColor.y;
   unitDistantAlbedoInverse.z = beamNearColor.z == 0.0f ? 1.0f : beamNearColor.z / beamUnitDistantColor.z;
 
-  const auto& view = CameraManip.getMatrix();
-  vec3 eyePos = view * vec3(0, 0, 1);
-  float beamSourceDist = 15.0f;
+  //const auto& view = CameraManip.getMatrix();
+  //vec3 eyePos = view * vec3(0, 0, 1);
+  float beamSourceDist = 15.0f;  //use fixed distance between eye and camera
 
   vec3 extinctCoff = vec3(std::log(unitDistantAlbedoInverse.x), std::log(unitDistantAlbedoInverse.y), std::log(unitDistantAlbedoInverse.z));
   vec3 scatterCoff    = m_airAlbedo * extinctCoff;
