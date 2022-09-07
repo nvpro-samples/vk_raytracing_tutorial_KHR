@@ -77,6 +77,7 @@ public:
   nvvk::Buffer m_beamAsInfoBuffer;
   nvvk::Buffer m_beamAsCountReadBuffer;
 
+  float    m_airAlbedo{0.1f};
   float m_beamRadius{0.5f};
   float    m_photonRadius{0.5f};
   uint32_t m_numBeamSamples{1024};

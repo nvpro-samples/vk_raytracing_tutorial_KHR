@@ -70,7 +70,7 @@ void renderUI(HelloVulkan& helloVk, bool useRaytracer, bool& createBeamPhotonAS,
         ImGui::RadioButton("Point", &helloVk.m_pcRaster.lightType, 0);
         ImGui::SameLine();
         ImGui::RadioButton("Infinite", &helloVk.m_pcRaster.lightType, 1);
-        ImGui::SliderFloat("Intensity", &helloVk.m_pcRaster.lightIntensity, 0.f, 150.f);
+        ImGui::SliderFloat("Intensity", &helloVk.m_pcRaster.lightIntensity, 0.f, 20.f);
         return;
     }
 
@@ -91,12 +91,38 @@ void renderUI(HelloVulkan& helloVk, bool useRaytracer, bool& createBeamPhotonAS,
         reinterpret_cast<float*>(&(helloVk.m_beamUnitDistantColor))
     );
 
+    ImGui::SliderFloat("Air Albedo", &helloVk.m_airAlbedo, 0.0f, 1.0f);
+
     //ImGui::SliderFloat("Color Intensity", &helloVk.m_beamColorIntensity, 1.f, 150.f);
     //ImGui::SliderFloat("Beam Radius", &helloVk.m_beamRadius, 0.05f, 5.0f);
     //ImGui::SliderFloat("Surface Photon Radius", &helloVk.m_photonRadius, 0.05f, 5.0f);
     //ImGui::SliderFloat("HG Assymetric Factor", &helloVk.m_hgAssymFactor, -0.99f, 0.99f);
 
     ImGui::SliderFloat("Light Intensity", &helloVk.m_beamIntensity, 0.0f, 150.f);
+
+
+    ImGuiH::Control::Custom(
+        "Air Scatter", 
+        "Light Scattering Coffiecient in Air",
+        [&] { return ImGui::InputFloat3("##Eye", &helloVk.m_pcRay.airScatterCoff.x, "%.5f"); },
+        ImGuiH::Control::Flags::Disabled
+    );
+
+    ImGuiH::Control::Custom(
+        "Air Extinction", 
+        "Light Extinction Coffiecient in Air",
+        [&] { return ImGui::InputFloat3("##Eye", &helloVk.m_pcRay.airExtinctCoff.x, "%.5f"); },
+        ImGuiH::Control::Flags::Disabled
+    );
+
+    ImGuiH::Control::Custom(
+        "Light Power", 
+        "Source Light Power",
+        [&] { return ImGui::InputFloat3("##Eye", &helloVk.m_pcRay.sourceLight.x, "%.5f"); },
+        ImGuiH::Control::Flags::Disabled
+    );
+
+
 
     ImGuiH::Control::Slider(
         std::string("Beam Radius"), "Sampling radius for beams", 
@@ -135,6 +161,7 @@ void renderUI(HelloVulkan& helloVk, bool useRaytracer, bool& createBeamPhotonAS,
 
     if(ImGui::SmallButton("Refresh Beam"))
         createBeamPhotonAS = true;
+    ImGuiH::Control::Info("", "", "Click Refresh Beam to fully reflect changed parameters, some parameters do not get fully reflected before the click", ImGuiH::Control::Flags::Disabled);
 
     if(ImGui::SmallButton("Set Defaults"))
         helloVk.setDefaults();

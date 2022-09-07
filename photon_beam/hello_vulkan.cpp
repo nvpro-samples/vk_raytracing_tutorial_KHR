@@ -57,18 +57,19 @@ void ResetAbleRaytracingBuilderKHR::resetTlas()
 void HelloVulkan::setDefaults()
 {
   const nvmath::vec4f defaultBeamNearColor{1.0f, 1.0f, 1.0f, 1.0f};
-  const nvmath::vec4f defaultBeamUnitDistantColor{2.3 / 2.55, 0.95, 0.95, 1.0f};
+  const nvmath::vec4f defaultBeamUnitDistantColor{0.816, 0.906, 0.906, 1.0f};
 
 
   m_beamNearColor        = defaultBeamNearColor;
   m_beamUnitDistantColor = defaultBeamUnitDistantColor;
   m_beamRadius   = 0.6;
   m_photonRadius = 1.0;
-  m_beamIntensity        = 30.0f;
+  m_beamIntensity        = 10.0f;
   m_usePhotonMapping = true;
   m_usePhotonBeam    = true;
   m_hgAssymFactor    = 0.0;
   m_showDirectColor = false;
+  m_airAlbedo            = 0.06;
 
   m_numBeamSamples = 1024;
   m_numPhotonSamples = 4 * 4 * 1024;
@@ -1058,7 +1059,6 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
 
   // A Programmable System for Artistic Volumetric Lighting(2011) Derek Nowrouzezahrai
   const float minimumUnitDistantAlbedo = 0.1f;
-  vec3        mediaAlbedo              = vec3(0.8f); // all element of albedo must be equal or less than 1
   vec3 beamNearColor         = vec3(m_beamNearColor) * m_beamNearColor.w;
   vec3 beamUnitDistantColor = vec3(m_beamUnitDistantColor) * m_beamUnitDistantColor.w;
 
@@ -1079,10 +1079,10 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
 
   const auto& view = CameraManip.getMatrix();
   vec3 eyePos = view * vec3(0, 0, 1);
-  float beamSourceDist = nvmath::length(m_pcRay.lightPosition - eyePos);
+  float beamSourceDist = 15.0f;
 
   vec3 extinctCoff = vec3(std::log(unitDistantAlbedoInverse.x), std::log(unitDistantAlbedoInverse.y), std::log(unitDistantAlbedoInverse.z));
-  vec3 scatterCoff    = mediaAlbedo * extinctCoff;
+  vec3 scatterCoff    = m_airAlbedo * extinctCoff;
   m_pcRay.sourceLight = beamNearColor  * nvmath::pow(unitDistantAlbedoInverse, beamSourceDist);
 
   m_pcRay.sourceLight.x = (extinctCoff.x <= 0.00001) ? beamNearColor.x : m_pcRay.sourceLight.x / scatterCoff.x;
