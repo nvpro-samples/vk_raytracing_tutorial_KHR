@@ -72,7 +72,7 @@ void HelloVulkan::setDefaults()
   m_airAlbedo            = 0.06;
 
   m_numBeamSamples = 1024;
-  m_numPhotonSamples = 4 * 4 * 1024;
+  m_numPhotonSamples = 4 * 4 * 2048;
 }
 
 void HelloVulkan::createBeamASCommandBuffer()

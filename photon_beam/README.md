@@ -440,7 +440,7 @@ Left shows the actual beams, and right is the solid color of the beam.
 ### Surface Radiance
 
 As you see in Above images, photon mapping method alone is not enough to describe the lighting.
-Omitting the radiance from surface makes the world mythycaly dark.
+Omitting the radiance from surface makes the scene brightly foggy or mythycaly dark.
 So photon mapping method is added to reflect the surface light.
 
 
@@ -460,15 +460,14 @@ The result when you add back the beam.
 
 
 #### Photon mapping examples (16384 light samples, increased light intensity)
-Bellow is the result after increased light intensity.
-The quality has improved significantly, but with coast. Moving camera has become significantly slower.
+Bellow is the result after increased light intensity. Still the quality of the result seems to low.
 
 <img src="images/only_photon_mapping2.png" width="400">
 <img src="images/only_photon_mapping2_points.png" width="400">
 <img src="images/beam_photon_mapping2.png" width="400">
 
 #### Photon mapping examples (65536 light samples, increased light intensity)
-Still the quality of the result seems to low.
+The quality has improved significantly, but with coast. Moving camera has become significantly slower.
 Bellow is result after increased the number of sample lights to 65536.
 
 <img src="images/only_photon_mapping3.png" width="400">
