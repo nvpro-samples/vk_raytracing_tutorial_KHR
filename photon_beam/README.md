@@ -467,15 +467,11 @@ Bellow is the result after increased light intensity. Still the quality of the r
 <img src="images/beam_photon_mapping2.png" width="400">
 
 #### Photon mapping examples (65536 light samples, increased light intensity)
-The quality has improved significantly, but with coast. Moving camera has become significantly slower.
-Bellow is result after increased the number of sample lights to 65536.
+Bellow is result after increased the number of sample lights to 65536 from above.
 
 <img src="images/only_photon_mapping3.png" width="400">
 <img src="images/only_photon_mapping3_points.png" width="400">
 <img src="images/beam_photon_mapping3.png" width="400">
-
-You can see that increasing the number of sample has improved the quality, but with some coast.
-Moving camera in above scene is significantly slow.
 
 ### Specular Reflection
 
@@ -530,6 +526,7 @@ So forget drawing specular reflection with photon beam or photon mapping method,
         ...
 ~~~~
 
+<img src="images/with_specular_lights.png" width="400">
 
 ### Further Improvements
 
