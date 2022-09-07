@@ -1,8 +1,9 @@
 ﻿# Photon Beam
 
 <p>
-<img src="images/default_image.png" width="400">
-<img src="images/default_image2.png" width="400">
+<img src="images/default_image.png" width="270">
+<img src="images/default_image2.png" width="270">
+<img src="images/default_image3.png" width="270">
 </p>
 
 This example aims to describe volumetric radiance from participating media.

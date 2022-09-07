@@ -31,7 +31,7 @@ All other tutorials start from the end of the _first_ ray tracing tutorial and a
 
 Tutorial | Details
 ---------|--------
-![img](photon_beam/images/default_image.png) | [Photon Beam](photon_beam) <br> Use photon beam method combined with photon mapping method to describe volumetric radiance.
+![img](photon_beam/images/default_image2.png) | [Photon Beam](photon_beam) <br> Use photon beam method combined with photon mapping method to describe volumetric radiance.
 ![small](ray_tracing_anyhit/images/anyhit.png) | [Any Hit Shader](ray_tracing_anyhit)<br>Implements transparent materials by adding a new shader to the Hit group and using the material information to discard hits over time. Adds an anyhit (.ahit) shader to the ray tracing pipeline. Creates simple transparency by randomly letting the ray hit or not.
 ![small](ray_tracing_jitter_cam/images/antialiasing.png) | [Jitter Camera](ray_tracing_jitter_cam)<br>  Anti-aliases the image by accumulating small variations of rays over time. Generates random ray directions. Read/write/accumulates the final image.
 ![img](ray_tracing_instances/images/instances.png) | [Thousands of Objects](ray_tracing_instances) <br> The current example allocates memory for each object, each of which has several buffers. This shows how to get around Vulkan's limits on the total number of memory allocations by using a memory allocator. Extends the limit of 4096 memory allocations. Uses these memory allocators: DMA, VMA.

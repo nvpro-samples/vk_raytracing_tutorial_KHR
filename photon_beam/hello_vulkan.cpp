@@ -64,7 +64,7 @@ void HelloVulkan::setDefaults()
   m_beamUnitDistantColor = defaultBeamUnitDistantColor;
   m_beamRadius   = 0.6;
   m_photonRadius = 1.0;
-  m_beamIntensity        = 10.0f;
+  m_beamIntensity        = 15.0f;
   m_usePhotonMapping = true;
   m_usePhotonBeam    = true;
   m_hgAssymFactor    = 0.0;
