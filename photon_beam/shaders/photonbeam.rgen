@@ -92,7 +92,9 @@ void main()
     vec3 beamVec = newBeam.endPos - newBeam.startPos;
     float beamLength = sqrt(dot(beamVec, beamVec));
 
-    uint num_split = uint(beamLength / (pcRay.beamRadius * 2.0) + 1.0);
+    uint num_split = uint(beamLength / (pcRay.beamRadius * 2.0f) + 1.0f);
+    if (num_split * pcRay.beamRadius * 2.0 <= beamLength)
+        num_split += 1;
 
      // this value must be either 0 or 1
     uint numSurfacePhoton =  (prd.instanceIndex >= 0 )? 1: 0;
