@@ -1172,6 +1172,14 @@ void HelloVulkan::updateRtDescriptorSetBeamTlas()
 
 void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
 {
+    VkResult waitResult = vkWaitForFences(m_device, 1, &m_pbBuildFence, VK_TRUE, 0);
+
+    // still building fence, so no renew
+    if(waitResult == VK_TIMEOUT)
+        return;
+
+    assert(waitResult == VK_SUCCESS);
+
     uint num_semaphores = m_pbBuilderSemaphores.size();
     VkSemaphoreWaitInfo waitInfo;
     waitInfo.sType          = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
