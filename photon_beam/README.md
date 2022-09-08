@@ -6,11 +6,16 @@
 <img src="images/default_image3.png" width="270">
 </p>
 
+
+#### Link to video
+[![Link to video](https://img.youtube.com/vi/CNZyZBfqwkY/0.jpg)](https://www.youtube.com/watch?v=CNZyZBfqwkY)
+
 This example aims to describe volumetric radiance from participating media.
 
 This example used bellow version nvpro-core codes.
 
 https://github.com/nvpro-samples/nvpro_core/commit/1d82623cf8fc0e3881150b5d0f0aef920d9af627
+
 
 The example is result of modification of [glTF Scene](../ray_tracing__gltf) tutorial.
 It has been modified a lot from [glTF Scene](../ray_tracing__gltf). You may want to check difference at bellow page.
