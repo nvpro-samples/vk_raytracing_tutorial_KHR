@@ -137,18 +137,9 @@ vec3 heneyGreenPhaseFuncSampling(inout uint seed, in vec3 normal, float g)
 
   vec3 ret = vec3(sin_theta * cos(phi), cos_theta, sin_theta * sin(phi));
 
-  // if normal vector is (0,1,0) or (0, -1, 0) set the right direction to (1, 0, 0)
-  vec3 normalRight = vec3(1, 0, 0);
-
-  // if normal vector is not (0,1,0) or (0, -1, 0)
-  // project the ray direction to xz plane and rotate 90 degree clockwise to get the right direction
-  if(normal.x != 0.0 || normal.z != 0.0)
-  {
-    normalRight = normalize(vec3(normal.z, 0, -normal.x));
-  }
-  vec3 normalFront = cross(normal, normalRight);
-
-  ret = ret.x * normalRight + ret.y * normal + ret.z * normalFront;
+  vec3 tangent, bitangent;
+  createCoordinateSystem(normal, tangent, bitangent);
+  ret = ret.x * bitangent + ret.y * normal + ret.z * tangent;
 
   // normalize at last step in order to avoid some floating point error;
   return normalize(ret);
