@@ -291,8 +291,10 @@ void HelloVulkan::createBeamBoundingBox()
   beamBox.maximum = nvmath::vec3f(1.0f, 1.0f, 2.0f);
 
   Aabb photonBox;
-  photonBox.minimum = nvmath::vec3f(-1.0f, -1.0f, -1.0);
-  photonBox.maximum = nvmath::vec3f(1.0f, 1.0f, 1.0f);
+  // Not making photon aabb with 0 height, 
+  // because a photon could hit non-flat surface, such as surface of sphere
+  photonBox.minimum = nvmath::vec3f(-1.0f, -0.1f, -1.0);
+  photonBox.maximum = nvmath::vec3f(1.0f, 0.1f, 1.0f);
 
   aabbs.emplace_back(beamBox);
   aabbs.emplace_back(photonBox);
