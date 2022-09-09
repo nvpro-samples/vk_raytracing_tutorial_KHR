@@ -206,6 +206,13 @@ vec3 microfacetReflectedLightSampling(inout uint seed, in vec3 incomingLightDir,
 
     halfVec = halfVec.x * normalRight + halfVec.y * normal + halfVec.z * normalFront;
 
+    /*
+        vec3 tangent, bitangent;
+    createCoordinateSystem(normal, tangent, bitangent);
+
+    halfVec = halfVec.x * bitangent + halfVec.y * normal + halfVec.z * tangent;
+    */
+
     // normalize at last step in order to avoid some floating point error;
     return normalize(incomingLightDir - 2 * dot(halfVec, incomingLightDir) * halfVec);
 }

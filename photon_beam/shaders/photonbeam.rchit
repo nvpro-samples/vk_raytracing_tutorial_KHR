@@ -144,6 +144,7 @@ void main()
     // Material of the object
     GltfShadeMaterial mat       = materials.m[matIndex];
     vec3 rayOrigin    = world_position;
+    prd.hitNormal = world_normal;
 
     float cos_theta = dot(-prd.rayDirection, world_normal);
     if (cos_theta <= 0)
