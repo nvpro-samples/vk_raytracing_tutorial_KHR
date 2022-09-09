@@ -192,26 +192,11 @@ vec3 microfacetReflectedLightSampling(inout uint seed, in vec3 incomingLightDir,
     float phi   = 2 * M_PI * r2;
 
     vec3 halfVec = vec3(sin(theta) * cos(phi), cos(theta), sin(theta) * sin(phi));
-                                                                                                                                                                                                                          
-    // if normal vector is (0,1,0) or (0, -1, 0) set the right direction to (1, 0, 0)
-    vec3 normalRight = vec3(1, 0, 0);
-
-    // if normal vector is not (0,1,0) or (0, -1, 0)
-    // project the ray direction to xz plane and rotate 90 degree clockwise to get the right direction
-    if(normal.x != 0.0 || normal.z != 0.0)
-    {
-      normalRight = normalize(vec3(normal.z, 0, -normal.x));
-    }
-    vec3 normalFront = cross(normal, normalRight);
-
-    halfVec = halfVec.x * normalRight + halfVec.y * normal + halfVec.z * normalFront;
-
-    /*
-        vec3 tangent, bitangent;
+                                                                                                                                                                                                                         
+    vec3 tangent, bitangent;
     createCoordinateSystem(normal, tangent, bitangent);
 
     halfVec = halfVec.x * bitangent + halfVec.y * normal + halfVec.z * tangent;
-    */
 
     // normalize at last step in order to avoid some floating point error;
     return normalize(incomingLightDir - 2 * dot(halfVec, incomingLightDir) * halfVec);
