@@ -29,5 +29,6 @@ void main()
 	const float missingBeamLength = 17.0f;
 	prd.instanceIndex = -1;
 	prd.rayOrigin += prd.rayDirection * missingBeamLength;
-    prd.weight = vec3(0.0);
+	//prd.hitNormal = vec3(0.0f, 0.0f, 0.0f);
+    prd.weight = vec3(0.0f);
 }

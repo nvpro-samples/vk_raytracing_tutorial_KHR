@@ -125,16 +125,8 @@ void main()
         num_split = (pcRay.maxNumSubBeams - subBeamIndex - numSurfacePhoton);
     }
 
-    // if ray direction is (0,1,0) or (0, -1, 0) set the right direction to (1, 0, 0)
-    vec3 rayDirectionRight = vec3(1, 0, 0);
-
-    // if ray direcction is not (0,1,0) or (0, -1, 0)
-    // project the ray direction to xz plane and rotate 90 degree clockwise to get the right direction
-    if (rayDirection.x != 0.0 ||  rayDirection.z != 0.0)
-    {
-        rayDirectionRight = normalize(vec3(rayDirection.z, 0, -rayDirection.x));
-    }
-    vec3 rayDirectionUp = cross(rayDirectionRight, rayDirection);
+    vec3 tangent, bitangent;
+    createCoordinateSystem(rayDirection, tangent, bitangent);
    
     for(uint i=0; i < num_split; i++)
     {
@@ -143,16 +135,16 @@ void main()
         asInfo.instanceCustomIndexAndmask = beamIndex | (0xFF << 24);
         asInfo.instanceShaderBindingTableRecordOffsetAndflags = (mdAir) | (0x00000001 << 24); // use the hit group 0
         asInfo.accelerationStructureReference = pcRay.beamBlasAddress;
-        asInfo.matrix[0][0] = rayDirectionRight.x * pcRay.beamRadius;
-        asInfo.matrix[0][1] = rayDirectionUp.x * pcRay.beamRadius;
+        asInfo.matrix[0][0] = bitangent.x * pcRay.beamRadius;
+        asInfo.matrix[0][1] = tangent.x * pcRay.beamRadius;
         asInfo.matrix[0][2] = rayDirection.x * pcRay.beamRadius;
         asInfo.matrix[0][3] = splitStart.x;
-        asInfo.matrix[1][0] = rayDirectionRight.y * pcRay.beamRadius;
-        asInfo.matrix[1][1] = rayDirectionUp.y * pcRay.beamRadius;
+        asInfo.matrix[1][0] = bitangent.y * pcRay.beamRadius;
+        asInfo.matrix[1][1] = tangent.y * pcRay.beamRadius;
         asInfo.matrix[1][2] = rayDirection.y * pcRay.beamRadius;
         asInfo.matrix[1][3] = splitStart.y;
-        asInfo.matrix[2][0] = rayDirectionRight.z * pcRay.beamRadius;
-        asInfo.matrix[2][1] = rayDirectionUp.z * pcRay.beamRadius;
+        asInfo.matrix[2][0] = bitangent.z * pcRay.beamRadius;
+        asInfo.matrix[2][1] = tangent.z * pcRay.beamRadius;
         asInfo.matrix[2][2] = rayDirection.z * pcRay.beamRadius;
         asInfo.matrix[2][3] = splitStart.z;
 
@@ -166,17 +158,20 @@ void main()
         asInfo.instanceCustomIndexAndmask = beamIndex | (0xFF << 24);
         asInfo.instanceShaderBindingTableRecordOffsetAndflags = (mdSolid) | (0x00000001 << 24); // use the hit group 1
         asInfo.accelerationStructureReference = pcRay.photonBlasAddress;
-        asInfo.matrix[0][0] = rayDirectionRight.x * pcRay.photonRadius;
-        asInfo.matrix[0][1] = rayDirectionUp.x * pcRay.photonRadius;
-        asInfo.matrix[0][2] = rayDirection.x * pcRay.photonRadius;
+
+        createCoordinateSystem(prd.hitNormal, tangent, bitangent);
+        
+        asInfo.matrix[0][0] = bitangent.x * pcRay.photonRadius;
+        asInfo.matrix[0][1] = prd.hitNormal.x * pcRay.photonRadius;
+        asInfo.matrix[0][2] = tangent.x * pcRay.photonRadius;
         asInfo.matrix[0][3] = boxStart.x;
-        asInfo.matrix[1][0] = rayDirectionRight.y * pcRay.photonRadius;
-        asInfo.matrix[1][1] = rayDirectionUp.y * pcRay.photonRadius;
-        asInfo.matrix[1][2] = rayDirection.y * pcRay.photonRadius;
+        asInfo.matrix[1][0] = bitangent.y * pcRay.photonRadius;
+        asInfo.matrix[1][1] = prd.hitNormal.y * pcRay.photonRadius;
+        asInfo.matrix[1][2] = tangent.y * pcRay.photonRadius;
         asInfo.matrix[1][3] = boxStart.y;
-        asInfo.matrix[2][0] = rayDirectionRight.z * pcRay.photonRadius;
-        asInfo.matrix[2][1] = rayDirectionUp.z * pcRay.photonRadius;
-        asInfo.matrix[2][2] = rayDirection.z * pcRay.photonRadius;
+        asInfo.matrix[2][0] = bitangent.z * pcRay.photonRadius;
+        asInfo.matrix[2][1] = prd.hitNormal.z * pcRay.photonRadius;
+        asInfo.matrix[2][2] = tangent.z * pcRay.photonRadius;
         asInfo.matrix[2][3] = boxStart.z;
 
         subBeams[subBeamIndex + num_split] = asInfo;
