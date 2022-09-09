@@ -90,9 +90,9 @@ public:
   const uint32_t maxNumBeamSamples{2048};
   const uint32_t maxNumPhotonSamples{4 * 4 * 4096};
 
-  const uint32_t m_maxNumBeams{MAX(maxNumBeamSamples, maxNumPhotonSamples)};
+  const uint32_t m_maxNumBeams{MAX(maxNumBeamSamples, maxNumPhotonSamples) * 32};
   // number of beam samples * (expected number of scatter  + surface intersection ) * (expected length of the beam / (radius * 2)) 
-  const uint32_t m_maxNumSubBeams{maxNumBeamSamples * 32 * 32};
+  const uint32_t m_maxNumSubBeams{maxNumBeamSamples * 48 + maxNumPhotonSamples};
 
 
   nvmath::vec4f m_beamNearColor;
