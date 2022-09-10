@@ -10,6 +10,9 @@
 #### Link to video
 [![Link to video](https://img.youtube.com/vi/CNZyZBfqwkY/0.jpg)](https://www.youtube.com/watch?v=CNZyZBfqwkY)
 
+*The video has explanation subtitles in English and Korean, so please turn on the subtitle if you can read any of the provided subtitle.*
+
+## Background
 This example aims to describe volumetric radiance from participating media.
 
 This example used bellow version nvpro-core codes.
