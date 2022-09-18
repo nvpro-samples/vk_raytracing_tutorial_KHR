@@ -146,6 +146,8 @@ int main(int argc, char** argv)
   // Creating Vulkan base application
   nvvk::Context vkctx{};
   vkctx.ignoreDebugMessage(0x79de34d4);  // Missing Device Extension "VK_NV_ray_tracing_motion_blur"
+  vkctx.ignoreDebugMessage(0xf69d66f5);  // Value of pInfos[0].pGeometries[0].geometry.triangles.pNext must be NULL
+  vkctx.ignoreDebugMessage(0xd80a42ae);  // SPIR-V Extension (SPV_NV_ray_tracing_motion_blur)
   vkctx.initInstance(contextInfo);
 
 
