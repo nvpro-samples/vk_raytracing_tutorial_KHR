@@ -72,7 +72,6 @@ void renderUI(HelloVulkan& helloVk)
 static int const SAMPLE_WIDTH  = 1280;
 static int const SAMPLE_HEIGHT = 720;
 
-
 //--------------------------------------------------------------------------------------------------
 // Application Entry
 //

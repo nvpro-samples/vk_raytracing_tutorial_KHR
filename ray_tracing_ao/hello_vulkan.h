@@ -135,6 +135,8 @@ public:
   VkFormat                    m_offscreenDepthFormat{VK_FORMAT_X8_D24_UNORM_PACK32};
   nvvk::Texture               m_gBuffer;
   nvvk::Texture               m_aoBuffer;
+  nvvk::Buffer                m_hashMap;
+  VkDescriptorBufferInfo      m_hashMapDescInfo;
 
   // #Tuto_rayquery
   void initRayTracing();

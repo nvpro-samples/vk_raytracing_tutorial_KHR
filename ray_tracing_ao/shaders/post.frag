@@ -24,6 +24,13 @@ layout(location = 0) out vec4 fragColor;
 layout(set = 0, binding = 0) uniform sampler2D noisyTxt;
 layout(set = 0, binding = 1) uniform sampler2D aoTxt;
 
+layout(set = 0, binding = 2) readonly buffer hashMap{
+    float ao_value;
+    uint contribution_counter;
+    uint p;
+    uint p1;
+} hm;
+
 
 layout(push_constant) uniform shaderInformation
 {
@@ -35,8 +42,10 @@ void main()
 {
   vec2  uv    = outUV;
   float gamma = 1. / 2.2;
-  vec4  color = texture(noisyTxt, uv);
+  //vec4  color = texture(noisyTxt, uv);
   float ao    = texture(aoTxt, uv).x;
+
+  vec4 color = vec4(1.0, hm.ao_value,0.0,1.0);
 
   fragColor = pow(color * ao, vec4(gamma));
 }

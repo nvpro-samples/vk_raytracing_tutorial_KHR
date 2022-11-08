@@ -41,7 +41,7 @@ compile_glsl_directory(
 
 #--------------------------------------------------------------------------------------------------
 # Sources
-target_sources(${PROJNAME} PUBLIC ${SOURCE_FILES} ${HEADER_FILES})
+target_sources(${PROJNAME} PUBLIC ${SOURCE_FILES} ${HEADER_FILES} "spatial_hashing.h")
 target_sources(${PROJNAME} PUBLIC ${COMMON_SOURCE_FILES})
 target_sources(${PROJNAME} PUBLIC ${PACKAGE_SOURCE_FILES})
 target_sources(${PROJNAME} PUBLIC ${GLSL_SOURCES} ${GLSL_HEADERS})
