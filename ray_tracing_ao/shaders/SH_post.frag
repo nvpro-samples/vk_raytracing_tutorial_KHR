@@ -20,7 +20,7 @@
 #version 450
 
 #extension GL_GOOGLE_include_directive : enable
-//#include "raycommon.glsl"
+#include "raycommon.glsl"
 #include "SH_hash_tools.glsl"
 
 layout(location = 0) in vec2 outUV;
@@ -57,18 +57,18 @@ void main()
   vec4 color = vec4(1.0, 0.0, 1.0, 1.0);
 
   // Retrieving position and normal
-  //vec4 gBuffer = imageLoad(_gBuffer, ivec2(uv));
+  vec4 gBuffer = imageLoad(_gBuffer, ivec2(gl_FragCoord.xy));
 
   // Shooting rays only if a fragment was rendered
- // if(gBuffer != vec4(0))
- // {
- //   vec3 origin = gBuffer.xyz;
- //   vec3 normal = DecompressUnitVec(floatBitsToUint(gBuffer.w));
+  if(gBuffer != vec4(0))
+  {
+    vec3 origin = gBuffer.xyz;
+    vec3 normal = DecompressUnitVec(floatBitsToUint(gBuffer.w));
 
-    // uint hash = H7D(config, origin, normal);
+    uint hash = H7D(config, origin, normal);
 
-    //color = vec4(0.0, 0.0, hashMap[hash].ao_value, 1.0);
-  //}
+    color = vec4(0.0, 0.0, hashMap[hash].ao_value, 1.0);
+  }
 
   
 

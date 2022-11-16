@@ -622,6 +622,8 @@ void HelloVulkan::createPostDescriptor()
 
   m_postDescSetLayoutBind.addBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
   m_postDescSetLayoutBind.addBinding(3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
+  m_postDescSetLayoutBind.addBinding(4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT);  // [in] G-Buffer
+
 
   m_postDescSetLayout = m_postDescSetLayoutBind.createLayout(m_device);
   m_postDescPool      = m_postDescSetLayoutBind.createPool(m_device);
@@ -638,6 +640,7 @@ void HelloVulkan::updatePostDescriptorSet()
   writes.emplace_back(m_postDescSetLayoutBind.makeWrite(m_postDescSet, 1, &m_aoBuffer.descriptor));
   writes.emplace_back(m_postDescSetLayoutBind.makeWrite(m_postDescSet, 2, &m_hashMapDescInfo));
   writes.emplace_back(m_postDescSetLayoutBind.makeWrite(m_postDescSet, 3, &m_configBufferDescInfo));
+  writes.emplace_back(m_postDescSetLayoutBind.makeWrite(m_postDescSet, 4, &m_gBuffer.descriptor));
 
   vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }

@@ -132,8 +132,8 @@ void main()
     occlusion = 1 - (occlusion / rtao_samples);
     occlusion = pow(clamp(occlusion, 0, 1), rtao_power);
 
-    //uint hash = H7D(config, origin, normal);
-    //hashMap[hash].ao_value = 1.0;
+    uint hash = H7D(config, origin, normal);
+    hashMap[hash].ao_value = 1.0;
   }
 
   
