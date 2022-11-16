@@ -43,14 +43,12 @@ using uint = unsigned int;
 START_BINDING(SceneBindings)
   eGlobals  = 0,  // Global uniform containing camera matrices
   eObjDescs = 1,  // Access to the object descriptions
-  eTextures = 2,   // Access to textures
-  oBuffers = 3
+  eTextures = 2   // Access to textures
 END_BINDING();
 
 START_BINDING(RtxBindings)
   eTlas     = 0,  // Top-level acceleration structure
-  eOutImage = 1,   // Ray tracer output image
-  iBuffers = 2
+  eOutImage = 1   // Ray tracer output image
 END_BINDING();
 // clang-format on
 
@@ -114,13 +112,5 @@ struct WaveFrontMaterial  // See ObjLoader, copy of MaterialObj, could be compre
   int   illum;     // illumination model (see http://www.fileformat.info/format/material/)
   int   textureId;
 };
-
-struct HashMap
-{
-  float    current_avg;
-  uint32_t sample_count;
-  uint64_t alignment_padding;  //is this needed?
-};
-
 
 #endif

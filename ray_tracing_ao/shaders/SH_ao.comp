@@ -25,6 +25,7 @@
 #extension GL_EXT_ray_tracing : enable
 #extension GL_EXT_ray_query : enable
 #include "raycommon.glsl"
+#include "SH_hash_tools.glsl"
 
 
 const int GROUP_SIZE = 16;
@@ -33,12 +34,13 @@ layout(set = 0, binding = 0, rgba32f) uniform image2D inImage;
 layout(set = 0, binding = 1, r32f) uniform image2D outImage;
 layout(set = 0, binding = 2) uniform accelerationStructureEXT topLevelAS;
 
-layout(set = 0, binding = 3) writeonly buffer hashMap {
-    float ao_value;
-    uint contribution_counter;
-    uint p;
-    uint p1;
-} hm;
+layout(set = 0, binding = 3) writeonly buffer HashMap {
+    HashCell hashMap[HASH_MAP_SIZE];
+};
+
+layout(set = 0, binding = 4) uniform UniformBuffer {
+    ConfigurationValues config;
+};
 
 
 // See AoControl
@@ -51,7 +53,6 @@ layout(push_constant) uniform params_
   int   frame_number;
   int   max_samples;
 };
-
 
 //----------------------------------------------------------------------------
 // Tracing a ray and returning the weight based on the distance of the hit
@@ -81,7 +82,6 @@ float TraceRay(in rayQueryEXT rayQuery, in vec3 origin, in vec3 direction)
 
   return 0;
 }
-
 
 void main()
 {
@@ -131,9 +131,12 @@ void main()
     // Computing occlusion
     occlusion = 1 - (occlusion / rtao_samples);
     occlusion = pow(clamp(occlusion, 0, 1), rtao_power);
+
+    //uint hash = H7D(config, origin, normal);
+    //hashMap[hash].ao_value = 1.0;
   }
 
-  hm.ao_value = 1.0;
+  
 
     //noisy update
     imageStore(outImage, ivec2(gl_GlobalInvocationID.xy), vec4(occlusion));

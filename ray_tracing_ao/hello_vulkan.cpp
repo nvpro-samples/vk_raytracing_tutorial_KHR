@@ -36,10 +36,10 @@
 #include "nvvk/renderpasses_vk.hpp"
 #include "nvvk/shaders_vk.hpp"
 #include "nvvk/buffers_vk.hpp"
+#include "shaders/host_device.h"
+#include "SH_includes.h"
 
 extern std::vector<std::string> defaultSearchPaths;
-
-#define HASH_MAP_SIZE 100'000
 
 
 //--------------------------------------------------------------------------------------------------
@@ -52,6 +52,9 @@ void HelloVulkan::setup(const VkInstance& instance, const VkDevice& device, cons
   m_alloc.init(instance, device, physicalDevice);
   m_debug.setup(m_device);
   m_offscreenDepthFormat = nvvk::findDepthFormat(physicalDevice);
+
+  m_configObject = std::make_unique<ConfigurationValues>(ConfigurationValues{CameraManip.getCamera().eye, 3, 3, CameraManip.getCamera().fov,
+                                                          nvmath::vec2ui{CameraManip.getWidth(), CameraManip.getHeight()}});
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -88,6 +91,16 @@ void HelloVulkan::updateUniformBuffer(const VkCommandBuffer& cmdBuf)
   // Schedule the host-to-device upload. (hostUBO is copied into the cmd
   // buffer so it is okay to deallocate when the function returns).
   vkCmdUpdateBuffer(cmdBuf, m_bGlobals.buffer, 0, sizeof(GlobalUniforms), &hostUBO);
+
+  //m_configObject.get()->camera_position = CameraManip.getCamera().eye;
+  //m_configObject.get()->s_nd            = ...;
+  //m_configObject.get()->s_p = ...;
+  m_configObject.get()->f = CameraManip.getFov();
+  m_configObject.get()->res = nvmath::vec2ui{CameraManip.getWidth(), CameraManip.getHeight()};
+
+  m_configObject.get()->camera_position = nvmath::vec3f{0.0, 1.0, 0.0};
+
+  vkCmdUpdateBuffer(cmdBuf, m_configBuffer.buffer, 0, sizeof(ConfigurationValues), m_configObject.get());
 
   // Making sure the updated UBO will be visible.
   VkBufferMemoryBarrier afterBarrier{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
@@ -381,6 +394,7 @@ void HelloVulkan::destroyResources()
   m_alloc.destroy(m_offscreenColor);
   m_alloc.destroy(m_gBuffer);
   m_alloc.destroy(m_aoBuffer);
+  m_alloc.destroy(m_hashMap);
   m_alloc.destroy(m_offscreenDepth);
   vkDestroyPipeline(m_device, m_postPipeline, nullptr);
   vkDestroyPipelineLayout(m_device, m_postPipelineLayout, nullptr);
@@ -503,14 +517,14 @@ void HelloVulkan::createOffscreenRender()
     m_debug.setObjectName(m_aoBuffer.image, "aoBuffer");
   }
 
-   // The ambient occlusion result (r32)
+  // Hash map
   {
-    auto bufferCreateInfo = nvvk::makeBufferCreateInfo(HASH_MAP_SIZE, VK_FORMAT_R64G64B64A64_UINT,
-                                                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    auto bufferCreateInfo = nvvk::makeBufferCreateInfo(HASH_MAP_SIZE * sizeof(HashCell), VK_FORMAT_R64G64B64A64_UINT, 0);
 
-    nvvk::Buffer          buffer      = m_alloc.createBuffer(bufferCreateInfo);
+    m_hashMap = m_alloc.createBuffer(bufferCreateInfo);
+    m_hashMapDescInfo = VkDescriptorBufferInfo{m_hashMap.buffer, 0, VK_WHOLE_SIZE};
+    m_debug.setObjectName(m_hashMap.buffer, "HashMap");
   }
-
 
   // Creating the depth buffer
   auto depthCreateInfo = nvvk::makeImage2DCreateInfo(m_size, m_offscreenDepthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
@@ -536,6 +550,14 @@ void HelloVulkan::createOffscreenRender()
     nvvk::cmdBarrierImageLayout(cmdBuf, m_aoBuffer.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
     nvvk::cmdBarrierImageLayout(cmdBuf, m_offscreenDepth.image, VK_IMAGE_LAYOUT_UNDEFINED,
                                 VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+    // configuration buffer
+    {
+      m_configBuffer         = m_alloc.createBuffer(cmdBuf, sizeof(ConfigurationValues), (void*)m_configObject.get(),
+                                                    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 0);
+      m_configBufferDescInfo = VkDescriptorBufferInfo{m_configBuffer.buffer, 0, VK_WHOLE_SIZE};
+      m_debug.setObjectName(m_hashMap.buffer, "ConfigBuffer");
+    }
 
     genCmdBuf.submitAndWait(cmdBuf);
   }
@@ -583,7 +605,7 @@ void HelloVulkan::createPostPipeline()
   // Pipeline: completely generic, no vertices
   nvvk::GraphicsPipelineGeneratorCombined pipelineGenerator(m_device, m_postPipelineLayout, m_renderPass);
   pipelineGenerator.addShader(nvh::loadFile("spv/passthrough.vert.spv", true, defaultSearchPaths, true), VK_SHADER_STAGE_VERTEX_BIT);
-  pipelineGenerator.addShader(nvh::loadFile("spv/post.frag.spv", true, defaultSearchPaths, true), VK_SHADER_STAGE_FRAGMENT_BIT);
+  pipelineGenerator.addShader(nvh::loadFile("spv/SH_post.frag.spv", true, defaultSearchPaths, true), VK_SHADER_STAGE_FRAGMENT_BIT);
   pipelineGenerator.rasterizationState.cullMode = VK_CULL_MODE_NONE;
   m_postPipeline                                = pipelineGenerator.createPipeline();
   m_debug.setObjectName(m_postPipeline, "post");
@@ -599,6 +621,7 @@ void HelloVulkan::createPostDescriptor()
   m_postDescSetLayoutBind.addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
 
   m_postDescSetLayoutBind.addBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
+  m_postDescSetLayoutBind.addBinding(3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
 
   m_postDescSetLayout = m_postDescSetLayoutBind.createLayout(m_device);
   m_postDescPool      = m_postDescSetLayoutBind.createPool(m_device);
@@ -613,9 +636,8 @@ void HelloVulkan::updatePostDescriptorSet()
   std::vector<VkWriteDescriptorSet> writes;
   writes.emplace_back(m_postDescSetLayoutBind.makeWrite(m_postDescSet, 0, &m_offscreenColor.descriptor));
   writes.emplace_back(m_postDescSetLayoutBind.makeWrite(m_postDescSet, 1, &m_aoBuffer.descriptor));
-
-  VkDescriptorBufferInfo hashMapDescr{m_hashMap.buffer, 0, VK_WHOLE_SIZE};
-  writes.emplace_back(m_postDescSetLayoutBind.makeWrite(m_postDescSet, 2, &hashMapDescr));
+  writes.emplace_back(m_postDescSetLayoutBind.makeWrite(m_postDescSet, 2, &m_hashMapDescInfo));
+  writes.emplace_back(m_postDescSetLayoutBind.makeWrite(m_postDescSet, 3, &m_configBufferDescInfo));
 
   vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
@@ -752,7 +774,8 @@ void HelloVulkan::createCompDescriptors()
   m_compDescSetLayoutBind.addBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT);  // [out] AO
   m_compDescSetLayoutBind.addBinding(2, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1, VK_SHADER_STAGE_COMPUTE_BIT);  // [in] TLAS
 
-  m_compDescSetLayoutBind.addBinding(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT); // [in-out] hashmap
+  m_compDescSetLayoutBind.addBinding(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);  // [in-out] hashmap
+  m_compDescSetLayoutBind.addBinding(4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
 
   m_compDescSetLayout = m_compDescSetLayoutBind.createLayout(m_device);
   m_compDescPool      = m_compDescSetLayoutBind.createPool(m_device, 1);
@@ -767,6 +790,8 @@ void HelloVulkan::updateCompDescriptors()
   std::vector<VkWriteDescriptorSet> writes;
   writes.emplace_back(m_compDescSetLayoutBind.makeWrite(m_compDescSet, 0, &m_gBuffer.descriptor));
   writes.emplace_back(m_compDescSetLayoutBind.makeWrite(m_compDescSet, 1, &m_aoBuffer.descriptor));
+  writes.emplace_back(m_compDescSetLayoutBind.makeWrite(m_compDescSet, 3, &m_hashMapDescInfo));
+  writes.emplace_back(m_compDescSetLayoutBind.makeWrite(m_compDescSet, 4, &m_configBufferDescInfo));
 
   VkAccelerationStructureKHR                   tlas = m_rtBuilder.getAccelerationStructure();
   VkWriteDescriptorSetAccelerationStructureKHR descASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};

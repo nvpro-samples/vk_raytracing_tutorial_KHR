@@ -25,6 +25,7 @@
 #include "nvvk/memallocator_dma_vk.hpp"
 #include "nvvk/resourceallocator_vk.hpp"
 #include "shaders/host_device.h"
+#include "SH_includes.h"
 
 // #VKRay
 #include "nvvk/raytraceKHR_vk.hpp"
@@ -135,8 +136,13 @@ public:
   VkFormat                    m_offscreenDepthFormat{VK_FORMAT_X8_D24_UNORM_PACK32};
   nvvk::Texture               m_gBuffer;
   nvvk::Texture               m_aoBuffer;
+
   nvvk::Buffer                m_hashMap;
   VkDescriptorBufferInfo      m_hashMapDescInfo;
+  nvvk::Buffer                m_configBuffer;
+  VkDeviceMemory              m_configBufferMemory;
+  VkDescriptorBufferInfo      m_configBufferDescInfo;
+  std::unique_ptr<ConfigurationValues> m_configObject;
 
   // #Tuto_rayquery
   void initRayTracing();
