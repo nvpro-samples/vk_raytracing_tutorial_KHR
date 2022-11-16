@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include "nvvk/appbase_vk.hpp"
+#include "nvvkhl/appbase_vk.hpp"
 #include "nvvk/debug_util_vk.hpp"
 #include "nvvk/resourceallocator_vk.hpp"
 #include "shaders/host_device.h"
@@ -57,7 +57,7 @@ using Allocator = nvvk::ResourceAllocatorDedicated;
 // - Rendering is done in an offscreen framebuffer
 // - The image of the framebuffer is displayed in post-process in a full-screen quad
 //
-class HelloVulkan : public nvvk::AppBaseVk
+class HelloVulkan : public nvvkhl::AppBaseVk
 {
 public:
   void setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t queueFamily) override;
