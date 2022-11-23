@@ -104,16 +104,16 @@ void main()
   }
   prd.hitValue = hitValues / NBSAMPLES;
 
-  // Do accumulation over time
-  if(pcRay.frame >= 0)
-  {
-    float a         = 1.0f / float(pcRay.frame + 1);
-    vec3  old_color = imageLoad(image, ivec2(gl_LaunchIDEXT.xy)).xyz;
-    imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(mix(old_color, prd.hitValue, a), 1.f));
-  }
-  else
+  if(pcRay.frame == 0)
   {
     // First frame, replace the value in the buffer
     imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(prd.hitValue, 1.f));
+  }
+  else
+  {
+    // Do accumulation over time
+    float a         = 1.0f / float(pcRay.frame + 1);
+    vec3  old_color = imageLoad(image, ivec2(gl_LaunchIDEXT.xy)).xyz;
+    imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(mix(old_color, prd.hitValue, a), 1.f));
   }
 }
