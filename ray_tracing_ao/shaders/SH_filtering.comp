@@ -1,0 +1,82 @@
+/*
+ * Copyright (c) 2019-2021, NVIDIA CORPORATION.  All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2021 NVIDIA CORPORATION
+ * SPDX-License-Identifier: Apache-2.0
+ */
+ 
+#version 460
+#extension GL_ARB_separate_shader_objects : enable
+#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_EXT_ray_tracing : enable
+#extension GL_EXT_ray_query : enable
+#include "raycommon.glsl"
+#include "SH_hash_tools.glsl"
+
+
+const int GROUP_SIZE = 16;
+layout(local_size_x = GROUP_SIZE, local_size_y = GROUP_SIZE) in;
+layout(set = 0, binding = 0, rgba32f) uniform image2D inImage;
+layout(set = 0, binding = 1, r32f) uniform image2D outImage;
+layout(set = 0, binding = 2) uniform accelerationStructureEXT topLevelAS;
+
+
+layout(scalar, set = 0, binding = 3) buffer HashMap {
+    HashCell hashMap[HASH_MAP_SIZE];
+};
+
+layout(set = 0, binding = 4) uniform UniformBuffer {
+    ConfigurationValues config;
+};
+
+
+// See AoControl
+layout(push_constant) uniform params_
+{
+  float rtao_radius;
+  int   rtao_samples;
+  float rtao_power;
+  int   rtao_distance_based;
+  int   frame_number;
+  int   max_samples;
+};
+
+void main()
+{
+  float occlusion = 0.25;
+
+  ivec2 size = imageSize(inImage);
+  // Check if not outside boundaries
+  if(gl_GlobalInvocationID.x >= size.x || gl_GlobalInvocationID.y >= size.y)
+    return;
+
+  // Retrieving position and normal
+  vec4 gBuffer = imageLoad(inImage, ivec2(gl_GlobalInvocationID.xy));
+
+  // Shooting rays only if a fragment was rendered
+  if(gBuffer != vec4(0))
+  {
+
+   occlusion = 0.5;
+
+  }
+
+    //noisy update
+    imageStore(outImage, ivec2(gl_GlobalInvocationID.xy), vec4(occlusion));
+
+}
+ 

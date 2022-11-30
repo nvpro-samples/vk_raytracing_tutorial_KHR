@@ -34,7 +34,8 @@ layout(set = 0, binding = 0, rgba32f) uniform image2D inImage;
 layout(set = 0, binding = 1, r32f) uniform image2D outImage;
 layout(set = 0, binding = 2) uniform accelerationStructureEXT topLevelAS;
 
-layout(set = 0, binding = 3) writeonly buffer HashMap {
+
+layout(scalar, set = 0, binding = 3) buffer HashMap {
     HashCell hashMap[HASH_MAP_SIZE];
 };
 
@@ -112,6 +113,7 @@ void main()
     vec3 n, tangent, bitangent;
     ComputeDefaultBasis(normal, tangent, bitangent);
 
+
     // Sampling hemiphere n-time
     for(int i = 0; i < rtao_samples; i++)
     {
@@ -132,14 +134,79 @@ void main()
     occlusion = 1 - (occlusion / rtao_samples);
     occlusion = pow(clamp(occlusion, 0, 1), rtao_power);
 
-    uint hash = H7D(config, origin, normal);
-    hashMap[hash].ao_value = 1.0;
-  }
+    //--------------------------------------------------------------------
+    vec3 position = gBuffer.xyz;
 
-  
+    float s_wd_real = s_wd_calc(config, position);
+
+    //insert at level and coarser ones
+    for(int j=0; j < 5; j++){
+        
+        float s_wd = (S_MIN * j) + s_wd_real;
+
+        uint hash = H7D_SWD(config, position, normal, s_wd) % HASH_MAP_SIZE;
+        uint checksum = H7D_SWD_checksum(config, position, normal, s_wd);
+
+        //
+        // insert value in hashmap via linear search
+        //
+        
+        bool inserted_somewhere = false;
+        uint rep_counters[LINEAR_SEARCH_LENGTH];
+
+        uint final_index = hash;
+        bool replace = false;
+
+        // find right cell to edit
+        for(int i = 0; i < LINEAR_SEARCH_LENGTH; i++){
+            if(hashMap[hash + i].contribution_counter == 0){
+                // entry in empty cell
+                final_index = hash + i;
+                inserted_somewhere = true;
+                replace = true;
+                break;
+            } else if(hashMap[hash + i].checksum == checksum){
+                // add to right cluster
+                final_index = hash + i;
+                inserted_somewhere = true;
+                break;
+            } else {
+                hashMap[hash + i].replacement_counter += 1;
+                rep_counters[i] = hashMap[hash + i].replacement_counter;
+            }
+        }
+        if(inserted_somewhere == false){
+            uint winning_index = 0;
+            uint winning_value = rep_counters[0];
+            for(int i = 1; i < LINEAR_SEARCH_LENGTH; i++){
+                if(rep_counters[i] > winning_value){
+                    winning_index = i;
+                    winning_value = rep_counters[i];
+                    replace = true;
+                }
+            }
+            final_index = hash + winning_index;
+        }
+
+        if(replace){
+            hashMap[final_index].ao_value = 0;
+            hashMap[final_index].contribution_counter = 0;
+        }
+
+        hashMap[final_index].ao_value += occlusion;
+        hashMap[final_index].contribution_counter += 1;
+        hashMap[final_index].checksum = checksum;
+        hashMap[final_index].replacement_counter = 0;
+
+        hashMap[final_index].s_wd = s_wd;
+        hashMap[final_index].s_wd_real = s_wd_real;
+        hashMap[final_index].j = j;
+        hashMap[final_index].written = 10;
+        }
+    }
 
     //noisy update
-    imageStore(outImage, ivec2(gl_GlobalInvocationID.xy), vec4(occlusion));
+    //imageStore(outImage, ivec2(gl_GlobalInvocationID.xy), vec4(occlusion));
 
 }
  

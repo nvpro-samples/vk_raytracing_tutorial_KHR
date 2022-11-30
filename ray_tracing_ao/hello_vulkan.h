@@ -168,6 +168,15 @@ public:
   VkPipeline                  m_compPipeline;
   VkPipelineLayout            m_compPipelineLayout;
 
+    // #Tuto_animation
+  void createFilterDescriptors();
+  void updateFilterDescriptors();
+  void createFilterPipelines();
+  void runFilter(VkCommandBuffer cmdBuf);
+
+  VkPipeline                  m_filterPipeline;
+  VkPipelineLayout            m_filterPipelineLayout;
+
   // #Tuto_jitter_cam
   void updateFrame();
   void resetFrame();

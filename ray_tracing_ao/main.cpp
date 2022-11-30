@@ -36,6 +36,8 @@
 #include "nvvk/commands_vk.hpp"
 #include "nvvk/context_vk.hpp"
 
+#include "SH_HashTester.h"
+
 
 //////////////////////////////////////////////////////////////////////////
 #define UNUSED(x) (void)(x)
@@ -185,6 +187,8 @@ int main(int argc, char** argv)
   helloVk.updateCompDescriptors();
   helloVk.createCompPipelines();
 
+  helloVk.createFilterPipelines();
+
 
   nvmath::vec4f clearColor = nvmath::vec4f(0, 0, 0, 0);
 
@@ -194,6 +198,8 @@ int main(int argc, char** argv)
 
   AoControl aoControl;
 
+  //HashTester tester{};
+  //tester.startTester();
 
   // Main loop
   while(!glfwWindowShouldClose(window))

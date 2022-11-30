@@ -53,7 +53,7 @@ void HelloVulkan::setup(const VkInstance& instance, const VkDevice& device, cons
   m_debug.setup(m_device);
   m_offscreenDepthFormat = nvvk::findDepthFormat(physicalDevice);
 
-  m_configObject = std::make_unique<ConfigurationValues>(ConfigurationValues{CameraManip.getCamera().eye, 3, 3, CameraManip.getCamera().fov,
+  m_configObject = std::make_unique<ConfigurationValues>(ConfigurationValues{CameraManip.getCamera().eye, 3.0, 0.5, CameraManip.getCamera().fov,
                                                           nvmath::vec2ui{CameraManip.getWidth(), CameraManip.getHeight()}});
 }
 
@@ -92,13 +92,11 @@ void HelloVulkan::updateUniformBuffer(const VkCommandBuffer& cmdBuf)
   // buffer so it is okay to deallocate when the function returns).
   vkCmdUpdateBuffer(cmdBuf, m_bGlobals.buffer, 0, sizeof(GlobalUniforms), &hostUBO);
 
-  //m_configObject.get()->camera_position = CameraManip.getCamera().eye;
+  m_configObject.get()->camera_position = CameraManip.getCamera().eye;
   //m_configObject.get()->s_nd            = ...;
   //m_configObject.get()->s_p = ...;
   m_configObject.get()->f = CameraManip.getFov();
   m_configObject.get()->res = nvmath::vec2ui{CameraManip.getWidth(), CameraManip.getHeight()};
-
-  m_configObject.get()->camera_position = nvmath::vec3f{0.0, 1.0, 0.0};
 
   vkCmdUpdateBuffer(cmdBuf, m_configBuffer.buffer, 0, sizeof(ConfigurationValues), m_configObject.get());
 
@@ -410,6 +408,11 @@ void HelloVulkan::destroyResources()
   vkDestroyDescriptorPool(m_device, m_compDescPool, nullptr);
   vkDestroyDescriptorSetLayout(m_device, m_compDescSetLayout, nullptr);
 
+  // Filter
+  vkDestroyPipeline(m_device, m_filterPipeline, nullptr);
+  vkDestroyPipelineLayout(m_device, m_filterPipelineLayout, nullptr);
+
+
   // #VKRay
   m_rtBuilder.destroy();
   m_alloc.deinit();
@@ -520,7 +523,7 @@ void HelloVulkan::createOffscreenRender()
 
   // Hash map
   {
-    auto bufferCreateInfo = nvvk::makeBufferCreateInfo(HASH_MAP_SIZE * sizeof(HashCell), VK_FORMAT_R64G64B64A64_UINT, 0);
+    auto bufferCreateInfo = nvvk::makeBufferCreateInfo(HASH_MAP_SIZE * sizeof(HashCell), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 0);
 
     m_hashMap = m_alloc.createBuffer(bufferCreateInfo);
     m_hashMapDescInfo = VkDescriptorBufferInfo{m_hashMap.buffer, 0, VK_WHOLE_SIZE};
@@ -557,8 +560,10 @@ void HelloVulkan::createOffscreenRender()
       m_configBuffer         = m_alloc.createBuffer(cmdBuf, sizeof(ConfigurationValues), (void*)m_configObject.get(),
                                                     VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 0);
       m_configBufferDescInfo = VkDescriptorBufferInfo{m_configBuffer.buffer, 0, VK_WHOLE_SIZE};
-      m_debug.setObjectName(m_hashMap.buffer, "ConfigBuffer");
+      m_debug.setObjectName(m_configBuffer.buffer, "ConfigBuffer");
     }
+
+    vkCmdFillBuffer(cmdBuf, m_hashMap.buffer, 0, VK_WHOLE_SIZE, 0);
 
     genCmdBuf.submitAndWait(cmdBuf);
   }
@@ -830,6 +835,27 @@ void HelloVulkan::createCompPipelines()
   vkDestroyShaderModule(m_device, cpCreateInfo.stage.module, nullptr);
 }
 
+void HelloVulkan::createFilterPipelines()
+{
+  // pushing time
+  VkPushConstantRange        push_constants = {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(AoControl)};
+  VkPipelineLayoutCreateInfo plCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+  plCreateInfo.setLayoutCount         = 1;
+  plCreateInfo.pSetLayouts            = &m_compDescSetLayout;
+  plCreateInfo.pushConstantRangeCount = 1;
+  plCreateInfo.pPushConstantRanges    = &push_constants;
+  vkCreatePipelineLayout(m_device, &plCreateInfo, nullptr, &m_filterPipelineLayout);
+
+  VkComputePipelineCreateInfo cpCreateInfo{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
+  cpCreateInfo.layout = m_filterPipelineLayout;
+  cpCreateInfo.stage = nvvk::createShaderStageInfo(m_device, nvh::loadFile("spv/SH_filtering.comp.spv", true, defaultSearchPaths, true),
+                                                   VK_SHADER_STAGE_COMPUTE_BIT);
+
+  vkCreateComputePipelines(m_device, {}, 1, &cpCreateInfo, nullptr, &m_filterPipeline);
+
+  vkDestroyShaderModule(m_device, cpCreateInfo.stage.module, nullptr);
+}
+
 //--------------------------------------------------------------------------------------------------
 // Running compute shader
 //
@@ -848,12 +874,21 @@ void HelloVulkan::runCompute(VkCommandBuffer cmdBuf, AoControl& aoControl)
   // before the compute shader is using the buffer
   VkImageSubresourceRange range{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
   VkImageMemoryBarrier    imgMemBarrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-  imgMemBarrier.srcAccessMask    = VK_ACCESS_SHADER_WRITE_BIT;
-  imgMemBarrier.dstAccessMask    = VK_ACCESS_SHADER_READ_BIT;
+  imgMemBarrier.srcAccessMask    = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+  imgMemBarrier.dstAccessMask    = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
   imgMemBarrier.image            = m_gBuffer.image;
   imgMemBarrier.oldLayout        = VK_IMAGE_LAYOUT_GENERAL;
   imgMemBarrier.newLayout        = VK_IMAGE_LAYOUT_GENERAL;
   imgMemBarrier.subresourceRange = range;
+
+  // Adding a barrier to be sure the fragment has finished writing to the G-Buffer
+  // before the compute shader is using the buffer
+  VkBufferMemoryBarrier bufMemBarrier{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
+  bufMemBarrier.srcAccessMask     = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+  bufMemBarrier.dstAccessMask     = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+  bufMemBarrier.buffer            = m_hashMap.buffer;
+  bufMemBarrier.offset            = 0;
+  bufMemBarrier.size              = VK_WHOLE_SIZE;
 
   vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                        VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 0, nullptr, 1, &imgMemBarrier);
@@ -871,10 +906,22 @@ void HelloVulkan::runCompute(VkCommandBuffer cmdBuf, AoControl& aoControl)
   // Dispatching the shader
   vkCmdDispatch(cmdBuf, (m_size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (m_size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
 
-
   // Adding a barrier to be sure the compute shader has finished
   // writing to the AO buffer before the post shader is using it
   imgMemBarrier.image = m_aoBuffer.image;
+  vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                       VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 1, &bufMemBarrier, 1, &imgMemBarrier);
+
+
+
+  // Filtering
+  imgMemBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+  vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_filterPipeline);
+  vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_filterPipelineLayout, 0, 1, &m_compDescSet, 0, nullptr);
+
+  vkCmdDispatch(cmdBuf, (m_size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (m_size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
+  
   vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                        VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 0, nullptr, 1, &imgMemBarrier);
 
