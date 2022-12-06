@@ -32,14 +32,13 @@ const int GROUP_SIZE = 16;
 layout(local_size_x = GROUP_SIZE, local_size_y = GROUP_SIZE) in;
 layout(set = 0, binding = 0, rgba32f) uniform image2D inImage;
 layout(set = 0, binding = 1, r32f) uniform image2D outImage;
-layout(set = 0, binding = 2) uniform accelerationStructureEXT topLevelAS;
 
 
-layout(scalar, set = 0, binding = 3) buffer HashMap {
+layout(scalar, set = 0, binding = 2) buffer HashMap {
     HashCell hashMap[HASH_MAP_SIZE];
 };
 
-layout(set = 0, binding = 4) uniform UniformBuffer {
+layout(set = 0, binding = 3) uniform UniformBuffer {
     ConfigurationValues config;
 };
 
@@ -57,7 +56,7 @@ layout(push_constant) uniform params_
 
 void main()
 {
-  float occlusion = 0.25;
+  float occlusion = 0.25;/*
 
   ivec2 size = imageSize(inImage);
   // Check if not outside boundaries
@@ -70,13 +69,59 @@ void main()
   // Shooting rays only if a fragment was rendered
   if(gBuffer != vec4(0))
   {
+    vec3 position = gBuffer.xyz;
+    vec3 normal = DecompressUnitVec(floatBitsToUint(gBuffer.w));
 
-   occlusion = 0.5;
+    float s_wd = s_wd_calc(config, position);
 
+    uint hash = H7D_SWD(config, position, normal, s_wd) % HASH_MAP_SIZE;
+    uint checksum = H7D_SWD_checksum(config, position, normal, s_wd);
+
+    // coarsest level = 0.1, smallest level = 0.01
+    const float coarsest_level = 0.1;
+
+    int kernel_width = int(((coarsest_level / s_wd) - 1) / 2);
+
+    uint contr_counter = 0;
+    float ao_cum = 0;
+    // 3D blurr
+    
+    for(int i = -kernel_width; i <= kernel_width; ++i){
+        for(int j = -kernel_width; j <= kernel_width; ++j){
+            for(int k = -kernel_width; k <= kernel_width; ++k){
+                vec3 offsetpos = position + vec3(i, j, k) * s_wd;
+
+                float s_wd_surr = s_wd;
+
+                while(contr_counter < 40 &&  s_wd_surr <= coarsest_level){
+                
+                    uint hash_surr = H7D_SWD(config, offsetpos, normal, s_wd_surr) % HASH_MAP_SIZE;
+                    uint checksum_surr = H7D_SWD_checksum(config, offsetpos, normal, s_wd_surr);
+                    
+                    for(int l = 0; l < LINEAR_SEARCH_LENGTH; l++){
+                        if(hashMap[hash_surr + l].checksum == checksum){
+                            contr_counter += 1;
+                            ao_cum += hashMap[hash_surr + l].ao_value / hashMap[hash_surr + l].contribution_counter;
+                            break;
+                        }
+                    }
+                   
+                    s_wd_surr += S_MIN;
+
+                }
+
+            }
+        }
+    }
+    
+    for(int l = 0; l < LINEAR_SEARCH_LENGTH; l++){
+        if(hashMap[hash + l].checksum == checksum){
+            occlusion = ao_cum / contr_counter;
+            break;
+        }
+    }
   }
 
-    //noisy update
-    imageStore(outImage, ivec2(gl_GlobalInvocationID.xy), vec4(occlusion));
-
+  imageStore(outImage, ivec2(gl_GlobalInvocationID.xy), vec4(occlusion));*/
 }
  

@@ -71,9 +71,8 @@ void main()
     const int min_nr_samples = 100;
     uint current_samples = 0;
 
-    
-    //color = hash_to_color(H7D_SWD(config, position, normal, s_wd_real)); //* vec4(position / 10, 1);
-
+    //give hash-cells colors
+    //color = hash_to_color(H7D_SWD(config, position, normal, s_wd_real));
     
     for(int j = 0; j < 5; j++){
         
@@ -101,6 +100,54 @@ void main()
     }else {
         ao = 1.0;
         color = vec4(1,0,0,1);
+
+        uint hash = H7D_SWD(config, position, normal, s_wd_real) % HASH_MAP_SIZE;
+        uint checksum = H7D_SWD_checksum(config, position, normal, s_wd_real);
+        
+        // coarsest level = 0.1, smallest level = 0.01
+        const float coarsest_level = 0.1;
+
+        int kernel_width = int(((coarsest_level / s_wd_real) - 1) / 2);
+
+        uint contr_counter = 0;
+        float ao_cum = 0;
+
+        //find close hashcells
+        for(int i = -kernel_width; i <= kernel_width; ++i){
+            for(int j = -kernel_width; j <= kernel_width; ++j){
+                for(int k = -kernel_width; k <= kernel_width; ++k){
+                    vec3 offsetpos = position + vec3(i, j, k) * s_wd_real;
+
+                    float s_wd_surr = s_wd_real;
+
+                    while(contr_counter < 40 &&  s_wd_surr <= coarsest_level){
+                
+                        uint hash_surr = H7D_SWD(config, offsetpos, normal, s_wd_surr) % HASH_MAP_SIZE;
+                        uint checksum_surr = H7D_SWD_checksum(config, offsetpos, normal, s_wd_surr);
+                    
+                        for(int l = 0; l < LINEAR_SEARCH_LENGTH; l++){
+                            if(hashMap[hash_surr + l].checksum == checksum){
+                                contr_counter += 1;
+                                ao_cum += hashMap[hash_surr + l].ao_value / hashMap[hash_surr + l].contribution_counter;
+                                color = vec4(1,1,1,1);
+                                break;
+                            }
+                        }
+                   
+                        s_wd_surr += S_MIN;
+
+                    }
+
+                }
+            }
+        }
+        for(int l = 0; l < LINEAR_SEARCH_LENGTH; l++){
+            if(hashMap[hash + l].checksum == checksum){
+                ao = ao_cum / contr_counter;
+                break;
+            }
+        }
+    
     }
     
 
@@ -110,8 +157,6 @@ void main()
     color = vec4(0,0,1,1);
   }
 
-  //ao    = texture(aoTxt, uv).x;
-
- // ao = texture(aoTxt, uv).x;
+  //ao = texture(aoTxt, uv).x;
   fragColor = pow(color * ao, vec4(gamma));
 }

@@ -398,6 +398,13 @@ void HelloVulkan::destroyResources()
   vkDestroyDescriptorPool(m_device, m_compDescPool, nullptr);
   vkDestroyDescriptorSetLayout(m_device, m_compDescSetLayout, nullptr);
 
+  
+  // #VK_filter
+  vkDestroyPipeline(m_device, m_filterPipeline, nullptr);
+  vkDestroyPipelineLayout(m_device, m_filterPipelineLayout, nullptr);
+  vkDestroyDescriptorPool(m_device, m_filterDescPool, nullptr);
+  vkDestroyDescriptorSetLayout(m_device, m_filterDescSetLayout, nullptr);
+
   m_alloc.deinit();
 }
 

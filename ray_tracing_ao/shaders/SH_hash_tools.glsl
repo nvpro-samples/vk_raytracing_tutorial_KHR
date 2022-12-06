@@ -123,12 +123,29 @@ vec4 hash_to_color(uint hash){
     return vec4(dis.x / 1023, dis.y / 2047, dis.z / 2047, 1);
 }
 
+vec4 swd_to_color(float s_wd){
+    
+    if(s_wd >= 0 && s_wd <= 1){
+        return vec4(0, s_wd * 10, 0, 1); 
+    }
+    if(s_wd < 0) {
+        return vec4(s_wd * (-10), 0, 0, 1);
+    }
+    if(s_wd > 1){
+        return vec4(0,0, (s_wd - 1), 1);
+    }
+
+}
+
 //
 //  Multiple Dimension Hash Functions
 //
 
 //function to specifically adress different levels for blurr later ?
 uint H4D_SWD(vec3 position, float s_wd){
+
+    s_wd = max(s_wd, S_MIN);
+
     return h1(h0(s_wd)
          + h1(h0(floor(position.z / s_wd))
          + h1(h0(floor(position.y / s_wd))
@@ -145,10 +162,10 @@ uint H4D(ConfigurationValues c, vec3 position){
 uint H7D(ConfigurationValues c, vec3 position, vec3 normal){
     normal = normal * c.s_nd;
     ivec3 normal_d = ivec3(normal);
-    return h(normal_d.z)
-         ^ h(normal_d.y)
-         ^ h(normal_d.x)
-         ^ H4D(c, position);
+    return h1(h0(normal_d.z)
+         + h1(h0(normal_d.y)
+         + h1(h0(normal_d.x)
+         + H4D(c, position))));
 
 }
 
@@ -156,10 +173,10 @@ uint H7D(ConfigurationValues c, vec3 position, vec3 normal){
 uint H7D_SWD(ConfigurationValues c, vec3 position, vec3 normal, float s_wd){
     normal = normalize(normal) * c.s_nd;
     ivec3 normal_d = ivec3(normal);
-    return h(normal_d.z) 
-         ^ h(normal_d.y)
-         ^ h(normal_d.x)
-         ^ H4D_SWD(position, s_wd);
+    return h1(h0(normal_d.z)
+         + h1(h0(normal_d.y)
+         + h1(h0(normal_d.x)
+         + H4D_SWD(position, s_wd))));
 }
 
 //

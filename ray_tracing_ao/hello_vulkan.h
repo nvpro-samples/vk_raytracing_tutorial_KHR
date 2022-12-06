@@ -174,6 +174,10 @@ public:
   void createFilterPipelines();
   void runFilter(VkCommandBuffer cmdBuf);
 
+  nvvk::DescriptorSetBindings m_filterDescSetLayoutBind;
+  VkDescriptorPool            m_filterDescPool;
+  VkDescriptorSetLayout       m_filterDescSetLayout;
+  VkDescriptorSet             m_filterDescSet;
   VkPipeline                  m_filterPipeline;
   VkPipelineLayout            m_filterPipelineLayout;
 

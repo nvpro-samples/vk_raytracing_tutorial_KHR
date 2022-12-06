@@ -187,6 +187,8 @@ int main(int argc, char** argv)
   helloVk.updateCompDescriptors();
   helloVk.createCompPipelines();
 
+  helloVk.createFilterDescriptors();
+  helloVk.updateFilterDescriptors();
   helloVk.createFilterPipelines();
 
 

@@ -411,6 +411,8 @@ void HelloVulkan::destroyResources()
   // Filter
   vkDestroyPipeline(m_device, m_filterPipeline, nullptr);
   vkDestroyPipelineLayout(m_device, m_filterPipelineLayout, nullptr);
+  vkDestroyDescriptorPool(m_device, m_filterDescPool, nullptr);
+  vkDestroyDescriptorSetLayout(m_device, m_filterDescSetLayout, nullptr);
 
 
   // #VKRay
@@ -791,6 +793,19 @@ void HelloVulkan::createCompDescriptors()
   m_compDescSet       = nvvk::allocateDescriptorSet(m_device, m_compDescPool, m_compDescSetLayout);
 }
 
+void HelloVulkan::createFilterDescriptors()
+{
+  m_filterDescSetLayoutBind.addBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT);  // [in] G-Buffer
+  m_filterDescSetLayoutBind.addBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT);  // [out] AO
+
+  m_filterDescSetLayoutBind.addBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);  // [in-out] hashmap
+  m_filterDescSetLayoutBind.addBinding(3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
+
+  m_filterDescSetLayout = m_filterDescSetLayoutBind.createLayout(m_device);
+  m_filterDescPool      = m_filterDescSetLayoutBind.createPool(m_device, 1);
+  m_filterDescSet       = nvvk::allocateDescriptorSet(m_device, m_filterDescPool, m_filterDescSetLayout);
+}
+
 //--------------------------------------------------------------------------------------------------
 // Setting up the values to the descriptors
 //
@@ -807,6 +822,17 @@ void HelloVulkan::updateCompDescriptors()
   descASInfo.accelerationStructureCount = 1;
   descASInfo.pAccelerationStructures    = &tlas;
   writes.emplace_back(m_compDescSetLayoutBind.makeWrite(m_compDescSet, 2, &descASInfo));
+
+  vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+}
+
+void HelloVulkan::updateFilterDescriptors()
+{
+  std::vector<VkWriteDescriptorSet> writes;
+  writes.emplace_back(m_filterDescSetLayoutBind.makeWrite(m_filterDescSet, 0, &m_gBuffer.descriptor));
+  writes.emplace_back(m_filterDescSetLayoutBind.makeWrite(m_filterDescSet, 1, &m_aoBuffer.descriptor));
+  writes.emplace_back(m_filterDescSetLayoutBind.makeWrite(m_filterDescSet, 2, &m_hashMapDescInfo));
+  writes.emplace_back(m_filterDescSetLayoutBind.makeWrite(m_filterDescSet, 3, &m_configBufferDescInfo));
 
   vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
@@ -841,7 +867,7 @@ void HelloVulkan::createFilterPipelines()
   VkPushConstantRange        push_constants = {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(AoControl)};
   VkPipelineLayoutCreateInfo plCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
   plCreateInfo.setLayoutCount         = 1;
-  plCreateInfo.pSetLayouts            = &m_compDescSetLayout;
+  plCreateInfo.pSetLayouts            = &m_filterDescSetLayout;
   plCreateInfo.pushConstantRangeCount = 1;
   plCreateInfo.pPushConstantRanges    = &push_constants;
   vkCreatePipelineLayout(m_device, &plCreateInfo, nullptr, &m_filterPipelineLayout);
@@ -883,12 +909,19 @@ void HelloVulkan::runCompute(VkCommandBuffer cmdBuf, AoControl& aoControl)
 
   // Adding a barrier to be sure the fragment has finished writing to the G-Buffer
   // before the compute shader is using the buffer
-  VkBufferMemoryBarrier bufMemBarrier{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
-  bufMemBarrier.srcAccessMask     = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-  bufMemBarrier.dstAccessMask     = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-  bufMemBarrier.buffer            = m_hashMap.buffer;
-  bufMemBarrier.offset            = 0;
-  bufMemBarrier.size              = VK_WHOLE_SIZE;
+  VkBufferMemoryBarrier bufMemBarrier[2] = {VkBufferMemoryBarrier{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER},
+                                            VkBufferMemoryBarrier{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER}};
+  bufMemBarrier[0].srcAccessMask     = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+  bufMemBarrier[0].dstAccessMask     = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+  bufMemBarrier[0].buffer            = m_hashMap.buffer;
+  bufMemBarrier[0].offset            = 0;
+  bufMemBarrier[0].size              = VK_WHOLE_SIZE;
+
+  bufMemBarrier[1].srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+  bufMemBarrier[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+  bufMemBarrier[1].buffer        = m_configBuffer.buffer;
+  bufMemBarrier[1].offset        = 0;
+  bufMemBarrier[1].size          = VK_WHOLE_SIZE;
 
   vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                        VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 0, nullptr, 1, &imgMemBarrier);
@@ -910,15 +943,16 @@ void HelloVulkan::runCompute(VkCommandBuffer cmdBuf, AoControl& aoControl)
   // writing to the AO buffer before the post shader is using it
   imgMemBarrier.image = m_aoBuffer.image;
   vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                       VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 1, &bufMemBarrier, 1, &imgMemBarrier);
+                       VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 2, &bufMemBarrier[0], 1, &imgMemBarrier);
 
 
 
   // Filtering
-  imgMemBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
   vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_filterPipeline);
-  vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_filterPipelineLayout, 0, 1, &m_compDescSet, 0, nullptr);
+  vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_filterPipelineLayout, 0, 1, &m_filterDescSet, 0, nullptr);
+
+  vkCmdPushConstants(cmdBuf, m_filterPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(AoControl), &aoControl);
 
   vkCmdDispatch(cmdBuf, (m_size.width + (GROUP_SIZE - 1)) / GROUP_SIZE, (m_size.height + (GROUP_SIZE - 1)) / GROUP_SIZE, 1);
   
