@@ -82,10 +82,10 @@ void main()
         uint checksum = H7D_SWD_checksum(config, position, normal, s_wd);
 
         for(int i = 0; i < LINEAR_SEARCH_LENGTH; i++){
-            if(hashMap[hash].checksum == checksum){
+            if(hashMap[hash + i].checksum == checksum){
 
-                current_samples += hashMap[hash].contribution_counter;
-                ao += hashMap[hash].ao_value;
+                current_samples += hashMap[hash + i].contribution_counter;
+                ao += hashMap[hash + i].ao_value;
                 break;
             }
         }
@@ -95,59 +95,84 @@ void main()
         }
     }
 
-    if(current_samples != 0){
-        ao /= current_samples;
-    }else {
-        ao = 1.0;
-        color = vec4(1,0,0,1);
+    ao /= current_samples;
 
-        uint hash = H7D_SWD(config, position, normal, s_wd_real) % HASH_MAP_SIZE;
-        uint checksum = H7D_SWD_checksum(config, position, normal, s_wd_real);
+    //try blurr
+    
+    float weight_acc = 0;
+    float ao_acc = 0;
+
+    for(int it = 0; it < 3; ++it){ //iterations of À-trous wavelet filtering
         
-        // coarsest level = 0.1, smallest level = 0.01
-        const float coarsest_level = 0.1;
-
-        int kernel_width = int(((coarsest_level / s_wd_real) - 1) / 2);
-
-        uint contr_counter = 0;
-        float ao_cum = 0;
-
-        //find close hashcells
-        for(int i = -kernel_width; i <= kernel_width; ++i){
-            for(int j = -kernel_width; j <= kernel_width; ++j){
-                for(int k = -kernel_width; k <= kernel_width; ++k){
-                    vec3 offsetpos = position + vec3(i, j, k) * s_wd_real;
-
-                    float s_wd_surr = s_wd_real;
-
-                    while(contr_counter < 40 &&  s_wd_surr <= coarsest_level){
-                
-                        uint hash_surr = H7D_SWD(config, offsetpos, normal, s_wd_surr) % HASH_MAP_SIZE;
-                        uint checksum_surr = H7D_SWD_checksum(config, offsetpos, normal, s_wd_surr);
+        for(int i = -1; i <= 1; ++i){
+            for(int j = -1; j <= 1; ++j){
+                for(int k = -1; k <= 1; ++k){
                     
-                        for(int l = 0; l < LINEAR_SEARCH_LENGTH; l++){
-                            if(hashMap[hash_surr + l].checksum == checksum){
-                                contr_counter += 1;
-                                ao_cum += hashMap[hash_surr + l].ao_value / hashMap[hash_surr + l].contribution_counter;
-                                color = vec4(1,1,1,1);
+                    // inner circle
+                    vec3 step_inner = vec3(i, j, k) * s_wd_real * pow(2, it);
+                    vec3 pos_inner = position + step_inner;
+
+                    for(int s = 0; s < 5; s++){
+        
+                        float s_wd = (S_MIN * s) + s_wd_real;
+
+                        uint hash_inner = H7D_SWD(config, pos_inner, normal, s_wd) % HASH_MAP_SIZE;
+                        uint checksum_inner = H7D_SWD_checksum(config, pos_inner, normal, s_wd);
+
+                        const int min_nr_samples = 100;
+                        uint current_samples = 0;
+
+                        for(int c = 0; c < LINEAR_SEARCH_LENGTH; c++){
+                            if(hashMap[hash_inner + c].checksum == checksum_inner){
+
+                                weight_acc += 1;
+                                ao_acc += hashMap[hash_inner + c].ao_value / hashMap[hash_inner + c].contribution_counter;
+                                current_samples += hashMap[hash_inner + c].contribution_counter;
                                 break;
                             }
                         }
-                   
-                        s_wd_surr += S_MIN;
 
+                        if(current_samples > min_nr_samples)
+                            break;
                     }
+
+
+                    // outer circle
+                    vec3 step_outer = vec3(i, j, k) * s_wd_real * pow(2, it + 1);
+                    vec3 pos_outer = position + step_outer;
+
+                    for(int s = 0; s < 5; s++){
+        
+                        float s_wd = (S_MIN * s) + s_wd_real;
+
+                        uint hash_outer = H7D_SWD(config, pos_outer, normal, s_wd) % HASH_MAP_SIZE;
+                        uint checksum_outer = H7D_SWD_checksum(config, pos_outer, normal, s_wd);
+
+                        const int min_nr_samples = 100;
+                        uint current_samples = 0;
+
+                        for(int c = 0; c < LINEAR_SEARCH_LENGTH; c++){
+                            if(hashMap[hash_outer + c].checksum == checksum_outer){
+
+                                weight_acc += 1;
+                                ao_acc += hashMap[hash_outer + c].ao_value / hashMap[hash_outer + c].contribution_counter;
+                                current_samples += hashMap[hash_outer + c].contribution_counter;
+                                break;
+                            }
+                        }
+
+                        if(current_samples > min_nr_samples)
+                            break;
+                    }
+
+                    
+                    
 
                 }
             }
         }
-        for(int l = 0; l < LINEAR_SEARCH_LENGTH; l++){
-            if(hashMap[hash + l].checksum == checksum){
-                ao = ao_cum / contr_counter;
-                break;
-            }
-        }
-    
+
+        ao = ao_acc / weight_acc;
     }
     
 

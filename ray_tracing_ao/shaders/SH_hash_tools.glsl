@@ -220,5 +220,3 @@ uint H7D_SWD_checksum(ConfigurationValues c, vec3 position, vec3 normal, float s
 
 
 
-
-
