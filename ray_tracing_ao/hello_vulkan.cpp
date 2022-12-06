@@ -749,7 +749,7 @@ void HelloVulkan::updateCompDescriptors()
   writes.emplace_back(m_compDescSetLayoutBind.makeWrite(m_compDescSet, 0, &m_gBuffer.descriptor));
   writes.emplace_back(m_compDescSetLayoutBind.makeWrite(m_compDescSet, 1, &m_aoBuffer.descriptor));
 
-  VkAccelerationStructureKHR                   tlas = m_rtBuilder.getAccelerationStructure();
+  VkAccelerationStructureKHR tlas = m_rtBuilder.getAccelerationStructure();
   VkWriteDescriptorSetAccelerationStructureKHR descASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
   descASInfo.accelerationStructureCount = 1;
   descASInfo.pAccelerationStructures    = &tlas;
@@ -800,14 +800,14 @@ void HelloVulkan::runCompute(VkCommandBuffer cmdBuf, AoControl& aoControl)
   // before the compute shader is using the buffer
   VkImageSubresourceRange range{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
   VkImageMemoryBarrier    imgMemBarrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-  imgMemBarrier.srcAccessMask    = VK_ACCESS_SHADER_WRITE_BIT;
+  imgMemBarrier.srcAccessMask    = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
   imgMemBarrier.dstAccessMask    = VK_ACCESS_SHADER_READ_BIT;
   imgMemBarrier.image            = m_gBuffer.image;
   imgMemBarrier.oldLayout        = VK_IMAGE_LAYOUT_GENERAL;
   imgMemBarrier.newLayout        = VK_IMAGE_LAYOUT_GENERAL;
   imgMemBarrier.subresourceRange = range;
 
-  vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+  vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                        VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 0, nullptr, 1, &imgMemBarrier);
 
 
@@ -826,7 +826,9 @@ void HelloVulkan::runCompute(VkCommandBuffer cmdBuf, AoControl& aoControl)
 
   // Adding a barrier to be sure the compute shader has finished
   // writing to the AO buffer before the post shader is using it
-  imgMemBarrier.image = m_aoBuffer.image;
+  imgMemBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+  imgMemBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+  imgMemBarrier.image         = m_aoBuffer.image;
   vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                        VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 0, nullptr, 1, &imgMemBarrier);
 

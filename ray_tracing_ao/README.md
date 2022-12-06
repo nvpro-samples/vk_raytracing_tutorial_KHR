@@ -197,14 +197,14 @@ Next, we are adding a `VkImageMemoryBarrier` to be sure the G-Buffer image is re
   // before the compute shader is using the buffer
   VkImageSubresourceRange range{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
   VkImageMemoryBarrier    imgMemBarrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-  imgMemBarrier.srcAccessMask    = VK_ACCESS_SHADER_WRITE_BIT;
+  imgMemBarrier.srcAccessMask    = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
   imgMemBarrier.dstAccessMask    = VK_ACCESS_SHADER_READ_BIT;
   imgMemBarrier.image            = m_gBuffer.image;
   imgMemBarrier.oldLayout        = VK_IMAGE_LAYOUT_GENERAL;
   imgMemBarrier.newLayout        = VK_IMAGE_LAYOUT_GENERAL;
   imgMemBarrier.subresourceRange = range;
 
-  vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+  vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                        VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 0, nullptr, 1, &imgMemBarrier);
 ~~~~
 
@@ -230,6 +230,8 @@ writing the AO so that the fragment shader (post) can use it.
 ~~~~ C++
   // Adding a barrier to be sure the compute shader has finished
   // writing to the AO buffer before the post shader is using it
+  imgMemBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+  imgMemBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
   imgMemBarrier.image = m_aoBuffer.image;
   vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                        VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 0, nullptr, 1, &imgMemBarrier);
