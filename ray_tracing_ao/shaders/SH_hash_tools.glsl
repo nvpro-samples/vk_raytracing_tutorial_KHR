@@ -1,6 +1,6 @@
 #define HASH_MAP_SIZE 10000000
-#define S_MIN 0.01
-#define LINEAR_SEARCH_LENGTH 20
+#define S_MIN 0.0000000001
+#define LINEAR_SEARCH_LENGTH 10
 
 struct HashCell {
     float ao_value;             // the averaged ambient occlusion value in the given hash cell
@@ -20,6 +20,27 @@ struct ConfigurationValues {
     float f;                 // camera aperture
     uvec2 res;              // screen resolution in pixel
 };
+
+uint pow2[] = {1, 2, 4, 8, 16, 32, 64, 128};
+
+//
+// Hash function: Wang hash
+//
+
+uint wang_hash(uint seed)
+{
+    seed = (seed ^ 61) ^ (seed >> 16);
+    seed *= 9;
+    seed = seed ^ (seed >> 4);
+    seed *= 0x27d4eb2d;
+    seed = seed ^ (seed >> 15);
+    return seed;
+}
+
+uint wang_hash(float key)
+{
+  return wang_hash(floatBitsToUint(key));
+}
 
 
 
@@ -105,13 +126,19 @@ uint h2(float x){
     return hash;
 }
 
+/*float s_w_calc(ConfigurationValues c, vec3 position){
+    float dis = distance(position, c.camera_position);
+    float s_w = dis * tan(c.s_p * c.f * max(1 / c.res.y, c.res.y / pow(c.res.x, 2)));
+    return s_w;
+}*/ // not used
+
 float s_wd_calc(ConfigurationValues c, vec3 position){
     float dis = distance(position, c.camera_position);
     float s_w = dis * tan(c.s_p * c.f * max(1 / c.res.y, c.res.y / pow(c.res.x, 2)));
     float log_step = floor(log2(s_w / S_MIN));
-    float s_wd = log_step * S_MIN;
-    return s_wd;
+    return pow(2, log_step) * S_MIN;
 }
+
 
 uint h(float f) {
     return h0(f);
@@ -140,16 +167,14 @@ vec4 swd_to_color(float s_wd){
 //
 //  Multiple Dimension Hash Functions
 //
-
-//function to specifically adress different levels for blurr later ?
 uint H4D_SWD(vec3 position, float s_wd){
 
     s_wd = max(s_wd, S_MIN);
 
-    return h1(h0(s_wd)
-         + h1(h0(floor(position.z / s_wd))
-         + h1(h0(floor(position.y / s_wd))
-         + h1(h0(floor(position.x / s_wd))))));
+    return wang_hash(floatBitsToUint(s_wd)
+         + wang_hash(floatBitsToUint(floor(position.z / s_wd))
+         + wang_hash(floatBitsToUint(floor(position.y / s_wd))
+         + wang_hash(floatBitsToUint(floor(position.x / s_wd))))));
 }
 
 //hash function to hash points without normal
@@ -162,9 +187,9 @@ uint H4D(ConfigurationValues c, vec3 position){
 uint H7D(ConfigurationValues c, vec3 position, vec3 normal){
     normal = normal * c.s_nd;
     ivec3 normal_d = ivec3(normal);
-    return h1(h0(normal_d.z)
-         + h1(h0(normal_d.y)
-         + h1(h0(normal_d.x)
+    return wang_hash(normal_d.z
+         + wang_hash(normal_d.y
+         + wang_hash(normal_d.x
          + H4D(c, position))));
 
 }
@@ -173,9 +198,9 @@ uint H7D(ConfigurationValues c, vec3 position, vec3 normal){
 uint H7D_SWD(ConfigurationValues c, vec3 position, vec3 normal, float s_wd){
     normal = normalize(normal) * c.s_nd;
     ivec3 normal_d = ivec3(normal);
-    return h1(h0(normal_d.z)
-         + h1(h0(normal_d.y)
-         + h1(h0(normal_d.x)
+    return wang_hash(normal_d.z
+         + wang_hash(normal_d.y
+         + wang_hash(normal_d.x
          + H4D_SWD(position, s_wd))));
 }
 
@@ -185,13 +210,13 @@ uint H7D_SWD(ConfigurationValues c, vec3 position, vec3 normal, float s_wd){
 
 //function to specifically adress different levels for blurr later ?
 uint H4D_SWD_checksum(vec3 position, float s_wd){
-    return h2(s_wd)
-        ^ h2(floor(position.z / s_wd))
-        ^ h2(floor(position.y / s_wd))
-        ^ h2(floor(position.x/ s_wd));
+    return h0(s_wd)
+        ^ h0(floor(position.z / s_wd))
+        ^ h0(floor(position.y / s_wd))
+        ^ h0(floor(position.x/ s_wd));
 }
 
-//hash function to hash points with normal
+// hash function to hash points with normal
 uint H4D_checksum(ConfigurationValues c, vec3 position){
     float s_wd = s_wd_calc(c, position);
     return H4D_SWD_checksum(position, s_wd);
@@ -201,9 +226,9 @@ uint H4D_checksum(ConfigurationValues c, vec3 position){
 uint H7D_checksum(ConfigurationValues c, vec3 position, vec3 normal){
     normal = normal * c.s_nd;
     ivec3 normal_d = ivec3(normal);
-    return h2(normal_d.z)
-        ^ h2(normal_d.y)
-        ^ h2(normal_d.x)
+    return h0(normal_d.z)
+        ^ h0(normal_d.y)
+        ^ h0(normal_d.x)
         ^ H4D_checksum(c, position);
 }
 
@@ -211,12 +236,24 @@ uint H7D_checksum(ConfigurationValues c, vec3 position, vec3 normal){
 uint H7D_SWD_checksum(ConfigurationValues c, vec3 position, vec3 normal, float s_wd){
     normal = normal * c.s_nd;
     ivec3 normal_d = ivec3(normal);
-    return h2(normal_d.z)
-         ^ h2(normal_d.y)
-         ^ h2(normal_d.x)
+    return h0(normal_d.z)
+         ^ h0(normal_d.y)
+         ^ h0(normal_d.x)
          ^ H4D_SWD(position, s_wd);
 }
 
+float random_in_range(float seed, float begin, float end){
+    int m = int(pow(2, 30));
+    float rnd = ((float(h0(seed) % m) / m) * (end - begin)) + begin;
+    return rnd;
+}
 
+float gauss1(float mid, float offset, float sigma){
+    
+    return exp(-(pow(offset - mid, 2) / (2 * pow(sigma, 2))));
+}
 
-
+float gauss3(vec3 mid_pos, vec3 offset_pos, float sigma){
+    
+    return exp(-(  (pow(offset_pos.x - mid_pos.x, 2) + pow(offset_pos.y - mid_pos.y, 2) + pow(offset_pos.z - mid_pos.z, 2)) / (2 * pow(sigma, 2))));
+}

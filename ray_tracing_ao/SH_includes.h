@@ -2,7 +2,7 @@
 #include "nvmath/nvmath.h"
 
 #define HASH_MAP_SIZE 10'000'000
-#define S_MIN 0.01
+#define S_MIN 0.0000000001
 
 struct HashCell
 {

@@ -67,7 +67,10 @@ void main()
     vec3 normal = DecompressUnitVec(floatBitsToUint(gBuffer.w));
     
     float s_wd_real = s_wd_calc(config, position);
+    const float max_distance = 10.0;
+    float max_s_wd = s_wd_calc(config, config.camera_position + vec3(max_distance, 0, 0));
 
+    
     const int min_nr_samples = 100;
     uint current_samples = 0;
 
@@ -76,7 +79,9 @@ void main()
     
     for(int j = 0; j < 5; j++){
         
-        float s_wd = (S_MIN * j) + s_wd_real;
+        //float s_wd = pow(2, (log2(s_wd_real) / S_MIN + j) * S_MIN);
+        //float s_wd = pow(2, (log2(s_wd_real / S_MIN) + j)) * S_MIN;
+        float s_wd = s_wd_real * pow2[j];
 
         uint hash = H7D_SWD(config, position, normal, s_wd) % HASH_MAP_SIZE;
         uint checksum = H7D_SWD_checksum(config, position, normal, s_wd);
@@ -96,11 +101,15 @@ void main()
     }
 
     ao /= current_samples;
-
-    //try blurr
     
+    //try blurr
+   
+    /*
     float weight_acc = 0;
     float ao_acc = 0;
+
+    float s_w = s_w_calc(config, position);
+    float s_wd = s_wd_real;
 
     for(int it = 0; it < 3; ++it){ //iterations of À-trous wavelet filtering
         
@@ -108,73 +117,41 @@ void main()
             for(int j = -1; j <= 1; ++j){
                 for(int k = -1; k <= 1; ++k){
                     
-                    // inner circle
-                    vec3 step_inner = vec3(i, j, k) * s_wd_real * pow(2, it);
-                    vec3 pos_inner = position + step_inner;
+                    //circle
+                    //todo: make sure that its not sampled wider than coarsest level. - lets not do that
+                    //todo: performance improvement
+                    //todo: jittering
+                    vec3 step_sample = vec3(i, j, k) * s_w * pow(2, it);
+                    vec3 jittering = vec3(random_in_range(0, -s_w / 2, s_w / 2));
+                    vec3 pos_sample = position + step_sample;
 
-                    for(int s = 0; s < 5; s++){
-        
-                        float s_wd = (S_MIN * s) + s_wd_real;
+                    uint hash_sample = H7D_SWD(config, pos_sample, normal, s_wd) % HASH_MAP_SIZE;
+                    uint checksum_sample = H7D_SWD_checksum(config, pos_sample, normal, s_wd);
 
-                        uint hash_inner = H7D_SWD(config, pos_inner, normal, s_wd) % HASH_MAP_SIZE;
-                        uint checksum_inner = H7D_SWD_checksum(config, pos_inner, normal, s_wd);
+                    for(int c = 0; c < LINEAR_SEARCH_LENGTH; c++){
+                        if(hashMap[hash_sample + c].checksum == checksum_sample){
 
-                        const int min_nr_samples = 100;
-                        uint current_samples = 0;
+                            float ao_sample = hashMap[hash_sample + c].ao_value / hashMap[hash_sample + c].contribution_counter;
 
-                        for(int c = 0; c < LINEAR_SEARCH_LENGTH; c++){
-                            if(hashMap[hash_inner + c].checksum == checksum_inner){
+                            float weight_dis = gauss3(position, pos_sample, max_s_wd / 3);
+                            float weight_ao_diff = gauss1(ao, ao_sample, 0.5);
 
-                                weight_acc += 1;
-                                ao_acc += hashMap[hash_inner + c].ao_value / hashMap[hash_inner + c].contribution_counter;
-                                current_samples += hashMap[hash_inner + c].contribution_counter;
-                                break;
-                            }
-                        }
+                            float weight = weight_dis * weight_ao_diff;
 
-                        if(current_samples > min_nr_samples)
+                            weight_acc += weight;
+                            ao_acc += weight * ao_sample;
+                            current_samples += hashMap[hash_sample + c].contribution_counter;
                             break;
-                    }
-
-
-                    // outer circle
-                    vec3 step_outer = vec3(i, j, k) * s_wd_real * pow(2, it + 1);
-                    vec3 pos_outer = position + step_outer;
-
-                    for(int s = 0; s < 5; s++){
-        
-                        float s_wd = (S_MIN * s) + s_wd_real;
-
-                        uint hash_outer = H7D_SWD(config, pos_outer, normal, s_wd) % HASH_MAP_SIZE;
-                        uint checksum_outer = H7D_SWD_checksum(config, pos_outer, normal, s_wd);
-
-                        const int min_nr_samples = 100;
-                        uint current_samples = 0;
-
-                        for(int c = 0; c < LINEAR_SEARCH_LENGTH; c++){
-                            if(hashMap[hash_outer + c].checksum == checksum_outer){
-
-                                weight_acc += 1;
-                                ao_acc += hashMap[hash_outer + c].ao_value / hashMap[hash_outer + c].contribution_counter;
-                                current_samples += hashMap[hash_outer + c].contribution_counter;
-                                break;
-                            }
                         }
-
-                        if(current_samples > min_nr_samples)
-                            break;
                     }
-
-                    
-                    
 
                 }
             }
         }
 
-        ao = ao_acc / weight_acc;
+        
     }
-    
+    ao = ao_acc / weight_acc;*/
 
   }
   else{

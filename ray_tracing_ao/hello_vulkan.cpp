@@ -53,7 +53,7 @@ void HelloVulkan::setup(const VkInstance& instance, const VkDevice& device, cons
   m_debug.setup(m_device);
   m_offscreenDepthFormat = nvvk::findDepthFormat(physicalDevice);
 
-  m_configObject = std::make_unique<ConfigurationValues>(ConfigurationValues{CameraManip.getCamera().eye, 3.0, 0.5, CameraManip.getCamera().fov,
+  m_configObject = std::make_unique<ConfigurationValues>(ConfigurationValues{CameraManip.getCamera().eye, 3.0, 0.1, CameraManip.getCamera().fov,
                                                           nvmath::vec2ui{CameraManip.getWidth(), CameraManip.getHeight()}});
 }
 

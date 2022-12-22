@@ -142,7 +142,9 @@ void main()
     //insert at level and coarser ones
     for(int j=0; j < 5; j++){
         
-        float s_wd = (S_MIN * j) + s_wd_real;
+        //float s_wd = pow(2, (log2(s_wd_real) / S_MIN + j) * S_MIN);
+        //float s_wd = pow(2, (log2(s_wd_real / S_MIN) + j)) * S_MIN;
+        float s_wd = s_wd_real * pow2[j];
 
         uint hash = H7D_SWD(config, position, normal, s_wd) % HASH_MAP_SIZE;
         uint checksum = H7D_SWD_checksum(config, position, normal, s_wd);

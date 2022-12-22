@@ -22,7 +22,7 @@ public:
     delete checksumTester;
   }
   void startTester();
-  void test_and_print_result(std::function<uint32_t(float)> hash_function);
+  void test_and_print_result(std::function<uint32_t(int32_t)> hash_function);
 
 
 private:
@@ -31,7 +31,7 @@ private:
   void printChecksum();
 
   static uint32_t h0(float x);
-  static uint32_t h1(float x);
+  static uint32_t h1(int32_t x);
   static uint32_t h2(float x);
 
   static std::array<uint32_t, 4> split_bytes(uint32_t x);

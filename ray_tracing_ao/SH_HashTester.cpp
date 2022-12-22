@@ -12,10 +12,11 @@ std::ostream& operator<<(std::ostream& os, const nvmath::vec3f& dt) {
 }
 
 void HashTester::startTester() {
-  test_and_print_result(HashTester::h2);
+  test_and_print_result(HashTester::h1);
 }
 
-void HashTester::test_and_print_result(std::function<uint32_t(float)> hash_function) {
+void HashTester::test_and_print_result(std::function<uint32_t(int32_t)> hash_function)
+{
 
    srand(234234);
 
@@ -76,8 +77,7 @@ uint32_t HashTester::h0(float f) {
 }
 
 //  Hash Function: Fowler-Noll-Vo (FNV-1 hash 32-bit version)
-uint32_t HashTester::h1(float f) {
-    uint32_t x = *reinterpret_cast<uint32_t*>(&f);
+uint32_t HashTester::h1(int32_t x) {
 
     const uint32_t FNV_offset_basis = 0x811c9dc5;
     const uint32_t FNV_prime        = 0x01000193;
@@ -117,10 +117,10 @@ uint32_t HashTester::h2(float f) {
 //function to specifically adress different levels for blurr later ?
 uint32_t HashTester::H4D_SWD(nvmath::vec3f position, uint32_t s_wd, std::function<uint32_t(float)> hash_function)
 {
-    uint32_t step1 = hash_function(position.x / s_wd);
-    uint32_t step2 = hash_function(position.y / s_wd + step1);
-    uint32_t step3 = hash_function(position.z / s_wd + step2);
-    uint32_t step4 = hash_function(s_wd + step3);
+    uint32_t step1 = hash_function(int32_t(position.x / s_wd));
+    uint32_t step2 = hash_function(int32_t(position.y / s_wd) + step1);
+    uint32_t step3 = hash_function(int32_t(position.z / s_wd) + step2);
+    uint32_t step4 = hash_function(int32_t(s_wd) + step3);
 
     std::cout << "x: " << position.x << ", y: " << position.y << ", z: " << position.z << std::endl;
     std::cout << "x: " << (position.x / s_wd) << ", y: " << (position.y / s_wd) << ", z: " << (position.z / s_wd) << std::endl;

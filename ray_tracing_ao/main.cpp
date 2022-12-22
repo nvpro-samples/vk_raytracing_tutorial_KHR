@@ -93,7 +93,7 @@ int main(int argc, char** argv)
 
   // Setup camera
   CameraManip.setWindowSize(SAMPLE_WIDTH, SAMPLE_HEIGHT);
-  CameraManip.setLookat(nvmath::vec3f(5, 4, -4), nvmath::vec3f(0, 1, 0), nvmath::vec3f(0, 1, 0));
+  CameraManip.setLookat(nvmath::vec3f(17.5, 5.2, -5.6), nvmath::vec3f(10.4, 4.5, -4.7), nvmath::vec3f(0, 1, 0));
 
   // Setup Vulkan
   if(!glfwVulkanSupported())
@@ -159,10 +159,12 @@ int main(int argc, char** argv)
   helloVk.initGUI(0);  // Using sub-pass 0
 
   // Creation of the example
-  nvmath::mat4f t = nvmath::translation_mat4(nvmath::vec3f{0, 0.0, 0});
-  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true), t);
+  nvmath::mat4f t = nvmath::translation_mat4(nvmath::vec3f{0, -10.0, 0});
+  //helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true), t);
   //helloVk.loadModel(nvh::findFile("media/scenes/wuson.obj", defaultSearchPaths, true));
-  helloVk.loadModel(nvh::findFile("media/scenes/Medieval_building.obj", defaultSearchPaths, true));
+  //helloVk.loadModel(nvh::findFile("media/scenes/Medieval_building.obj", defaultSearchPaths, true));
+  helloVk.loadModel(nvh::findFile("media/scenes/sponza_even_smaller.obj", defaultSearchPaths, true));
+
 
   helloVk.createOffscreenRender();
   helloVk.createDescriptorSetLayout();
