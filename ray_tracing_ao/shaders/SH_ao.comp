@@ -84,6 +84,7 @@ float TraceRay(in rayQueryEXT rayQuery, in vec3 origin, in vec3 direction)
   return 0;
 }
 
+// calculate ao values and store in hashmap
 void main()
 {
   float occlusion = 0.0;

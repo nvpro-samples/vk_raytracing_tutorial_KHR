@@ -126,11 +126,11 @@ uint h2(float x){
     return hash;
 }
 
-/*float s_w_calc(ConfigurationValues c, vec3 position){
+float s_w_calc(ConfigurationValues c, vec3 position){
     float dis = distance(position, c.camera_position);
     float s_w = dis * tan(c.s_p * c.f * max(1 / c.res.y, c.res.y / pow(c.res.x, 2)));
     return s_w;
-}*/ // not used
+}
 
 float s_wd_calc(ConfigurationValues c, vec3 position){
     float dis = distance(position, c.camera_position);

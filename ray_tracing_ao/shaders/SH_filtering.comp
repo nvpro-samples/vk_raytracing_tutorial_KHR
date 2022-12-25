@@ -54,74 +54,51 @@ layout(push_constant) uniform params_
   int   max_samples;
 };
 
+//get the values for each pixel from the hash map and store in texture
 void main()
 {
-  float occlusion = 0.25;/*
-
-  ivec2 size = imageSize(inImage);
-  // Check if not outside boundaries
-  if(gl_GlobalInvocationID.x >= size.x || gl_GlobalInvocationID.y >= size.y)
-    return;
+  float ao    = 0.0;
 
   // Retrieving position and normal
-  vec4 gBuffer = imageLoad(inImage, ivec2(gl_GlobalInvocationID.xy));
+  vec4 gBuffer = imageLoad(inImage, ivec2(gl_GlobalInvocationID.xy)); //ivec2(uv.x * config.res.x, uv.y * config.res.y));
 
   // Shooting rays only if a fragment was rendered
   if(gBuffer != vec4(0))
   {
     vec3 position = gBuffer.xyz;
     vec3 normal = DecompressUnitVec(floatBitsToUint(gBuffer.w));
-
-    float s_wd = s_wd_calc(config, position);
-
-    uint hash = H7D_SWD(config, position, normal, s_wd) % HASH_MAP_SIZE;
-    uint checksum = H7D_SWD_checksum(config, position, normal, s_wd);
-
-    // coarsest level = 0.1, smallest level = 0.01
-    const float coarsest_level = 0.1;
-
-    int kernel_width = int(((coarsest_level / s_wd) - 1) / 2);
-
-    uint contr_counter = 0;
-    float ao_cum = 0;
-    // 3D blurr
     
-    for(int i = -kernel_width; i <= kernel_width; ++i){
-        for(int j = -kernel_width; j <= kernel_width; ++j){
-            for(int k = -kernel_width; k <= kernel_width; ++k){
-                vec3 offsetpos = position + vec3(i, j, k) * s_wd;
+    float s_wd_real = s_wd_calc(config, position);
+    const float max_distance = 10.0;
+    float max_s_wd = s_wd_calc(config, config.camera_position + vec3(max_distance, 0, 0));
 
-                float s_wd_surr = s_wd;
+    const int min_nr_samples = 100;
+    uint current_samples = 0;
+    
+    for(int j = 0; j < 5; j++){
+        
+        float s_wd = s_wd_real * pow2[j];
 
-                while(contr_counter < 40 &&  s_wd_surr <= coarsest_level){
-                
-                    uint hash_surr = H7D_SWD(config, offsetpos, normal, s_wd_surr) % HASH_MAP_SIZE;
-                    uint checksum_surr = H7D_SWD_checksum(config, offsetpos, normal, s_wd_surr);
-                    
-                    for(int l = 0; l < LINEAR_SEARCH_LENGTH; l++){
-                        if(hashMap[hash_surr + l].checksum == checksum){
-                            contr_counter += 1;
-                            ao_cum += hashMap[hash_surr + l].ao_value / hashMap[hash_surr + l].contribution_counter;
-                            break;
-                        }
-                    }
-                   
-                    s_wd_surr += S_MIN;
+        uint hash = H7D_SWD(config, position, normal, s_wd) % HASH_MAP_SIZE;
+        uint checksum = H7D_SWD_checksum(config, position, normal, s_wd);
 
-                }
+        for(int i = 0; i < LINEAR_SEARCH_LENGTH; i++){
+            if(hashMap[hash + i].checksum == checksum){
 
+                current_samples += hashMap[hash + i].contribution_counter;
+                ao += hashMap[hash + i].ao_value;
+                break;
             }
         }
-    }
-    
-    for(int l = 0; l < LINEAR_SEARCH_LENGTH; l++){
-        if(hashMap[hash + l].checksum == checksum){
-            occlusion = ao_cum / contr_counter;
+
+        if(current_samples >= min_nr_samples){
             break;
         }
     }
+
+    ao /= current_samples;
   }
 
-  imageStore(outImage, ivec2(gl_GlobalInvocationID.xy), vec4(occlusion));*/
+  imageStore(outImage, ivec2(gl_GlobalInvocationID.xy), vec4(ao));
 }
  
