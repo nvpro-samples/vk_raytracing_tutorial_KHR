@@ -68,30 +68,33 @@ void main()
     vec3 position = gBuffer.xyz;
     vec3 normal = DecompressUnitVec(floatBitsToUint(gBuffer.w));
     
-    float s_wd_real = s_wd_calc(config, position);
-    const float max_distance = 10.0;
-    float max_s_wd = s_wd_calc(config, config.camera_position + vec3(max_distance, 0, 0));
+    float s_wd = s_wd_calc(config, position);
 
-    const int min_nr_samples = 100;
+    // Sample coarser levels when not enough samples
+    const int min_nr_samples = 80;
     uint current_samples = 0;
     
-    for(int j = 0; j < 5; j++){
+    for(int l = 0; l < 5; ++l){
         
-        float s_wd = s_wd_real * pow2[j];
+        float s_wd_it = s_wd * pow2[l];
 
-        uint hash = H7D_SWD(config, position, normal, s_wd) % HASH_MAP_SIZE;
-        uint checksum = H7D_SWD_checksum(config, position, normal, s_wd);
+        uint hash = H7D_SWD(config, position, normal, s_wd_it) % HASH_MAP_SIZE;
+        uint checksum = H7D_SWD_checksum(config, position, normal, s_wd_it);
 
-        for(int i = 0; i < LINEAR_SEARCH_LENGTH; i++){
-            if(hashMap[hash + i].checksum == checksum){
+        for(int i = 0; i < LINEAR_SEARCH_LENGTH; ++i){
 
-                current_samples += hashMap[hash + i].contribution_counter;
-                ao += hashMap[hash + i].ao_value;
+            HashCell read_cell_i = hashMap[hash + i];
+
+            if(read_cell_i.checksum == checksum){
+
+                current_samples += read_cell_i.contribution_counter;
+                ao += read_cell_i.ao_value;
                 break;
             }
         }
 
         if(current_samples >= min_nr_samples){
+            // Enough samples => stop finding more values
             break;
         }
     }

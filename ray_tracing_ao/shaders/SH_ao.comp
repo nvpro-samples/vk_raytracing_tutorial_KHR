@@ -135,78 +135,89 @@ void main()
     occlusion = 1 - (occlusion / rtao_samples);
     occlusion = pow(clamp(occlusion, 0, 1), rtao_power);
 
-    //--------------------------------------------------------------------
-    vec3 position = gBuffer.xyz;
+    //
+    // Start of Code for Hashmap
+    //
 
-    float s_wd_real = s_wd_calc(config, position);
+    // World-space position of current Pixel
+    vec3 position = origin;
 
-    //insert at level and coarser ones
-    for(int j=0; j < 5; j++){
+    // Calculate cell size for current Pixel in world-space
+    float s_wd = s_wd_calc(config, position);
+
+    // Add ao samples at current level 0 and propagate to 4 coarser ones
+    for(int l=0; l < 5; ++l){
         
-        //float s_wd = pow(2, (log2(s_wd_real) / S_MIN + j) * S_MIN);
-        //float s_wd = pow(2, (log2(s_wd_real / S_MIN) + j)) * S_MIN;
-        float s_wd = s_wd_real * pow2[j];
+        // Calculate cell size for iterated coarseness-level
+        float s_wd_it = s_wd * pow2[l];
 
-        uint hash = H7D_SWD(config, position, normal, s_wd) % HASH_MAP_SIZE;
-        uint checksum = H7D_SWD_checksum(config, position, normal, s_wd);
+        // Calculate hash value and checksum for access to the hashmap
+        uint hash = H7D_SWD(config, position, normal, s_wd_it) % HASH_MAP_SIZE;
+        uint checksum = H7D_SWD_checksum(config, position, normal, s_wd_it);
 
-        //
-        // insert value in hashmap via linear search
-        //
-        
-        bool inserted_somewhere = false;
-        uint rep_counters[LINEAR_SEARCH_LENGTH];
+        // Insert value in Hashmap via linear search
+        bool value_inserted = false;
+        uint rc_collection[LINEAR_SEARCH_LENGTH];
 
         uint final_index = hash;
-        bool replace = false;
+        bool clear_entry = false;
 
-        // find right cell to edit
+        // Linear Search
         for(int i = 0; i < LINEAR_SEARCH_LENGTH; i++){
-            if(hashMap[hash + i].contribution_counter == 0){
-                // entry in empty cell
+
+            HashCell read_cell_i = hashMap[hash + i];
+
+            if(read_cell_i.contribution_counter == 0){
+                // Found empty hashcell => create new entry
                 final_index = hash + i;
-                inserted_somewhere = true;
-                replace = true;
+                value_inserted = true;
+                clear_entry = true;
                 break;
-            } else if(hashMap[hash + i].checksum == checksum){
-                // add to right cluster
+            } else if(read_cell_i.checksum == checksum){
+                // Found fitting entry => add samples
                 final_index = hash + i;
-                inserted_somewhere = true;
+                value_inserted = true;
                 break;
             } else {
-                hashMap[hash + i].replacement_counter += 1;
-                rep_counters[i] = hashMap[hash + i].replacement_counter;
+                // Found differing entry => continue search
+                rc_collection[i] = read_cell_i.rc;
+                hashMap[hash + i].rc = read_cell_i.rc + 1;
             }
         }
-        if(inserted_somewhere == false){
-            uint winning_index = 0;
-            uint winning_value = rep_counters[0];
+
+        if(!value_inserted){
+            // No space to insert value found => replace oldest entry
+            uint final_offset = 0;
+            uint oldest_entry = rc_collection[0];
+
             for(int i = 1; i < LINEAR_SEARCH_LENGTH; i++){
-                if(rep_counters[i] > winning_value){
-                    winning_index = i;
-                    winning_value = rep_counters[i];
-                    replace = true;
+                if(rc_collection[i] > oldest_entry){
+                    final_offset = i;
+                    oldest_entry = rc_collection[i];
+                    clear_entry = true;
                 }
             }
-            final_index = hash + winning_index;
+
+            // Found oldest entry to replace
+            final_index = hash + final_offset;
         }
 
-        if(replace){
+        if(clear_entry){
             hashMap[final_index].ao_value = 0;
             hashMap[final_index].contribution_counter = 0;
+            hashMap[final_index].rc = 0;
         }
 
+        // Change entry to insert newly calculated values
         hashMap[final_index].ao_value += occlusion;
         hashMap[final_index].contribution_counter += 1;
         hashMap[final_index].checksum = checksum;
-        hashMap[final_index].replacement_counter = 0;
-
-        hashMap[final_index].s_wd = s_wd;
-        hashMap[final_index].s_wd_real = s_wd_real;
-        hashMap[final_index].j = j;
-        hashMap[final_index].written = 10;
         }
     }
+
+    //
+    // End of Code for Hashmap
+    //
 
     //noisy update
     //imageStore(outImage, ivec2(gl_GlobalInvocationID.xy), vec4(occlusion));

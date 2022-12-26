@@ -57,51 +57,56 @@ void main()
 {
   vec2  uv    = outUV;
   float gamma = 1. / 2.2;
-  //vec4  color = texture(noisyTxt, uv);
-  float ao_mid    = texture(aoTxt, uv).x;
   vec4 color = vec4(1.0, 1.0, 1.0, 1.0);
-  float final_ao = 0.0;
-  // Retrieving position and normal
-  vec4 gBuffer = imageLoad(_gBuffer, ivec2(gl_FragCoord.xy)); //ivec2(uv.x * config.res.x, uv.y * config.res.y));
 
-  // Shooting rays only if a fragment was rendered
+  // Sample AO value from texture
+  float ao_mid    = texture(aoTxt, uv).x;
+  float final_ao = 0.0;
+
+  // Retrieving position and normal
+  vec4 gBuffer = imageLoad(_gBuffer, ivec2(gl_FragCoord.xy));
+
   if(gBuffer != vec4(0))
   {
     vec3 position_mid = gBuffer.xyz;
     vec3 normal_mid = DecompressUnitVec(floatBitsToUint(gBuffer.w));
-
-    //try blurr
     
     float weight_acc = 0;
     float ao_acc = 0;
 
-
-    //TODO: ampling kernel should be of size s_wd
-    //then only combine with the positions sampled in the image, but use 3d gaussian and stuff
-
+    // Calculate cell size to obtain the size of the sampling kernel
     float s_wd = s_wd_calc(config, position_mid);
-    float step_size = s_wd; /// pow2[5];
-
+    float step_size = s_wd;
     
     //give hash-cells colors
     //color = hash_to_color(H7D_SWD(config, position_mid, normal_mid, s_wd));
 
-    for(int it = 0; it < 3; ++it){ //iterations of À-trous wavelet filtering
+    // Iterations of À-trous wavelet filtering
+    for(int it = 0; it < 3; ++it){ 
         
         for(int i = -2; i <= 2; ++i){
             for(int j = -2; j <= 2; ++j){
-                    
-                //circle
+                // For a single sample
 
-                vec2 sample_step = vec2(i, j) * step_size * pow2[it]; // in pixel-space
+                // Calculate offset of sample in pixel-space
+                vec2 sample_step = vec2(i, j) * step_size * pow2[it];
+
+                // Jittering to reduce artfacts
                 vec2 jittering = vec2(random_in_range(0, -step_size, step_size), random_in_range(0, -step_size, step_size));
+                
+                // Calculate the fragment coordinates of the sample
                 vec2 sample_fragCoord = gl_FragCoord.xy + sample_step + jittering;
-                vec2 sample_uv = fragCoordToUV(sample_fragCoord); //for ao texture
+
+                // Convert to UV coordinates
+                vec2 sample_uv = fragCoordToUV(sample_fragCoord);
+
+                // Fetch ao at sample position
                 float sample_ao = texture(aoTxt, sample_uv).x;
 
+                // Fetch World-space position of sample
                 vec3 sample_position = imageLoad(_gBuffer, ivec2(sample_fragCoord)).xyz;
 
-                //calculate weights for bilateral blur
+                // Calculate weights for bilateral blur
                 float weight_dis = gauss3(position_mid, sample_position, step_size * pow2[5]);
                 float weight_ao_diff = gauss1(ao_mid, sample_ao, 0.5);
 
@@ -111,15 +116,8 @@ void main()
                 ao_acc += weight * sample_ao;
             }
         }
-
-        
     }
     final_ao = ao_acc / weight_acc;
-
-  }
-  else{
-    final_ao = 0.5;
-    color = vec4(0,0,1,1);
   }
 
   //final_ao = texture(aoTxt, uv).x;
