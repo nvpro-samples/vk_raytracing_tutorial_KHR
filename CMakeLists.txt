@@ -41,25 +41,7 @@ file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/media DESTINATION ${OUTPUT_PATH})
 
 #--------------------------------------------------------------------------------------------------
 # Sub examples
-add_subdirectory(ray_tracing__advance) 
-add_subdirectory(ray_tracing__before) 
-add_subdirectory(ray_tracing__simple)
-
-add_subdirectory(ray_tracing_animation)
-add_subdirectory(ray_tracing_anyhit)
-add_subdirectory(ray_tracing_callable)
-add_subdirectory(ray_tracing_gltf)
-add_subdirectory(ray_tracing_instances)
-add_subdirectory(ray_tracing_intersection)
-add_subdirectory(ray_tracing_jitter_cam)
-add_subdirectory(ray_tracing_manyhits)
-add_subdirectory(ray_tracing_rayquery)
-add_subdirectory(ray_tracing_reflections)
 add_subdirectory(ray_tracing_ao)
-add_subdirectory(ray_tracing_indirect_scissor)
-add_subdirectory(ray_tracing_specialization)
-add_subdirectory(ray_tracing_advanced_compilation)
-add_subdirectory(ray_tracing_motionblur)
 
 
 #--------------------------------------------------------------------------------------------------
