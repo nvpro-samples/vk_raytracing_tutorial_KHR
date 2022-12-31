@@ -55,7 +55,7 @@ void main()
 
     if(pcRay.showDirectColor == 1)
     {
-        prd.hitValue = beam.lightColor  / max(max(pcRay.sourceLight.x, pcRay.sourceLight.y), pcRay.sourceLight.z);
+        prd.hitValue = beam.lightColor  / max(max(beam.lightColor.x, beam.lightColor.y), beam.lightColor.z);
         return;
     }    
 
