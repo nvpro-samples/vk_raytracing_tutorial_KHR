@@ -112,11 +112,11 @@ void main()
 
     // Not using min function with subtraction operator to simplify the if statement
     // because subtraction between unsinged integer values can cause overflow.
-    if (subBeamIndex >= pcRay.maxNumBeams)
+    if (subBeamIndex >= pcRay.maxNumSubBeams)
     {
         return;
     }
-    else if (subBeamIndex + numSurfacePhoton >= pcRay.maxNumBeams)
+    else if (subBeamIndex + numSurfacePhoton >= pcRay.maxNumSubBeams)
     {
         num_split = 0;
     }
