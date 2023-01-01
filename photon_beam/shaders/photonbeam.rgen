@@ -83,12 +83,6 @@ void main()
     newBeam.lightColor = beamColor;
     newBeam.hitInstanceIndex = prd.instanceIndex;
 
-    beamIndex = atomicAdd(beamCount, 1);
-    if (beamIndex >= pcRay.maxNumBeams)
-        break;
-
-    beams[beamIndex] = newBeam;
-
     vec3 beamVec = newBeam.endPos - newBeam.startPos;
     float beamLength = sqrt(dot(beamVec, beamVec));
 
@@ -107,6 +101,12 @@ void main()
     
     if (numSurfacePhoton + num_split < 1)
         return;
+
+    beamIndex = atomicAdd(beamCount, 1);
+    if (beamIndex >= pcRay.maxNumBeams)
+        break;
+
+    beams[beamIndex] = newBeam;
     
     subBeamIndex = atomicAdd(subBeamCount, num_split + numSurfacePhoton);
 
