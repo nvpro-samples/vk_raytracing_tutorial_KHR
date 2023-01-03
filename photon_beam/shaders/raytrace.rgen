@@ -86,12 +86,10 @@ void main()
     prd.rayOrigin    = origin.xyz;
     prd.rayDirection = direction.xyz;
 
-    vec3 secondRayDir;
     float       vDotN = 0;
     float halfVecPdfVal;
     float rayPdfVal;
     prd.weight = vec3(1.0);
-
 
     uint num_iteration = 2;
     for(int i=0; i < num_iteration; i ++)

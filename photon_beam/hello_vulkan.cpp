@@ -1294,7 +1294,7 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
     void*    numBeamAsdata = m_alloc.map(m_beamAsCountReadBuffer);
     uint32_t numBeamAs     = *(reinterpret_cast<uint32_t*>(numBeamAsdata));
     m_alloc.unmap(m_beamAsCountReadBuffer);
-    numBeamAs = numBeamAs > m_maxNumSubBeams ? m_maxNumBeams : numBeamAs;
+    numBeamAs = numBeamAs > m_maxNumSubBeams ? m_maxNumSubBeams : numBeamAs;
 
     vkResetCommandBuffer(m_pbBuildCommandBuffer, 0);
     vkBeginCommandBuffer(m_pbBuildCommandBuffer, &beginInfo);
