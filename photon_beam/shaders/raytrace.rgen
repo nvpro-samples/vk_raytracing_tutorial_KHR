@@ -194,6 +194,9 @@ void main()
             break;
 
         prd.rayDirection = microfacetReflectedLightSampling(seed, prd.rayDirection, world_normal, mat.roughness);
+
+        // subsurface scattering occured. (light refracted inside the surface)
+        // Igore subsurface scattering and the light is just considered to be absorbd
         if(dot(world_normal, prd.rayDirection ) < 0)
             break;
 

@@ -155,7 +155,8 @@ void main()
     
     vec3 rayDirection = microfacetReflectedLightSampling(prd.seed, prd.rayDirection, world_normal, mat.roughness);
 
-    // rays reflected toward inside of the surface are considered to be absorbd
+    // subsurface scattering occured. (light refracted inside the surface)
+    // Igore subsurface scattering and the light is just considered to be absorbd
     if(dot(world_normal, rayDirection) <= 0)
     {
         prd.rayOrigin    = rayOrigin;
