@@ -86,7 +86,8 @@ void main()
 
     //prd.hitValue += prd.weight * radiance * (1 - pointDist / pcRay.photonRadius);
     //prd.hitValue += prd.weight * radiance;
-    prd.hitValue += prd.weight * radiance * pow((1 - pointDist / pcRay.photonRadius), 0.5);
+    // becaureful and try not to insert zero value to pow function as the first parameter. EX: pow(0, x).
+    prd.hitValue += prd.weight * radiance * pow((1 - (pointDist - 0.01) / pcRay.photonRadius), 0.5);
 
     ignoreIntersectionEXT;
 }
