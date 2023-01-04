@@ -1,22 +1,3 @@
-/*
- * Copyright (c) 2019-2021, NVIDIA CORPORATION.  All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- * SPDX-FileCopyrightText: Copyright (c) 2019-2021 NVIDIA CORPORATION
- * SPDX-License-Identifier: Apache-2.0
- */
-
 
 
 // Generate a random unsigned int from two unsigned int values, using 16 pairs
@@ -38,6 +19,7 @@ uint tea(uint val0, uint val1)
   return v0;
 }
 
+
 // Generate a random unsigned int in [0, 2^24) given the previous RNG state
 // using the Numerical Recipes linear congruential generator
 uint lcg(inout uint prev)
@@ -47,6 +29,7 @@ uint lcg(inout uint prev)
   prev       = (LCG_A * prev + LCG_C);
   return prev & 0x00FFFFFF;
 }
+
 
 // Generate a random float in [0, 1) given the previous RNG state
 float rnd(inout uint prev)
@@ -76,6 +59,7 @@ vec3 samplingHemisphere(inout uint seed, in vec3 x, in vec3 y, in vec3 z)
   return direction;
 }
 
+
 vec3 uniformSamplingSphere(inout uint seed)
 {
 
@@ -87,6 +71,7 @@ vec3 uniformSamplingSphere(inout uint seed)
 
   return direction;
 }
+
 
 // Return the tangent and binormal from the incoming normal
 void createCoordinateSystem(in vec3 N, out vec3 Nt, out vec3 Nb)
@@ -100,6 +85,9 @@ void createCoordinateSystem(in vec3 N, out vec3 Nt, out vec3 Nb)
 
 
 // Henyey-Greenstein phase function
+// this function returns pdf value of solid angle
+// this function does not return pdf value of cos theta distribution
+// If you want probability distribution value of cos theta, mutliply this function result by 2 Pie.
 float heneyGreenPhaseFunc(float cosTheta, float g)
 {
   // assymetriy factor
@@ -113,21 +101,30 @@ float heneyGreenPhaseFunc(float cosTheta, float g)
   return (1 - g2) / (denom * sqrt(denom)) / (4 * M_PI);
 }
 
+
 // normal is incoming ray direction start from the light source 
 vec3 heneyGreenPhaseFuncSampling(inout uint seed, in vec3 normal, float g)
 {
   float r1 = rnd(seed);
   float r2 = rnd(seed);
 
-  float g2    = g * g;
-  float r12       = r1 * r1;
-  float numerator = g * (2.0f * r12 + 2.0f - 1.0f * r1) + 2.0f * r1 - 1.0f + g2 * g * (2.0f * r12 - 1.0f * r1) + 2.0f * g2 - 1.0f;
-  float denom     = 1.0 + g2 * (4.0 * r1 * r1 + 1.0 - 2.0 * r1) + g * (4.0 * r1 - 1.0);
+  float g2 = g * g;
+  float g3 = g2 * g;
+
+  float s1 = 2 * r1 - 1;
+  float s2 = s1 * s1;
+
+  float denom = 1 + g * s1;
+  denom       = denom * denom * 2;
+
+  float numerator = 2 * s1 + g * (s2 + 3) + g2 * (2 * s1) + g3 * (s2 - 1);
+
 
   if(denom == 0.0)
   {
     denom += 0.000001;
   }
+
 
   // cos theta == 1 -> front scattering, result direction is exactly same as the incoming light direction(direction start from the light source)
   // cos theta == -1 -> back ward scattering, result direction is opposite of the incoming light direction(direction start from the light source)
@@ -145,30 +142,21 @@ vec3 heneyGreenPhaseFuncSampling(inout uint seed, in vec3 normal, float g)
   return normalize(ret);
 }
 
+
 // PDF for half vector
 // nDotH is the dot product between half vector and surfcace normal
 // half vector = normalize (incident light direction +  refliected light direction)
 // both incident light and reflected light directions start from the point of the reflection
-float microfacetPDF(float nDotH, float a2)
+float microfacetPDF(float nDotH, float roughness)
 {
-    if(nDotH < 0)
-        return 0.0;
-
-    if(a2 <= 0.0)
-      return 0.0;
-
+    float a2 = roughness * roughness;
     float denom = (nDotH * nDotH * (a2 - 1.0) + 1);
     denom       = denom * denom * M_PI;
+
     return a2 / denom;
  
 }
 
-// PDF for the reflected light
-// hDotL is the dot product between half vector and reflected light direction
-float microfacetLightPDF(float hDotL, float nDotH, float a2)
-{
-  return microfacetPDF(nDotH, a2) / (4 * hDotL);
-}
 
 // https://schuttejoe.github.io/post/ggximportancesamplingpart1/
 // https://agraphicsguy.wordpress.com/2015/11/01/sampling-microfacet-brdf/
@@ -210,7 +198,7 @@ vec3 gltfBrdf(in vec3 incomingLightDir, in vec3 reflectedLightDir, in vec3 norma
   vec3 f_diffuse = (1.0 - frsnel) / M_PI * c_diff;
 
   float dVal = 0.0;
-  // roughness = 0.0, nDotH = 1.0 -> microfacetPDF = inf
+  // roughness = 0.0 and nDotH = 1.0 -> microfacetPDF = inf
   if(roughness > 0.0 || nDotH < 0.9999)
   {
     dVal = microfacetPDF(nDotH, roughness);
@@ -254,11 +242,11 @@ vec3 pdfWeightedGltfBrdf(in vec3 incomingLightDir, in vec3 reflectedLightDir, in
   vec3 frsnel    = f0 + (1 - f0) * pow(1 - abs(vDotH), 5);
   vec3 f_diffuse = vec3(0.0);
 
-  // hDotL = 0 ->  microfacetLightPDF = inf -> f_diffuse = 0
-  // roughness = 0.0, nDotH = 1.0 -> microfacetPDF = inf -> microfacetLightPDF = inf -> f_diffuse = 0
+  // hDotL = 0 ->  microfacetPDF = inf -> f_diffuse = 0
+  // roughness = 0.0, nDotH = 1.0 -> microfacetPDF = inf -> f_diffuse = 0
   if((roughness > 0.0 || nDotH < 0.999) && hDotL > 0.0)
   {
-    f_diffuse = (1.0 - frsnel) / M_PI * c_diff / microfacetLightPDF(hDotL, nDotH, a2);
+    f_diffuse = (1.0 - frsnel) / M_PI * c_diff / microfacetPDF(nDotH, roughness);
   }
 
   float gVal = 0.0;
