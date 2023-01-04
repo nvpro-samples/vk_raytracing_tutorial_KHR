@@ -119,15 +119,23 @@ vec3 heneyGreenPhaseFuncSampling(inout uint seed, in vec3 normal, float g)
   float r1 = rnd(seed);
   float r2 = rnd(seed);
 
-  float g2    = g * g;
-  float r12       = r1 * r1;
-  float numerator = g * (2.0f * r12 + 2.0f - 1.0f * r1) + 2.0f * r1 - 1.0f + g2 * g * (2.0f * r12 - 1.0f * r1) + 2.0f * g2 - 1.0f;
-  float denom     = 1.0 + g2 * (4.0 * r1 * r1 + 1.0 - 2.0 * r1) + g * (4.0 * r1 - 1.0);
+  float g2 = g * g;
+  float g3 = g2 * g;
+
+  float s1 = 2 * r1 - 1;
+  float s2 = s1 * s1;
+
+  float denom = 1 + g * s1;
+  denom       = denom * denom * 2;
+
+  float numerator = 2 * s1 + g * (s2 + 3) + g2 * (2 * s1) + g3 * (s2 - 1);
+
 
   if(denom == 0.0)
   {
     denom += 0.000001;
   }
+
 
   // cos theta == 1 -> front scattering, result direction is exactly same as the incoming light direction(direction start from the light source)
   // cos theta == -1 -> back ward scattering, result direction is opposite of the incoming light direction(direction start from the light source)
