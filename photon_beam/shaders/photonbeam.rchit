@@ -82,7 +82,7 @@ bool randomScatterOccured(const in vec3 world_position){
         return true;
     }
 
-    prd.weight = exp(-pcRay.airExtinctCoff * airScatterAt);
+    prd.weight = albedo;
     prd.rayDirection = heneyGreenPhaseFuncSampling(prd.seed, prd.rayDirection, pcRay.airHGAssymFactor);
 
     return true;
@@ -178,7 +178,7 @@ void main()
 
     prd.rayOrigin    = rayOrigin;
     prd.rayDirection = rayDirection;
-    prd.weight       = material_f * cos_theta * exp(-pcRay.airExtinctCoff * rayLength);
+    prd.weight       = material_f * cos_theta;
 
     return;
 
