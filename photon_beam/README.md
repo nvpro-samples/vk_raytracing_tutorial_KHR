@@ -45,7 +45,7 @@ For more detailed background of the techinques used, you may check following ref
     - Derek Nowrouzezahrai, Jared Johnson, Andrew Selle, Dylan Lacewell, Michael Kaschalk, Wojciech Jarosz. A programmable system for artistic volumetric lighting. ACM Transactions on Graphics (Proceedings of SIGGRAPH), 30(4):29:1–29:8, August 2011.
     - Wojciech Jarosz, Derek Nowrouzezahrai, Iman Sadeghi, Henrik Wann Jensen. A comprehensive theory of volumetric radiance estimation using photon points and beams. ACM Transactions on Graphics (Presented at SIGGRAPH), 30(1):5:1–5:19, January 2011.
  - ### BRDF Sampling
-    - J. Zhang, On sampling of scattering phase functions, Astronomy and Computing, Volume 29, 2019, 100329, ISSN 2213-1337, https://doi.org/10.1016/j.ascom.2019.100329.
+    - https://www.astro.umd.edu/~jph/HG_note.pdf
     - https://schuttejoe.github.io/post/ggximportancesamplingpart1/
     - https://agraphicsguy.wordpress.com/2015/11/01/sampling-microfacet-brdf/
 
