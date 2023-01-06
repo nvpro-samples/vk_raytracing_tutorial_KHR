@@ -44,15 +44,6 @@
 extern std::vector<std::string> defaultSearchPaths;
 
 
-void ResetAbleRaytracingBuilderKHR::resetTlas()
-{
-  if(m_alloc && m_tlas.accel != nullptr)
-  {
-    m_alloc->destroy(m_tlas);
-    m_tlas.accel = nullptr;
-  }
-}
-
 
 void HelloVulkan::setDefaults()
 {
@@ -494,6 +485,7 @@ void HelloVulkan::createTextureImages(const VkCommandBuffer& cmdBuf, tinygltf::M
 //
 void HelloVulkan::destroyResources()
 {
+  m_alloc.destroy(m_pbTlas);
   m_alloc.destroy(m_beamTlasScratchBuffer);
   m_alloc.destroy(m_beamAsInfoBuffer);
   m_alloc.destroy(m_beamAsCountReadBuffer);
@@ -1167,7 +1159,6 @@ void HelloVulkan::updateRtDescriptorSetBeamTlas()
 
 void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor, const VkCommandBuffer& cmdBuf)
 {
-    m_pbBuilder.resetTlas();
     setBeamPushConstants(clearColor);
 
 
@@ -1301,6 +1292,9 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor, const VkCommandBu
         createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
         createInfo.size = sizeInfo.accelerationStructureSize;
 
+        if(m_pbTlas.accel != VK_NULL_HANDLE)
+            m_alloc.destroy(m_pbTlas);
+
         m_pbTlas = m_alloc.createAcceleration(createInfo);
 
     }
@@ -1333,7 +1327,7 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor, const VkCommandBu
     
     m_debug.endLabel(cmdBuf);
 
-    VkMemoryBarrier tlasBarrier = {VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
+    VkMemoryBarrier tlasBarrier = {VK_STRUCTURE_TYPE_MEMORY_BARRIER};
 
     tlasBarrier.srcAccessMask        = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
     tlasBarrier.dstAccessMask        = VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR;
