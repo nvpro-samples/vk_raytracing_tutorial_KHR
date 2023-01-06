@@ -345,7 +345,7 @@ int main(int argc, char** argv)
             ImGuiH::Panel::End();
         }
 
-        helloVk.addSeedTime(ImGui::GetIO().DeltaTime);
+        helloVk.addTime(ImGui::GetIO().DeltaTime);
 
         // Start rendering the scene
         helloVk.prepareFrame();

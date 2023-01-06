@@ -45,6 +45,17 @@ extern std::vector<std::string> defaultSearchPaths;
 
 
 
+nvmath::vec3f getLightMotion(const float totalTime, const nvmath::vec3f& lightPosition)
+{
+  return nvmath::vec3f(
+      sinf(totalTime * 1.5f) * 1.2f + lightPosition.x,
+      cosf(totalTime * 1.5f) * 1.2f + lightPosition.y, 
+      sinf(totalTime) * 0.8f + lightPosition.z
+  );
+}
+
+
+
 void HelloVulkan::setDefaults()
 {
   const nvmath::vec4f defaultBeamNearColor{1.0f, 1.0f, 1.0f, 1.0f};
@@ -69,10 +80,14 @@ void HelloVulkan::setDefaults()
   m_isLightVariationOn = true;
   m_lightVariationInterval = 30.0f;
   m_randomSeed             = 1047;
+
+  m_pcRaster.lightPosition = nvmath::vec3f{0.0f, 0.0f, 0.0f};
 }
 
-void HelloVulkan::addSeedTime(float timeDelta) 
+void HelloVulkan::addTime(float timeDelta) 
 {
+    m_totalTime+= timeDelta;
+
     if(!m_isLightVariationOn)
         return;
 
@@ -94,6 +109,7 @@ void HelloVulkan::setup(const VkInstance& instance, const VkDevice& device, cons
   m_debug.setup(m_device);
   m_offscreenDepthFormat = nvvk::findDepthFormat(physicalDevice);
   m_seedTime             = 0.0f;
+  m_totalTime            = 0.0f;
   m_randomSeed           = 1047;
 }
 
@@ -1049,7 +1065,6 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
 {
   // Initializing push constant values
   m_pcRay.clearColor       = clearColor;
-  m_pcRay.lightPosition    = m_pcRaster.lightPosition;
   m_pcRay.beamRadius       = m_beamRadius;
   m_pcRay.photonRadius     = m_photonRadius;
   m_pcRay.maxNumBeams      = m_maxNumBeams;
@@ -1102,7 +1117,12 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
   m_pcRay.airExtinctCoff = extinctCoff;
   m_pcRay.airScatterCoff = scatterCoff;
   m_pcRay.seed           = m_randomSeed;
-  m_pcRay.nextSeedRatio = m_seedTime / m_lightVariationInterval;    
+  m_pcRay.nextSeedRatio = m_seedTime / m_lightVariationInterval; 
+
+  if(m_isLightMotionOn)
+    m_pcRay.lightPosition = getLightMotion(m_totalTime, m_pcRaster.lightPosition);
+  else
+    m_pcRay.lightPosition = m_pcRaster.lightPosition;
  
 }
 
