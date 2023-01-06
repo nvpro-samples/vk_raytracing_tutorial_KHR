@@ -758,7 +758,7 @@ void HelloVulkan::initRayTracing()
   createBeamASCommandBuffer();
 }
 
-void HelloVulkan::createBeamBoxBlas() 
+void HelloVulkan::createBeamASResources()
 {
   VkDeviceAddress beamBoxDataAddress = nvvk::getBufferDeviceAddress(m_device, m_beamBoxBuffer.buffer);
 

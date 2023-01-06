@@ -300,7 +300,7 @@ int main(int argc, char** argv)
     helloVk.createPbDescriptorSet();
     helloVk.createPbPipeline();
 
-    helloVk.createBeamBoxBlas();
+    helloVk.createBeamASResources();
 
     nvmath::vec4f clearColor   = nvmath::vec4f(0.52, 0.81, 0.92, 1.00f);
     bool          useRaytracer = true;

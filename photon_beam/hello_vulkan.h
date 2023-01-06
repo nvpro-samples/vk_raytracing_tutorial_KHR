@@ -149,7 +149,7 @@ public:
   auto primitiveToVkGeometry(const nvh::GltfPrimMesh& prim);
   void createBottomLevelAS();
   void createTopLevelAS();
-  void createBeamBoxBlas();
+  void createBeamASResources();
   void createRtDescriptorSet();
   void updateRtDescriptorSet();
   void updateRtDescriptorSetBeamTlas();
