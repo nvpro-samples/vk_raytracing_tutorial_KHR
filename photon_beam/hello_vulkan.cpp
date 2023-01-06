@@ -1263,19 +1263,7 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
          4, 4, MAX(m_numPhotonSamples, m_numBeamSamples) / 16
     );
 
-    beamDataBarriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-    beamDataBarriers[0].dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT;
-
-    vkCmdPipelineBarrier(
-        m_pbBuildCommandBuffer, 
-        VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
-        VK_PIPELINE_STAGE_TRANSFER_BIT, 
-        0, 
-        0, nullptr, 
-        1, beamDataBarriers, 
-        0, nullptr
-    );
-
+   
 
     vkEndCommandBuffer(m_pbBuildCommandBuffer);
 
