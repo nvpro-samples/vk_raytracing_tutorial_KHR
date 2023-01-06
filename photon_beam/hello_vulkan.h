@@ -182,11 +182,11 @@ public:
   PushConstantRay m_pcRay{};
 
 
-  VkFence                                           m_pbBuildFence;
+
   std::vector<VkSemaphore>                          m_pbBuilderSemaphores;
   std::vector<uint64_t>                             m_pbBuilderSemaphoresWaitValues;
   std::vector<uint64_t>                             m_pbBuilderSemaphoresSignalValues;
-  VkCommandBuffer                                   m_pbBuildCommandBuffer;
+
   ResetAbleRaytracingBuilderKHR                     m_pbBuilder;
   nvvk::DescriptorSetBindings m_pbDescSetLayoutBind;
   VkDescriptorPool            m_pbDescPool;
