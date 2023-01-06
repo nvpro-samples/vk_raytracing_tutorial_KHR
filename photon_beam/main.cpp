@@ -100,8 +100,8 @@ void renderUI(HelloVulkan& helloVk, bool useRaytracer, uint32_t& numPhotons, uin
 
     ImGui::SliderFloat("Light Intensity", &helloVk.m_beamIntensity, 0.0f, 300.f);
 
-    ImGui::Checkbox("Light Motion", &helloVk.m_lightMotion);
-    ImGui::Checkbox("Light Variation On", &helloVk.m_lightVariation);
+    ImGui::Checkbox("Light Motion", &helloVk.m_isLightMotionOn);
+    ImGui::Checkbox("Light Variation On", &helloVk.m_isLightVariationOn);
     ImGui::SliderFloat("Air Albedo", &helloVk.m_lightVariationInterval, 1.0f, 100.0f);
 
 
@@ -125,8 +125,6 @@ void renderUI(HelloVulkan& helloVk, bool useRaytracer, uint32_t& numPhotons, uin
         [&] { return ImGui::InputFloat3("##Eye", &helloVk.m_pcRay.sourceLight.x, "%.5f"); },
         ImGuiH::Control::Flags::Disabled
     );
-
-
 
     ImGuiH::Control::Slider(
         std::string("Beam Radius"), "Sampling radius for beams", 
@@ -317,6 +315,10 @@ int main(int argc, char** argv)
     helloVk.setupGlfwCallbacks(window);
     ImGui_ImplGlfw_InitForVulkan(window, true);
 
+    bool isLightMotionOn;
+    bool  isLightVariationOn;
+    float lightVariationInterval = 30.0f;
+
     // Main loop
     while(!glfwWindowShouldClose(window))
     {
@@ -342,6 +344,8 @@ int main(int argc, char** argv)
             ImGuiH::Control::Info("", "", "(F10) Toggle Pane", ImGuiH::Control::Flags::Disabled);
             ImGuiH::Panel::End();
         }
+
+        helloVk.addSeedTime(ImGui::GetIO().DeltaTime);
 
         // Start rendering the scene
         helloVk.prepareFrame();

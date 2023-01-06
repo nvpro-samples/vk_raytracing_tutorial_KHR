@@ -65,9 +65,15 @@ void HelloVulkan::setDefaults()
   m_numBeamSamples = 1024;
   m_numPhotonSamples = 4 * 4 * 2048;
 
-  m_lightMotion = true;
-  m_lightVariation = true;
+  m_isLightMotionOn = true;
+  m_isLightVariationOn = true;
   m_lightVariationInterval = 30.0f;
+}
+
+void HelloVulkan::addSeedTime(float timeDelta) 
+{
+    m_seedTime += timeDelta;
+    m_seedTime = std::fmod(m_seedTime, m_lightVariationInterval);
 }
 
 void HelloVulkan::setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t queueFamily)
@@ -77,6 +83,7 @@ void HelloVulkan::setup(const VkInstance& instance, const VkDevice& device, cons
   m_alloc.init(instance, device, physicalDevice);
   m_debug.setup(m_device);
   m_offscreenDepthFormat = nvvk::findDepthFormat(physicalDevice);
+  m_seedTime             = 0.0f;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -1084,6 +1091,15 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
 
   m_pcRay.airExtinctCoff = extinctCoff;
   m_pcRay.airScatterCoff = scatterCoff;
+
+  if(m_isLightVariationOn)
+  {
+    m_pcRay.secondSeedRatio = m_seedTime / m_lightVariationInterval;    
+  }
+  else
+  {
+    m_pcRay.secondSeedRatio = 0.0f;
+  }
 }
 
 

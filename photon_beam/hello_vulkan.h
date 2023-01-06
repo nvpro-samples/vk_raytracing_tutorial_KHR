@@ -99,9 +99,10 @@ public:
   float         m_hgAssymFactor;
   bool          m_showDirectColor;
 
-  bool m_lightMotion;
-  bool m_lightVariation;
+  bool m_isLightMotionOn;
+  bool m_isLightVariationOn;
   float m_lightVariationInterval;
+  float m_seedTime;
 
   // Information pushed at each draw call
   PushConstantRaster m_pcRaster{
@@ -129,6 +130,7 @@ public:
 
 
   // #Post - Draw the rendered image on a quad using a tonemapper
+  void addSeedTime(float timeDetla);
   void createOffscreenRender();
   void createPostPipeline();
   void createPostDescriptor();
