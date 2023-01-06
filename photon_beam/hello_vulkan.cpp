@@ -1247,7 +1247,7 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor, const VkCommandBu
 
 
     VkBuildAccelerationStructureFlagsKHR flags  = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR;
-    bool                                 update = false;
+    bool                                 update = m_pbTlas.accel != nullptr;
     bool                                 motion = false;
 
     VkBufferDeviceAddressInfo bufferInfo{
@@ -1291,9 +1291,6 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor, const VkCommandBu
         VkAccelerationStructureCreateInfoKHR createInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR};
         createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
         createInfo.size = sizeInfo.accelerationStructureSize;
-
-        if(m_pbTlas.accel != VK_NULL_HANDLE)
-            m_alloc.destroy(m_pbTlas);
 
         m_pbTlas = m_alloc.createAcceleration(createInfo);
 
