@@ -8,9 +8,19 @@
 
 
 #### Link to video
-[![Link to video](https://img.youtube.com/vi/CNZyZBfqwkY/0.jpg)](https://www.youtube.com/watch?v=CNZyZBfqwkY)
+[![Link to video](https://img.youtube.com/vi/Tia85zQ_XLM/0.jpg)](https://youtu.be/Tia85zQ_XLM)
 
-*The video has explanation subtitles in English and Korean, so please turn on the subtitle if you can read any of the provided subtitle.*
+This is actually a video of DirectX 12 implementation explained in bellow section.
+However, this video shows newly added light motion, and light variation features. 
+
+Also, DirectX version now works similary with the Vulkan version.
+There are some small differences in defautl parameter settings and GUI.
+
+#### Link to old version video
+[![Link to old version video](https://img.youtube.com/vi/CNZyZBfqwkY/0.jpg)](https://www.youtube.com/watch?v=CNZyZBfqwkY)
+
+This is an obsolete video which was taken when there were no light motion nor light variation features.
+
 
 ## Background
 This example aims to describe volumetric radiance from participating media.
