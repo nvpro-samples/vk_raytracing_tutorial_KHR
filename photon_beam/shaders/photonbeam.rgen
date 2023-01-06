@@ -45,7 +45,14 @@ void main()
   prd.nextSeed = tea(launchIndex, pcRay.seed + 1);
   prd.nextSeedRatio = pcRay.nextSeedRatio;
 
-  vec3 rayDirection = uniformSamplingSphere(prd.seed);
+  vec3 rayDirectionFirst = uniformSamplingSphere(prd.seed);
+  vec3 rayDirectionSecond = uniformSamplingSphere(prd.nextSeed);
+  vec3 sumDirection = rayDirectionFirst + rayDirectionSecond;
+
+  if(sumDirection.x == 0 && sumDirection.y == 0 && sumDirection.z == 0)
+    return;
+
+  vec3 rayDirection = normalize(rayDirectionFirst * (1.0f - pcRay.nextSeedRatio) + rayDirectionSecond * pcRay.nextSeedRatio);
 
   uint  rayFlags = gl_RayFlagsOpaqueEXT;
   float tMin     = 0.001;
