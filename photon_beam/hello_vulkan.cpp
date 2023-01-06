@@ -64,6 +64,10 @@ void HelloVulkan::setDefaults()
 
   m_numBeamSamples = 1024;
   m_numPhotonSamples = 4 * 4 * 2048;
+
+  m_lightMotion = true;
+  m_lightVariation = true;
+  m_lightVariationInterval = 30.0f;
 }
 
 void HelloVulkan::setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t queueFamily)

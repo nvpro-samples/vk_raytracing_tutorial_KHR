@@ -99,6 +99,10 @@ public:
   float         m_hgAssymFactor;
   bool          m_showDirectColor;
 
+  bool m_lightMotion;
+  bool m_lightVariation;
+  float m_lightVariationInterval;
+
   // Information pushed at each draw call
   PushConstantRaster m_pcRaster{
       {1},               // Identity matrix
