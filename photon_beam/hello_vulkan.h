@@ -103,6 +103,7 @@ public:
   bool m_isLightVariationOn;
   float m_lightVariationInterval;
   float m_seedTime;
+  float    m_totalTime;
   uint32_t m_randomSeed;
 
   // Information pushed at each draw call
@@ -131,7 +132,7 @@ public:
 
 
   // #Post - Draw the rendered image on a quad using a tonemapper
-  void addSeedTime(float timeDetla);
+  void addTime(float timeDetla);
   void createOffscreenRender();
   void createPostPipeline();
   void createPostDescriptor();
