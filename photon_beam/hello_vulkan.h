@@ -77,6 +77,9 @@ public:
   nvvk::Buffer m_beamAsInfoBuffer;
   nvvk::Buffer m_beamAsCountReadBuffer;
 
+  nvvk::Buffer m_beamTlasScratchBuffer;
+  nvvk::AccelKHR m_pbTlas;
+
   float    m_airAlbedo{0.1f};
   float m_beamRadius{0.5f};
   float    m_photonRadius{0.5f};

@@ -494,6 +494,7 @@ void HelloVulkan::createTextureImages(const VkCommandBuffer& cmdBuf, tinygltf::M
 //
 void HelloVulkan::destroyResources()
 {
+  m_alloc.destroy(m_beamTlasScratchBuffer);
   m_alloc.destroy(m_beamAsInfoBuffer);
   m_alloc.destroy(m_beamAsCountReadBuffer);
 
@@ -1117,7 +1118,7 @@ void HelloVulkan::createRtDescriptorSet()
   allocateInfo.pSetLayouts        = &m_rtDescSetLayout;
   vkAllocateDescriptorSets(m_device, &allocateInfo, &m_rtDescSet);
 
-  VkAccelerationStructureKHR                   beamAS = m_pbBuilder.getAccelerationStructure();
+  VkAccelerationStructureKHR                   beamAS = m_pbTlas.accel;
   VkWriteDescriptorSetAccelerationStructureKHR descBeamASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
   descBeamASInfo.accelerationStructureCount = 1;
   descBeamASInfo.pAccelerationStructures    = &beamAS;
@@ -1155,7 +1156,7 @@ void HelloVulkan::updateRtDescriptorSet()
 
 void HelloVulkan::updateRtDescriptorSetBeamTlas()
 {
-  VkAccelerationStructureKHR                   beamAS = m_pbBuilder.getAccelerationStructure();
+  VkAccelerationStructureKHR                   beamAS = m_pbTlas.accel;
   VkWriteDescriptorSetAccelerationStructureKHR descBeamASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
   descBeamASInfo.accelerationStructureCount = 1;
   descBeamASInfo.pAccelerationStructures    = &beamAS;
@@ -1265,19 +1266,71 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor, const VkCommandBu
     };
     VkDeviceAddress instBufferAddr = vkGetBufferDeviceAddress(m_device, &bufferInfo);
 
-    // Creating the TLAS
-    nvvk::Buffer scratchBuffer;
-    m_pbBuilder.cmdCreateTlas(
-        cmdBuf, 
-        m_maxNumSubBeams, 
-        instBufferAddr, 
-        scratchBuffer, 
-        flags, 
-        update, 
-        motion
+    // Wraps a device pointer to the above uploaded instances.
+    VkAccelerationStructureGeometryInstancesDataKHR instancesVk{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR};
+    instancesVk.data.deviceAddress = instBufferAddr;
+
+    // Put the above into a VkAccelerationStructureGeometryKHR. We need to put the instances struct in a union and label it as instance data.
+    VkAccelerationStructureGeometryKHR topASGeometry{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
+    topASGeometry.geometryType       = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+    topASGeometry.geometry.instances = instancesVk;
+
+    // Find sizes
+    VkAccelerationStructureBuildGeometryInfoKHR buildInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR};
+    buildInfo.flags         = flags;
+    buildInfo.geometryCount = 1;
+    buildInfo.pGeometries   = &topASGeometry;
+    buildInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+    buildInfo.type                     = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+    buildInfo.srcAccelerationStructure = VK_NULL_HANDLE;
+
+
+    VkAccelerationStructureBuildSizesInfoKHR sizeInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR};
+    vkGetAccelerationStructureBuildSizesKHR(
+        m_device, 
+        VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, 
+        &buildInfo, 
+        &m_maxNumSubBeams, 
+        &sizeInfo
     );
 
-    m_alloc.destroy(scratchBuffer);
+    // Create TLAS
+    if(update == false)
+    {
+        VkAccelerationStructureCreateInfoKHR createInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR};
+        createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+        createInfo.size = sizeInfo.accelerationStructureSize;
+
+        m_pbTlas = m_alloc.createAcceleration(createInfo);
+
+    }
+
+
+    // Allocate the scratch memory
+    if(m_beamTlasScratchBuffer.buffer == VK_NULL_HANDLE)
+    {
+
+        m_beamTlasScratchBuffer = m_alloc.createBuffer(
+            sizeInfo.buildScratchSize,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+        );
+    }
+
+    VkBufferDeviceAddressInfo scratchBufferInfo{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, m_beamTlasScratchBuffer.buffer};
+    VkDeviceAddress           scratchAddress = vkGetBufferDeviceAddress(m_device, &scratchBufferInfo);
+
+    // Update build information
+    buildInfo.srcAccelerationStructure  = update ? m_pbTlas.accel : VK_NULL_HANDLE;
+    buildInfo.dstAccelerationStructure  = m_pbTlas.accel;
+    buildInfo.scratchData.deviceAddress = scratchAddress;
+
+    // Build Offsets info: n instances
+    VkAccelerationStructureBuildRangeInfoKHR        buildOffsetInfo{m_maxNumSubBeams, 0, 0, 0};
+    const VkAccelerationStructureBuildRangeInfoKHR* pBuildOffsetInfo = &buildOffsetInfo;
+
+    // Build the TLAS
+    vkCmdBuildAccelerationStructuresKHR(cmdBuf, 1, &buildInfo, &pBuildOffsetInfo);
+    
     m_debug.endLabel(cmdBuf);
 
     VkMemoryBarrier tlasBarrier = {VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
