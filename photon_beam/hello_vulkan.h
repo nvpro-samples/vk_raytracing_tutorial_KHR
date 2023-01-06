@@ -103,6 +103,7 @@ public:
   bool m_isLightVariationOn;
   float m_lightVariationInterval;
   float m_seedTime;
+  uint32_t m_randomSeed;
 
   // Information pushed at each draw call
   PushConstantRaster m_pcRaster{

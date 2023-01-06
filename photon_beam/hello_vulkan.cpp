@@ -68,12 +68,18 @@ void HelloVulkan::setDefaults()
   m_isLightMotionOn = true;
   m_isLightVariationOn = true;
   m_lightVariationInterval = 30.0f;
+  m_randomSeed             = 1047;
 }
 
 void HelloVulkan::addSeedTime(float timeDelta) 
 {
     m_seedTime += timeDelta;
-    m_seedTime = std::fmod(m_seedTime, m_lightVariationInterval);
+    if(m_seedTime > m_lightVariationInterval)
+    {
+        m_seedTime = std::fmod(m_seedTime, m_lightVariationInterval);
+        m_randomSeed += 1;
+    }
+    
 }
 
 void HelloVulkan::setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t queueFamily)
@@ -84,6 +90,7 @@ void HelloVulkan::setup(const VkInstance& instance, const VkDevice& device, cons
   m_debug.setup(m_device);
   m_offscreenDepthFormat = nvvk::findDepthFormat(physicalDevice);
   m_seedTime             = 0.0f;
+  m_randomSeed           = 1047;
 }
 
 //--------------------------------------------------------------------------------------------------
