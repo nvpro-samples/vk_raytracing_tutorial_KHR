@@ -1227,12 +1227,23 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
     );
 
     // barrier for making ray traycing to proceed after the counters are reset to 0
-    VkBufferMemoryBarrier counterBarrier{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
-    counterBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    counterBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-    counterBarrier.buffer        = m_beamBuffer.buffer;
-    counterBarrier.offset        = 0;
-    counterBarrier.size          = sizeof(uint) * 2;  // for sub beamphoton counter and beam counter
+
+    VkBufferMemoryBarrier beamDataBarriers[2] = {
+      {VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER},
+      {VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER}
+    };
+    
+    beamDataBarriers[0].srcAccessMask           = VK_ACCESS_TRANSFER_WRITE_BIT;
+    beamDataBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    beamDataBarriers[0].buffer                  = m_beamBuffer.buffer;
+    beamDataBarriers[0].offset                 = 0;
+    beamDataBarriers[0].size                   = sizeof(uint) * 2;  // for sub beamphoton counter and beam counter
+
+    beamDataBarriers[1].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    beamDataBarriers[1].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    beamDataBarriers[1].buffer        = m_beamAsInfoBuffer.buffer;
+    beamDataBarriers[1].offset        = 0;
+    beamDataBarriers[1].size = m_maxNumSubBeams * sizeof(ShaderVkAccelerationStructureInstanceKHR);  // for sub beamphoton counter and beam counter
 
     vkCmdPipelineBarrier(
         m_pbBuildCommandBuffer, 
@@ -1240,7 +1251,7 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
         VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
         0,
         0, nullptr, 
-        1, &counterBarrier, 
+        2, beamDataBarriers, 
         0, nullptr
     );
 
@@ -1252,8 +1263,8 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
          4, 4, MAX(m_numPhotonSamples, m_numBeamSamples) / 16
     );
 
-    counterBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-    counterBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT;
+    beamDataBarriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    beamDataBarriers[0].dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT;
 
     vkCmdPipelineBarrier(
         m_pbBuildCommandBuffer, 
@@ -1261,7 +1272,7 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
         VK_PIPELINE_STAGE_TRANSFER_BIT, 
         0, 
         0, nullptr, 
-        1, &counterBarrier, 
+        1, beamDataBarriers, 
         0, nullptr
     );
 
