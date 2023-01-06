@@ -376,14 +376,10 @@ int main(int argc, char** argv)
             if(useRaytracer)
             {
                 helloVk.setBeamPushConstants(clearColor);
-
-                if(createBeamPhotonAS)
-                {
-                  helloVk.m_numBeamSamples   = newNumBeams;
-                  helloVk.m_numPhotonSamples = newNumPhotons;
-                  helloVk.buildPbTlas(clearColor, cmdBuf);
-                  createBeamPhotonAS = false;
-                }
+                helloVk.m_numBeamSamples   = newNumBeams;
+                helloVk.m_numPhotonSamples = newNumPhotons;
+                helloVk.buildPbTlas(clearColor, cmdBuf);
+ 
 
                 helloVk.raytrace(cmdBuf);
             }
