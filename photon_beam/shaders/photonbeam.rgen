@@ -40,7 +40,10 @@ void main()
         + gl_LaunchSizeEXT.z * gl_LaunchIDEXT.y + gl_LaunchIDEXT.z;
 
   // Initialize the random number
-  prd.seed = tea(launchIndex, int(clockARB()));
+  prd.seed = tea(launchIndex, pcRay.seed);
+  //prd.seed = tea(launchIndex, int(clockARB()));
+  prd.nextSeed = tea(launchIndex, pcRay.seed + 1);
+  prd.nextSeedRatio = pcRay.nextSeedRatio;
 
   vec3 rayDirection = uniformSamplingSphere(prd.seed);
 

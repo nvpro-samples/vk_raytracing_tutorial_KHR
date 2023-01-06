@@ -124,7 +124,7 @@ struct PushConstantRay
   uint numBeamSources;
   uint numPhotonSources;
   uint showDirectColor;
-  float secondSeedRatio;
+  float nextSeedRatio;
 };
 
 // Structure used for retrieving the primitive information in the closest hit

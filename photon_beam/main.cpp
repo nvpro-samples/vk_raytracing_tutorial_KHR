@@ -102,7 +102,7 @@ void renderUI(HelloVulkan& helloVk, bool useRaytracer, uint32_t& numPhotons, uin
 
     ImGui::Checkbox("Light Motion", &helloVk.m_isLightMotionOn);
     ImGui::Checkbox("Light Variation On", &helloVk.m_isLightVariationOn);
-    ImGui::SliderFloat("Air Albedo", &helloVk.m_lightVariationInterval, 1.0f, 100.0f);
+    ImGui::SliderFloat("Light Variation Interval", &helloVk.m_lightVariationInterval, 1.0f, 100.0f);
 
 
     ImGuiH::Control::Custom(

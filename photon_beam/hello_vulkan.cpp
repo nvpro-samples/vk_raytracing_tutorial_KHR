@@ -73,7 +73,11 @@ void HelloVulkan::setDefaults()
 
 void HelloVulkan::addSeedTime(float timeDelta) 
 {
+    if(!m_isLightVariationOn)
+        return;
+
     m_seedTime += timeDelta;
+
     if(m_seedTime > m_lightVariationInterval)
     {
         m_seedTime = std::fmod(m_seedTime, m_lightVariationInterval);
@@ -1097,15 +1101,9 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
 
   m_pcRay.airExtinctCoff = extinctCoff;
   m_pcRay.airScatterCoff = scatterCoff;
-
-  if(m_isLightVariationOn)
-  {
-    m_pcRay.secondSeedRatio = m_seedTime / m_lightVariationInterval;    
-  }
-  else
-  {
-    m_pcRay.secondSeedRatio = 0.0f;
-  }
+  m_pcRay.seed           = m_randomSeed;
+  m_pcRay.nextSeedRatio = m_seedTime / m_lightVariationInterval;    
+ 
 }
 
 
