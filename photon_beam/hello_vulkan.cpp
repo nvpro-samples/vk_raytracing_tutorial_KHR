@@ -802,6 +802,47 @@ void HelloVulkan::createBeamBoxBlas()
   m_pbBuilder.buildBlas(allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
   m_pcRay.beamBlasAddress = m_pbBuilder.getBlasDeviceAddress(0);
   m_pcRay.photonBlasAddress = m_pbBuilder.getBlasDeviceAddress(1);
+
+
+  VkBuildAccelerationStructureFlagsKHR flags  = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR;
+  bool                                 update = m_pbTlas.accel != nullptr;
+  bool                                 motion = false;
+
+  VkBufferDeviceAddressInfo bufferInfo{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, m_beamAsInfoBuffer.buffer};
+  VkDeviceAddress instBufferAddr = vkGetBufferDeviceAddress(m_device, &bufferInfo);
+
+  // Wraps a device pointer to the above uploaded instances.
+  VkAccelerationStructureGeometryInstancesDataKHR instancesVk{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR};
+  instancesVk.data.deviceAddress = instBufferAddr;
+
+  // Put the above into a VkAccelerationStructureGeometryKHR. We need to put the instances struct in a union and label it as instance data.
+  VkAccelerationStructureGeometryKHR topASGeometry{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
+  topASGeometry.geometryType       = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+  topASGeometry.geometry.instances = instancesVk;
+
+  // Find sizes
+  VkAccelerationStructureBuildGeometryInfoKHR buildInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR};
+  buildInfo.flags                    = flags;
+  buildInfo.geometryCount            = 1;
+  buildInfo.pGeometries              = &topASGeometry;
+  buildInfo.mode                     = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+  buildInfo.type                     = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+  buildInfo.srcAccelerationStructure = VK_NULL_HANDLE;
+
+
+  VkAccelerationStructureBuildSizesInfoKHR sizeInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR};
+  vkGetAccelerationStructureBuildSizesKHR(m_device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &buildInfo,
+                                          &m_maxNumSubBeams, &sizeInfo);
+
+    VkAccelerationStructureCreateInfoKHR createInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR};
+    createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+    createInfo.size = sizeInfo.accelerationStructureSize;
+
+    m_pbTlas = m_alloc.createAcceleration(createInfo);
+  
+    m_beamTlasScratchBuffer = m_alloc.createBuffer(sizeInfo.buildScratchSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+                                                                                  | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+  
 }
 
 //--------------------------------------------------------------------------------------------------
