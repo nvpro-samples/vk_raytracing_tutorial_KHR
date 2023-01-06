@@ -379,8 +379,6 @@ int main(int argc, char** argv)
                 helloVk.m_numBeamSamples   = newNumBeams;
                 helloVk.m_numPhotonSamples = newNumPhotons;
                 helloVk.buildPbTlas(clearColor, cmdBuf);
- 
-
                 helloVk.raytrace(cmdBuf);
             }
             else
