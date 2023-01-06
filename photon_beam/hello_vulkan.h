@@ -155,14 +155,12 @@ public:
   void updateRtDescriptorSetBeamTlas();
   void createRtPipeline();
 
-  void createBeamASCommandBuffer();
   void createPbDescriptorSet();
   void createPbPipeline();
   void buildPbTlas(const nvmath::vec4f& clearColor, const VkCommandBuffer& cmdBuf);
 
   void raytrace(const VkCommandBuffer& cmdBuf);
   void updateFrame();
-  void submitFrame();
 
   VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
   nvvk::RaytracingBuilderKHR                      m_rtBuilder;
@@ -176,12 +174,6 @@ public:
   nvvk::SBTWrapper                                  m_sbtWrapper;
 
   PushConstantRay m_pcRay{};
-
-
-
-  std::vector<VkSemaphore>                          m_pbBuilderSemaphores;
-  std::vector<uint64_t>                             m_pbBuilderSemaphoresWaitValues;
-  std::vector<uint64_t>                             m_pbBuilderSemaphoresSignalValues;
 
   nvvk::RaytracingBuilderKHR                        m_pbBuilder; // only used for creating Blas
   nvvk::DescriptorSetBindings m_pbDescSetLayoutBind;

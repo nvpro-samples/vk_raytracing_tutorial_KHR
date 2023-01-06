@@ -66,40 +66,6 @@ void HelloVulkan::setDefaults()
   m_numPhotonSamples = 4 * 4 * 2048;
 }
 
-void HelloVulkan::createBeamASCommandBuffer()
-{
-    VkFenceCreateInfo fenceCreateInfo{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
-    fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-    auto num_images = m_swapChain.getImageCount();
-    m_pbBuilderSemaphores.reserve(num_images);
-    m_pbBuilderSemaphoresWaitValues.reserve(num_images);
-    m_pbBuilderSemaphoresSignalValues.reserve(num_images);
-
-    for(int i = 0; i < num_images; i++)
-    {
-        VkSemaphoreTypeCreateInfo timelineCreateInfo;
-        timelineCreateInfo.sType         = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
-        timelineCreateInfo.pNext         = NULL;
-        timelineCreateInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
-        timelineCreateInfo.initialValue  = 0;
-
-        VkSemaphoreCreateInfo createInfo;
-        createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-        createInfo.pNext = &timelineCreateInfo;
-        createInfo.flags = 0;
-
-        VkSemaphore timelineSemaphore;
-        m_pbBuilderSemaphores.emplace_back(timelineSemaphore);
-        vkCreateSemaphore(m_device, &createInfo, NULL, &m_pbBuilderSemaphores[i]);
-        m_pbBuilderSemaphoresWaitValues.emplace_back(0);
-        m_pbBuilderSemaphoresSignalValues.emplace_back(1);
-    }
-
-    NAME_VK(m_beamBoxBuffer.buffer);
- 
-}
-
 void HelloVulkan::setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t queueFamily)
 {
   setDefaults();
@@ -541,12 +507,6 @@ void HelloVulkan::destroyResources()
   vkDestroyDescriptorPool(m_device, m_rtDescPool, nullptr);
   vkDestroyDescriptorSetLayout(m_device, m_rtDescSetLayout, nullptr);
 
-
-  for(auto& semaphore : m_pbBuilderSemaphores)
-  {
-    vkDestroySemaphore(m_device, semaphore, nullptr);
-  }
-
   m_alloc.deinit();
 }
 
@@ -755,7 +715,6 @@ void HelloVulkan::initRayTracing()
   m_pbBuilder.setup(m_device, &m_alloc, m_graphicsQueueIndex);
   m_sbtWrapper.setup(m_device, m_graphicsQueueIndex, &m_alloc, m_rtProperties);
   m_pbSbtWrapper.setup(m_device, m_graphicsQueueIndex, &m_alloc, m_rtProperties);
-  createBeamASCommandBuffer();
 }
 
 void HelloVulkan::createBeamASResources()
@@ -1574,60 +1533,3 @@ void HelloVulkan::updateFrame()
   }
 }
 
-void HelloVulkan::submitFrame()
-{
-  uint32_t imageIndex = m_swapChain.getActiveImageIndex();
-  vkResetFences(m_device, 1, &m_waitFences[imageIndex]);
-
-  // In case of using NVLINK
-  const uint32_t                deviceMask  = m_useNvlink ? 0b0000'0011 : 0b0000'0001;
-  const std::array<uint32_t, 2> deviceIndex = {0, 1};
-
-  VkDeviceGroupSubmitInfo deviceGroupSubmitInfo{VK_STRUCTURE_TYPE_DEVICE_GROUP_SUBMIT_INFO_KHR};
-  deviceGroupSubmitInfo.waitSemaphoreCount            = 2;
-  deviceGroupSubmitInfo.commandBufferCount            = 1;
-  deviceGroupSubmitInfo.pCommandBufferDeviceMasks     = &deviceMask;
-  //deviceGroupSubmitInfo.signalSemaphoreCount          = m_useNvlink ? 2 : 1;
-  deviceGroupSubmitInfo.signalSemaphoreCount          = 2;
-  deviceGroupSubmitInfo.pSignalSemaphoreDeviceIndices = deviceIndex.data();
-  deviceGroupSubmitInfo.pWaitSemaphoreDeviceIndices   = deviceIndex.data();
-
-  VkSemaphore semaphoreRead  = m_swapChain.getActiveReadSemaphore();
-  VkSemaphore semaphoreWrite = m_swapChain.getActiveWrittenSemaphore();
-
-  VkSemaphore waitSemaphors[2] = {m_pbBuilderSemaphores[imageIndex], semaphoreRead};
-  VkSemaphore signalSemaphors[2] = {m_pbBuilderSemaphores[imageIndex], semaphoreWrite};
-
-  //uint64_t waitValues[2]   = {m_pbBuilderSemaphoresWaitValues[imageIndex], 0};
-  //uint64_t signalVaules[2] = {m_pbBuilderSemaphoresSignalValues[imageIndex], 0};
-  VkTimelineSemaphoreSubmitInfo timelineInfo;
-  timelineInfo.sType                     = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
-  timelineInfo.pNext                     = NULL;
-  timelineInfo.waitSemaphoreValueCount   = 2;
-  timelineInfo.pWaitSemaphoreValues      = &m_pbBuilderSemaphoresWaitValues[imageIndex];
-  timelineInfo.signalSemaphoreValueCount = 2;
-  timelineInfo.pSignalSemaphoreValues    = &m_pbBuilderSemaphoresSignalValues[imageIndex];
-  timelineInfo.pNext                     = &deviceGroupSubmitInfo;
-
-  // Pipeline stage at which the queue submission will wait (via pWaitSemaphores)
-  const VkPipelineStageFlags waitStageMask[2] = {VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-  // The submit info structure specifies a command buffer queue submission batch
-  VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
-  submitInfo.pWaitDstStageMask = waitStageMask;  // Pointer to the list of pipeline stages that the semaphore waits will occur at
-  submitInfo.pWaitSemaphores = waitSemaphors;  // Semaphore(s) to wait upon before the submitted command buffer starts executing
-  submitInfo.waitSemaphoreCount   = 2;                // One wait semaphore
-  submitInfo.pSignalSemaphores    = signalSemaphors;  // Semaphore(s) to be signaled when command buffers have completed
-  submitInfo.signalSemaphoreCount = 2;                // One signal semaphore
-  submitInfo.pCommandBuffers = &m_commandBuffers[imageIndex];  // Command buffers(s) to execute in this batch (submission)
-  submitInfo.commandBufferCount = 1;                           // One command buffer
-  submitInfo.pNext              = &timelineInfo;
-
-  // Submit to the graphics queue passing a wait fence
-  vkQueueSubmit(m_queue, 1, &submitInfo, m_waitFences[imageIndex]);
-
-  m_pbBuilderSemaphoresWaitValues[imageIndex] += 1;
-  m_pbBuilderSemaphoresSignalValues[imageIndex] += 1;
-
-  // Presenting frame
-  m_swapChain.present(m_queue);
-}
