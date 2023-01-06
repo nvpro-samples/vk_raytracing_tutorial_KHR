@@ -114,7 +114,7 @@ struct PushConstantRay
   uint maxNumSubBeams;
 
   vec3     sourceLight;
-  uint lightType;
+  uint seed;
 
   uint64_t beamBlasAddress;
   uint64_t photonBlasAddress;
