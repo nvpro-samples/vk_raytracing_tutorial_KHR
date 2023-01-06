@@ -181,7 +181,7 @@ public:
 
   PushConstantRay m_pcRay{};
 
-  VkFence                                           m_beamCounterReadFence;
+
   VkFence                                           m_pbBuildFence;
   std::vector<VkSemaphore>                          m_pbBuilderSemaphores;
   std::vector<uint64_t>                             m_pbBuilderSemaphoresWaitValues;

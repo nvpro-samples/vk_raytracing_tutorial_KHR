@@ -87,7 +87,6 @@ void HelloVulkan::createBeamASCommandBuffer()
   
     VkFenceCreateInfo fenceCreateInfo{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
     fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_beamCounterReadFence);
     vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_pbBuildFence);
 
     auto num_images = m_swapChain.getImageCount();
@@ -564,7 +563,6 @@ void HelloVulkan::destroyResources()
     vkDestroySemaphore(m_device, semaphore, nullptr);
   }
 
-  vkDestroyFence(m_device, m_beamCounterReadFence, nullptr);
   vkDestroyFence(m_device, m_pbBuildFence, nullptr);
 
 
@@ -1263,32 +1261,27 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
          4, 4, MAX(m_numPhotonSamples, m_numBeamSamples) / 16
     );
 
-   
 
-    vkEndCommandBuffer(m_pbBuildCommandBuffer);
+    VkBufferMemoryBarrier subBeamDataBarrier = {VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
 
-    VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
-    VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
-    submitInfo.pWaitDstStageMask = nullptr;
-    submitInfo.pWaitSemaphores = nullptr; 
-    submitInfo.waitSemaphoreCount   = 0;
-    submitInfo.pSignalSemaphores  = nullptr;
-    submitInfo.signalSemaphoreCount = 0;
-    submitInfo.pCommandBuffers    = &m_pbBuildCommandBuffer;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pNext              = nullptr;
-
-    // Submit to the graphics queue passing a wait fence
-    vkResetFences(m_device, 1, &m_beamCounterReadFence);
-    vkQueueSubmit(m_queue, 1, &submitInfo, m_beamCounterReadFence);
-    m_debug.endLabel(m_pbBuildCommandBuffer);
-
-    vkWaitForFences(m_device, 1, &m_beamCounterReadFence, VK_TRUE, UINT64_MAX);
-
-
-
-    vkResetCommandBuffer(m_pbBuildCommandBuffer, 0);
-    vkBeginCommandBuffer(m_pbBuildCommandBuffer, &beginInfo);
+    subBeamDataBarrier.srcAccessMask  = VK_ACCESS_SHADER_WRITE_BIT;
+    subBeamDataBarrier.dstAccessMask  = VK_ACCESS_MEMORY_READ_BIT;
+    subBeamDataBarrier.buffer         = m_beamAsInfoBuffer.buffer;
+    subBeamDataBarrier.offset         = 0;
+    subBeamDataBarrier.size = m_maxNumSubBeams * sizeof(ShaderVkAccelerationStructureInstanceKHR);  // for sub beamphoton counter and beam counter
+  
+    vkCmdPipelineBarrier(
+        m_pbBuildCommandBuffer, 
+        VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,         
+        VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, 
+        0, 
+        0, 
+        nullptr, 
+        1, 
+        &subBeamDataBarrier, 
+        0, 
+        nullptr
+    );
 
 
     VkBuildAccelerationStructureFlagsKHR flags  = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
@@ -1323,10 +1316,13 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
     timelineInfo.signalSemaphoreValueCount = num_semaphores;
     timelineInfo.pSignalSemaphoreValues    = m_pbBuilderSemaphoresSignalValues.data();
 
+    VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+    submitInfo.pWaitSemaphores      = nullptr;
+    submitInfo.waitSemaphoreCount   = 0;
+    submitInfo.pCommandBuffers      = &m_pbBuildCommandBuffer;
+    submitInfo.commandBufferCount   = 1;
     submitInfo.pWaitDstStageMask           = nullptr;
     submitInfo.pNext                       = &timelineInfo;
-    submitInfo.waitSemaphoreCount          = 0;
-    submitInfo.pWaitSemaphores             = nullptr;
     submitInfo.signalSemaphoreCount        = num_semaphores;
     submitInfo.pSignalSemaphores           = m_pbBuilderSemaphores.data();
 
