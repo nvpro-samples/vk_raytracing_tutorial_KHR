@@ -1218,6 +1218,13 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
 
 
     vkCmdFillBuffer(m_pbBuildCommandBuffer, m_beamBuffer.buffer, 0, sizeof(uint) * 2, 0);
+    vkCmdFillBuffer(
+        m_pbBuildCommandBuffer, 
+        m_beamAsInfoBuffer.buffer, 
+        0,
+        m_maxNumSubBeams * sizeof(ShaderVkAccelerationStructureInstanceKHR), 
+        0
+    );
 
     // barrier for making ray traycing to proceed after the counters are reset to 0
     VkBufferMemoryBarrier counterBarrier{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
