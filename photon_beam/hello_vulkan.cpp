@@ -1176,7 +1176,7 @@ void HelloVulkan::updateRtDescriptorSetBeamTlas()
 }
 
 
-void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
+void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor, const VkCommandBuffer& cmdBuf)
 {
     uint num_semaphores = m_pbBuilderSemaphores.size();
     VkSemaphoreWaitInfo waitInfo;

@@ -162,7 +162,7 @@ public:
   void createBeamASCommandBuffer();
   void createPbDescriptorSet();
   void createPbPipeline();
-  void buildPbTlas(const nvmath::vec4f& clearColor);
+  void buildPbTlas(const nvmath::vec4f& clearColor, const VkCommandBuffer& cmdBuf);
 
   void raytrace(const VkCommandBuffer& cmdBuf);
   void updateFrame();

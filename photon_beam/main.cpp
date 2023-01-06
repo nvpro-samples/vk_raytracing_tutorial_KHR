@@ -305,8 +305,7 @@ int main(int argc, char** argv)
     nvmath::vec4f clearColor   = nvmath::vec4f(0.52, 0.81, 0.92, 1.00f);
     bool          useRaytracer = true;
     
-    helloVk.buildPbTlas(clearColor);
-    bool createBeamPhotonAS = false;
+    bool createBeamPhotonAS = true;
 
     helloVk.createRtDescriptorSet();
     helloVk.createRtPipeline();
@@ -346,15 +345,6 @@ int main(int argc, char** argv)
             ImGuiH::Panel::End();
         }
 
-        if(createBeamPhotonAS)
-        {
-          helloVk.m_numBeamSamples   = newNumBeams;
-          helloVk.m_numPhotonSamples = newNumPhotons;
-          helloVk.buildPbTlas(clearColor);
-          helloVk.updateRtDescriptorSetBeamTlas();
-          createBeamPhotonAS = false;
-        }
-
         // Start rendering the scene
         helloVk.prepareFrame();
 
@@ -386,6 +376,16 @@ int main(int argc, char** argv)
             if(useRaytracer)
             {
                 helloVk.setBeamPushConstants(clearColor);
+
+                if(createBeamPhotonAS)
+                {
+                  helloVk.m_numBeamSamples   = newNumBeams;
+                  helloVk.m_numPhotonSamples = newNumPhotons;
+                  helloVk.buildPbTlas(clearColor, cmdBuf);
+                  helloVk.updateRtDescriptorSetBeamTlas();
+                  createBeamPhotonAS = false;
+                }
+
                 helloVk.raytrace(cmdBuf);
             }
             else
