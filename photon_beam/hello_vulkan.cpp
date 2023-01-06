@@ -1276,18 +1276,6 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
         0, nullptr
     );
 
-    VkBufferCopy cpy;
-    cpy.size      = sizeof(uint32_t);
-    cpy.srcOffset = 0;
-    cpy.dstOffset = 0;
-
-    vkCmdCopyBuffer(
-        m_pbBuildCommandBuffer, 
-        m_beamBuffer.buffer, 
-        m_beamAsCountReadBuffer.buffer, 
-        1, 
-        &cpy
-    );
 
     vkEndCommandBuffer(m_pbBuildCommandBuffer);
 
@@ -1309,14 +1297,11 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
 
     vkWaitForFences(m_device, 1, &m_beamCounterReadFence, VK_TRUE, UINT64_MAX);
 
-    void*    numBeamAsdata = m_alloc.map(m_beamAsCountReadBuffer);
-    uint32_t numBeamAs     = *(reinterpret_cast<uint32_t*>(numBeamAsdata));
-    m_alloc.unmap(m_beamAsCountReadBuffer);
-    numBeamAs = numBeamAs > m_maxNumSubBeams ? m_maxNumSubBeams : numBeamAs;
+
 
     vkResetCommandBuffer(m_pbBuildCommandBuffer, 0);
     vkBeginCommandBuffer(m_pbBuildCommandBuffer, &beginInfo);
-    m_debug.beginLabel(m_pbBuildCommandBuffer, "Beam AS build");
+
 
     VkBuildAccelerationStructureFlagsKHR flags  = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
     bool                                 update = false;
@@ -1333,7 +1318,7 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
     nvvk::Buffer scratchBuffer;
     m_pbBuilder.cmdCreateTlas(
         m_pbBuildCommandBuffer, 
-        numBeamAs, 
+        m_maxNumSubBeams, 
         instBufferAddr, 
         scratchBuffer, 
         flags, 
