@@ -51,7 +51,7 @@ static void onErrorCallback(int error, const char* description)
 }
 
 // Extra UI
-void renderUI(HelloVulkan& helloVk, bool useRaytracer, bool& createBeamPhotonAS, uint32_t& numPhotons, uint32_t& numBeams)
+void renderUI(HelloVulkan& helloVk, bool useRaytracer, uint32_t& numPhotons, uint32_t& numBeams)
 {
     const uint32_t minValBeam   = 1;
     const uint32_t maxValBeam   = helloVk.maxNumBeamSamples;
@@ -100,6 +100,10 @@ void renderUI(HelloVulkan& helloVk, bool useRaytracer, bool& createBeamPhotonAS,
 
     ImGui::SliderFloat("Light Intensity", &helloVk.m_beamIntensity, 0.0f, 300.f);
 
+    ImGui::Checkbox("Light Motion", &helloVk.m_isLightMotionOn);
+    ImGui::Checkbox("Light Variation On", &helloVk.m_isLightVariationOn);
+    ImGui::SliderFloat("Light Variation Interval", &helloVk.m_lightVariationInterval, 1.0f, 100.0f);
+
 
     ImGuiH::Control::Custom(
         "Air Scatter", 
@@ -121,8 +125,6 @@ void renderUI(HelloVulkan& helloVk, bool useRaytracer, bool& createBeamPhotonAS,
         [&] { return ImGui::InputFloat3("##Eye", &helloVk.m_pcRay.sourceLight.x, "%.5f"); },
         ImGuiH::Control::Flags::Disabled
     );
-
-
 
     ImGuiH::Control::Slider(
         std::string("Beam Radius"), "Sampling radius for beams", 
@@ -159,10 +161,6 @@ void renderUI(HelloVulkan& helloVk, bool useRaytracer, bool& createBeamPhotonAS,
     ImGui::SliderScalar("Sample Beams", ImGuiDataType_U32, &numBeams, &minValBeam, &maxValBeam, nullptr, ImGuiSliderFlags_None);
     ImGui::SliderScalar("Sample Photons", ImGuiDataType_U32, &numPhotons, &minValPhoton, &maxValPhoton, nullptr, ImGuiSliderFlags_None);
 
-    if(ImGui::SmallButton("Refresh Beam"))
-        createBeamPhotonAS = true;
-    ImGuiH::Control::Info("", "", "Click Refresh Beam to fully reflect changed parameters, some parameters do not get fully reflected before the click", ImGuiH::Control::Flags::Disabled);
-
     if(ImGui::SmallButton("Set Defaults"))
         helloVk.setDefaults();
 }
@@ -170,8 +168,8 @@ void renderUI(HelloVulkan& helloVk, bool useRaytracer, bool& createBeamPhotonAS,
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
-static int const SAMPLE_WIDTH  = 1280;
-static int const SAMPLE_HEIGHT = 720;
+static int const SAMPLE_WIDTH  = 1600;
+static int const SAMPLE_HEIGHT = 900;
 
 
 //--------------------------------------------------------------------------------------------------
@@ -300,13 +298,10 @@ int main(int argc, char** argv)
     helloVk.createPbDescriptorSet();
     helloVk.createPbPipeline();
 
-    helloVk.createBeamBoxBlas();
+    helloVk.createBeamASResources();
 
     nvmath::vec4f clearColor   = nvmath::vec4f(0.52, 0.81, 0.92, 1.00f);
     bool          useRaytracer = true;
-    
-    helloVk.buildPbTlas(clearColor);
-    bool createBeamPhotonAS = false;
 
     helloVk.createRtDescriptorSet();
     helloVk.createRtPipeline();
@@ -319,6 +314,10 @@ int main(int argc, char** argv)
 
     helloVk.setupGlfwCallbacks(window);
     ImGui_ImplGlfw_InitForVulkan(window, true);
+
+    bool isLightMotionOn;
+    bool  isLightVariationOn;
+    float lightVariationInterval = 30.0f;
 
     // Main loop
     while(!glfwWindowShouldClose(window))
@@ -339,21 +338,14 @@ int main(int argc, char** argv)
             ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
             ImGui::Checkbox("Ray Tracer mode", &useRaytracer);  // Switch between raster and ray tracing
 
-            renderUI(helloVk, useRaytracer, createBeamPhotonAS, newNumPhotons, newNumBeams);
+            renderUI(helloVk, useRaytracer, newNumPhotons, newNumBeams);
 
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
             ImGuiH::Control::Info("", "", "(F10) Toggle Pane", ImGuiH::Control::Flags::Disabled);
             ImGuiH::Panel::End();
         }
 
-        if(createBeamPhotonAS)
-        {
-          helloVk.m_numBeamSamples   = newNumBeams;
-          helloVk.m_numPhotonSamples = newNumPhotons;
-          helloVk.buildPbTlas(clearColor);
-          helloVk.updateRtDescriptorSetBeamTlas();
-          createBeamPhotonAS = false;
-        }
+        helloVk.addSeedTime(ImGui::GetIO().DeltaTime);
 
         // Start rendering the scene
         helloVk.prepareFrame();
@@ -386,6 +378,9 @@ int main(int argc, char** argv)
             if(useRaytracer)
             {
                 helloVk.setBeamPushConstants(clearColor);
+                helloVk.m_numBeamSamples   = newNumBeams;
+                helloVk.m_numPhotonSamples = newNumPhotons;
+                helloVk.buildPbTlas(clearColor, cmdBuf);
                 helloVk.raytrace(cmdBuf);
             }
             else

@@ -62,7 +62,8 @@ void main()
         + gl_LaunchSizeEXT.z * gl_LaunchIDEXT.y + gl_LaunchIDEXT.z;
 
     // Initialize the random number
-    uint seed = tea(launchIndex, int(clockARB()));
+    uint seed = tea(launchIndex, pcRay.seed);
+    uint nextSeed = tea(launchIndex, pcRay.seed + 1);
 
     Indices   indices   = Indices(sceneDesc.indexAddress);
     Normals   normals   = Normals(sceneDesc.normalAddress);
@@ -193,7 +194,14 @@ void main()
         if (mat.roughness > 0.01)
             break;
 
-        prd.rayDirection = microfacetReflectedLightSampling(seed, prd.rayDirection, world_normal, mat.roughness);
+        vec3 firstDirection = microfacetReflectedLightSampling(seed, prd.rayDirection, world_normal, mat.roughness);
+        vec3 secondDirection = microfacetReflectedLightSampling(nextSeed, prd.rayDirection, world_normal, mat.roughness);
+        vec3 sumDirection = firstDirection + secondDirection;
+
+        if(sumDirection.x == 0 && sumDirection.y == 0 && sumDirection.z == 0)
+            break;
+
+        prd.rayDirection = normalize((1.0f - pcRay.nextSeedRatio) * firstDirection + pcRay.nextSeedRatio * secondDirection);
 
         // subsurface scattering occured. (light refracted inside the surface)
         // Igore subsurface scattering and the light is just considered to be absorbd

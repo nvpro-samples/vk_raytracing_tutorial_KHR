@@ -114,7 +114,7 @@ struct PushConstantRay
   uint maxNumSubBeams;
 
   vec3     sourceLight;
-  uint lightType;
+  uint seed;
 
   uint64_t beamBlasAddress;
   uint64_t photonBlasAddress;
@@ -124,7 +124,7 @@ struct PushConstantRay
   uint numBeamSources;
   uint numPhotonSources;
   uint showDirectColor;
-  uint padding;
+  float nextSeedRatio;
 };
 
 // Structure used for retrieving the primitive information in the closest hit

@@ -62,9 +62,12 @@ bool randomScatterOccured(const in vec3 world_position){
 
     float max_extinct = max(max(pcRay.airExtinctCoff.x, pcRay.airExtinctCoff.y), pcRay.airExtinctCoff.z);
 
+    float curSeedRatio = 1.0f - prd.nextSeedRatio;
+
     // random walk within participating media(air) scattering
     float rayLength = length(prd.rayOrigin - world_position);
-    float airScatterAt = -log(1.0 - rnd(prd.seed)) / max_extinct;
+    float airScatterAt = curSeedRatio * (-log(1.0 - rnd(prd.seed))) - prd.nextSeedRatio * log(1.0f - rnd(prd.nextSeed));
+    airScatterAt /= max_extinct;
 
     if (rayLength < airScatterAt) {
         return false;
@@ -77,7 +80,18 @@ bool randomScatterOccured(const in vec3 world_position){
     float absorptionProb = 1.0 - max(max(albedo.x, albedo.y), albedo.z);
 
     // use russian roulett to decide whether scatter or absortion occurs
-    if (rnd(prd.seed) <= absorptionProb){
+    if (rnd(prd.seed) * curSeedRatio + rnd(prd.nextSeed) * prd.nextSeedRatio <= absorptionProb)
+    {
+        prd.weight = vec3(0.0);
+        return true;
+    }
+
+    vec3 rayDirectionFirst = heneyGreenPhaseFuncSampling(prd.seed, prd.rayDirection, pcRay.airHGAssymFactor);
+    vec3 rayDirectionSecond = heneyGreenPhaseFuncSampling(prd.nextSeed, prd.rayDirection, pcRay.airHGAssymFactor);
+    vec3 sumDirection = rayDirectionFirst + rayDirectionSecond;
+
+    if(sumDirection.x == 0 && sumDirection.y == 0 && sumDirection.z == 0)
+    {
         prd.weight = vec3(0.0);
         return true;
     }
@@ -153,7 +167,20 @@ void main()
         return; 
     }
     
-    vec3 rayDirection = microfacetReflectedLightSampling(prd.seed, prd.rayDirection, world_normal, mat.roughness);
+    vec3 rayDirectionFirst = microfacetReflectedLightSampling(prd.seed, prd.rayDirection, world_normal, mat.roughness);
+    vec3 rayDirectionSecond = microfacetReflectedLightSampling(prd.nextSeed, prd.rayDirection, world_normal, mat.roughness);
+
+    vec3 sumDirection = rayDirectionFirst + rayDirectionSecond;
+    if (sumDirection.x == 0 && sumDirection.y == 0 && sumDirection.z == 0)
+    {
+        prd.rayOrigin = rayOrigin;
+        prd.weight = vec3(0.0);
+        prd.instanceIndex = -1;
+        return;
+    }
+
+    float curSeedRatio = 1.0f - prd.nextSeedRatio;
+    vec3 rayDirection = normalize(curSeedRatio * rayDirectionFirst + prd.nextSeedRatio * rayDirectionSecond);
 
     // subsurface scattering occured. (light refracted inside the surface)
     // Igore subsurface scattering and the light is just considered to be absorbd

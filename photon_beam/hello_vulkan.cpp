@@ -44,15 +44,6 @@
 extern std::vector<std::string> defaultSearchPaths;
 
 
-void ResetAbleRaytracingBuilderKHR::resetTlas()
-{
-  if(m_alloc && m_tlas.accel != nullptr)
-  {
-    m_alloc->destroy(m_tlas);
-    m_tlas.accel = nullptr;
-  }
-}
-
 
 void HelloVulkan::setDefaults()
 {
@@ -73,50 +64,26 @@ void HelloVulkan::setDefaults()
 
   m_numBeamSamples = 1024;
   m_numPhotonSamples = 4 * 4 * 2048;
+
+  m_isLightMotionOn = true;
+  m_isLightVariationOn = true;
+  m_lightVariationInterval = 30.0f;
+  m_randomSeed             = 1047;
 }
 
-void HelloVulkan::createBeamASCommandBuffer()
+void HelloVulkan::addSeedTime(float timeDelta) 
 {
-  VkCommandBufferAllocateInfo allocateInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
-  allocateInfo.commandPool        = m_cmdPool;
-  allocateInfo.commandBufferCount = 1;
-  allocateInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    if(!m_isLightVariationOn)
+        return;
 
-  vkAllocateCommandBuffers(m_device, &allocateInfo, &m_pbBuildCommandBuffer);
+    m_seedTime += timeDelta;
 
-  
-    VkFenceCreateInfo fenceCreateInfo{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
-    fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_beamCounterReadFence);
-    vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_pbBuildFence);
-
-    auto num_images = m_swapChain.getImageCount();
-    m_pbBuilderSemaphores.reserve(num_images);
-    m_pbBuilderSemaphoresWaitValues.reserve(num_images);
-    m_pbBuilderSemaphoresSignalValues.reserve(num_images);
-
-    for(int i = 0; i < num_images; i++)
+    if(m_seedTime > m_lightVariationInterval)
     {
-        VkSemaphoreTypeCreateInfo timelineCreateInfo;
-        timelineCreateInfo.sType         = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
-        timelineCreateInfo.pNext         = NULL;
-        timelineCreateInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
-        timelineCreateInfo.initialValue  = 0;
-
-        VkSemaphoreCreateInfo createInfo;
-        createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-        createInfo.pNext = &timelineCreateInfo;
-        createInfo.flags = 0;
-
-        VkSemaphore timelineSemaphore;
-        m_pbBuilderSemaphores.emplace_back(timelineSemaphore);
-        vkCreateSemaphore(m_device, &createInfo, NULL, &m_pbBuilderSemaphores[i]);
-        m_pbBuilderSemaphoresWaitValues.emplace_back(0);
-        m_pbBuilderSemaphoresSignalValues.emplace_back(1);
+        m_seedTime = std::fmod(m_seedTime, m_lightVariationInterval);
+        m_randomSeed += 1;
     }
-
-    NAME_VK(m_beamBoxBuffer.buffer);
- 
+    
 }
 
 void HelloVulkan::setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t queueFamily)
@@ -126,6 +93,8 @@ void HelloVulkan::setup(const VkInstance& instance, const VkDevice& device, cons
   m_alloc.init(instance, device, physicalDevice);
   m_debug.setup(m_device);
   m_offscreenDepthFormat = nvvk::findDepthFormat(physicalDevice);
+  m_seedTime             = 0.0f;
+  m_randomSeed           = 1047;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -504,6 +473,8 @@ void HelloVulkan::createTextureImages(const VkCommandBuffer& cmdBuf, tinygltf::M
 //
 void HelloVulkan::destroyResources()
 {
+  m_alloc.destroy(m_pbTlas);
+  m_alloc.destroy(m_beamTlasScratchBuffer);
   m_alloc.destroy(m_beamAsInfoBuffer);
   m_alloc.destroy(m_beamAsCountReadBuffer);
 
@@ -557,16 +528,6 @@ void HelloVulkan::destroyResources()
   vkDestroyPipelineLayout(m_device, m_rtPipelineLayout, nullptr);
   vkDestroyDescriptorPool(m_device, m_rtDescPool, nullptr);
   vkDestroyDescriptorSetLayout(m_device, m_rtDescSetLayout, nullptr);
-
-  vkFreeCommandBuffers(m_device, m_cmdPool, 1, &m_pbBuildCommandBuffer);
-  for(auto& semaphore : m_pbBuilderSemaphores)
-  {
-    vkDestroySemaphore(m_device, semaphore, nullptr);
-  }
-
-  vkDestroyFence(m_device, m_beamCounterReadFence, nullptr);
-  vkDestroyFence(m_device, m_pbBuildFence, nullptr);
-
 
   m_alloc.deinit();
 }
@@ -776,10 +737,9 @@ void HelloVulkan::initRayTracing()
   m_pbBuilder.setup(m_device, &m_alloc, m_graphicsQueueIndex);
   m_sbtWrapper.setup(m_device, m_graphicsQueueIndex, &m_alloc, m_rtProperties);
   m_pbSbtWrapper.setup(m_device, m_graphicsQueueIndex, &m_alloc, m_rtProperties);
-  createBeamASCommandBuffer();
 }
 
-void HelloVulkan::createBeamBoxBlas() 
+void HelloVulkan::createBeamASResources()
 {
   VkDeviceAddress beamBoxDataAddress = nvvk::getBufferDeviceAddress(m_device, m_beamBoxBuffer.buffer);
 
@@ -823,6 +783,47 @@ void HelloVulkan::createBeamBoxBlas()
   m_pbBuilder.buildBlas(allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
   m_pcRay.beamBlasAddress = m_pbBuilder.getBlasDeviceAddress(0);
   m_pcRay.photonBlasAddress = m_pbBuilder.getBlasDeviceAddress(1);
+
+
+  VkBuildAccelerationStructureFlagsKHR flags  = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR;
+  bool                                 update = m_pbTlas.accel != nullptr;
+  bool                                 motion = false;
+
+  VkBufferDeviceAddressInfo bufferInfo{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, m_beamAsInfoBuffer.buffer};
+  VkDeviceAddress instBufferAddr = vkGetBufferDeviceAddress(m_device, &bufferInfo);
+
+  // Wraps a device pointer to the above uploaded instances.
+  VkAccelerationStructureGeometryInstancesDataKHR instancesVk{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR};
+  instancesVk.data.deviceAddress = instBufferAddr;
+
+  // Put the above into a VkAccelerationStructureGeometryKHR. We need to put the instances struct in a union and label it as instance data.
+  VkAccelerationStructureGeometryKHR topASGeometry{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
+  topASGeometry.geometryType       = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+  topASGeometry.geometry.instances = instancesVk;
+
+  // Find sizes
+  VkAccelerationStructureBuildGeometryInfoKHR buildInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR};
+  buildInfo.flags                    = flags;
+  buildInfo.geometryCount            = 1;
+  buildInfo.pGeometries              = &topASGeometry;
+  buildInfo.mode                     = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+  buildInfo.type                     = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+  buildInfo.srcAccelerationStructure = VK_NULL_HANDLE;
+
+
+  VkAccelerationStructureBuildSizesInfoKHR sizeInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR};
+  vkGetAccelerationStructureBuildSizesKHR(m_device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &buildInfo,
+                                          &m_maxNumSubBeams, &sizeInfo);
+
+    VkAccelerationStructureCreateInfoKHR createInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR};
+    createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+    createInfo.size = sizeInfo.accelerationStructureSize;
+
+    m_pbTlas = m_alloc.createAcceleration(createInfo);
+  
+    m_beamTlasScratchBuffer = m_alloc.createBuffer(sizeInfo.buildScratchSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+                                                                                  | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+  
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -1049,7 +1050,6 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
   // Initializing push constant values
   m_pcRay.clearColor       = clearColor;
   m_pcRay.lightPosition    = m_pcRaster.lightPosition;
-  m_pcRay.lightType        = m_pcRaster.lightType;
   m_pcRay.beamRadius       = m_beamRadius;
   m_pcRay.photonRadius     = m_photonRadius;
   m_pcRay.maxNumBeams      = m_maxNumBeams;
@@ -1101,6 +1101,9 @@ void HelloVulkan::setBeamPushConstants(const nvmath::vec4f& clearColor)
 
   m_pcRay.airExtinctCoff = extinctCoff;
   m_pcRay.airScatterCoff = scatterCoff;
+  m_pcRay.seed           = m_randomSeed;
+  m_pcRay.nextSeedRatio = m_seedTime / m_lightVariationInterval;    
+ 
 }
 
 
@@ -1131,7 +1134,7 @@ void HelloVulkan::createRtDescriptorSet()
   allocateInfo.pSetLayouts        = &m_rtDescSetLayout;
   vkAllocateDescriptorSets(m_device, &allocateInfo, &m_rtDescSet);
 
-  VkAccelerationStructureKHR                   beamAS = m_pbBuilder.getAccelerationStructure();
+  VkAccelerationStructureKHR                   beamAS = m_pbTlas.accel;
   VkWriteDescriptorSetAccelerationStructureKHR descBeamASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
   descBeamASInfo.accelerationStructureCount = 1;
   descBeamASInfo.pAccelerationStructures    = &beamAS;
@@ -1169,7 +1172,7 @@ void HelloVulkan::updateRtDescriptorSet()
 
 void HelloVulkan::updateRtDescriptorSetBeamTlas()
 {
-  VkAccelerationStructureKHR                   beamAS = m_pbBuilder.getAccelerationStructure();
+  VkAccelerationStructureKHR                   beamAS = m_pbTlas.accel;
   VkWriteDescriptorSetAccelerationStructureKHR descBeamASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
   descBeamASInfo.accelerationStructureCount = 1;
   descBeamASInfo.pAccelerationStructures    = &beamAS;
@@ -1178,130 +1181,97 @@ void HelloVulkan::updateRtDescriptorSetBeamTlas()
 }
 
 
-void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
+void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor, const VkCommandBuffer& cmdBuf)
 {
-    uint num_semaphores = m_pbBuilderSemaphores.size();
-    VkSemaphoreWaitInfo waitInfo;
-    waitInfo.sType          = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-    waitInfo.pNext          = NULL;
-    waitInfo.flags          = 0;
-    waitInfo.semaphoreCount = num_semaphores;
-    waitInfo.pSemaphores    = m_pbBuilderSemaphores.data();
-    waitInfo.pValues        = m_pbBuilderSemaphoresWaitValues.data();
-
-    vkWaitSemaphores(m_device, &waitInfo, UINT64_MAX);
-
-    m_pbBuilder.resetTlas();
     setBeamPushConstants(clearColor);
 
-    // begin command
-    vkResetCommandBuffer(m_pbBuildCommandBuffer, 0);
-    m_debug.beginLabel(m_pbBuildCommandBuffer, "Beam trace");
 
-    VkCommandBufferBeginInfo beginInfo{};
-    beginInfo.sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags            = 0;        // Optional
-    beginInfo.pInheritanceInfo = nullptr;  // Optional
-    vkBeginCommandBuffer(m_pbBuildCommandBuffer, &beginInfo);
+    m_debug.beginLabel(cmdBuf, "Beam trace");
 
     std::vector<VkDescriptorSet> descSets{m_pbDescSet, m_descSet};
 
-    vkCmdBindPipeline(m_pbBuildCommandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pbPipeline);
-    vkCmdBindDescriptorSets(m_pbBuildCommandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pbPipelineLayout, 0,
+    vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pbPipeline);
+    vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pbPipelineLayout, 0,
                             (uint32_t)descSets.size(), descSets.data(), 0, nullptr);
 
     m_pcRay.numBeamSources   = m_usePhotonBeam ? m_numBeamSamples : 0;
     m_pcRay.numPhotonSources = m_usePhotonMapping ? m_numPhotonSamples : 0;
-    vkCmdPushConstants(m_pbBuildCommandBuffer, m_pbPipelineLayout,
+    vkCmdPushConstants(cmdBuf, m_pbPipelineLayout,
                        VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
                        0, sizeof(PushConstantRay), &m_pcRay);
 
-    // reset beam counts in the buffer
-    uint beamCounts[2] = {0,0};
-    vkCmdUpdateBuffer(m_pbBuildCommandBuffer, m_beamBuffer.buffer, 0, sizeof(uint) * 2, &beamCounts);
+
+    vkCmdFillBuffer(cmdBuf, m_beamBuffer.buffer, 0, sizeof(uint) * 2, 0);
+    vkCmdFillBuffer(
+        cmdBuf, 
+        m_beamAsInfoBuffer.buffer, 
+        0,
+        m_maxNumSubBeams * sizeof(ShaderVkAccelerationStructureInstanceKHR), 
+        0
+    );
 
     // barrier for making ray traycing to proceed after the counters are reset to 0
-    VkBufferMemoryBarrier counterBarrier{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
-    counterBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    counterBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-    counterBarrier.buffer        = m_beamBuffer.buffer;
-    counterBarrier.offset        = 0;
-    counterBarrier.size          = sizeof(uint) * 2;  // for sub beamphoton counter and beam counter
+
+    VkBufferMemoryBarrier beamDataBarriers[2] = {
+      {VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER},
+      {VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER}
+    };
+    
+    beamDataBarriers[0].srcAccessMask           = VK_ACCESS_TRANSFER_WRITE_BIT;
+    beamDataBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    beamDataBarriers[0].buffer                  = m_beamBuffer.buffer;
+    beamDataBarriers[0].offset                 = 0;
+    beamDataBarriers[0].size                   = sizeof(uint) * 2;  // for sub beamphoton counter and beam counter
+
+    beamDataBarriers[1].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    beamDataBarriers[1].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    beamDataBarriers[1].buffer        = m_beamAsInfoBuffer.buffer;
+    beamDataBarriers[1].offset        = 0;
+    beamDataBarriers[1].size = m_maxNumSubBeams * sizeof(ShaderVkAccelerationStructureInstanceKHR);  // for sub beamphoton counter and beam counter
 
     vkCmdPipelineBarrier(
-        m_pbBuildCommandBuffer, 
+        cmdBuf, 
         VK_PIPELINE_STAGE_TRANSFER_BIT, 
         VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
         0,
         0, nullptr, 
-        1, &counterBarrier, 
+        2, beamDataBarriers, 
         0, nullptr
     );
 
     auto& regions = m_pbSbtWrapper.getRegions();
     vkCmdTraceRaysKHR(
-        m_pbBuildCommandBuffer, 
+        cmdBuf, 
         &regions[0], &regions[1], &regions[2], &regions[3],
          // It seems 4096 is the maximum allowed value for the next 3 parameters, larger value does not lauhcn ray tracing
          4, 4, MAX(m_numPhotonSamples, m_numBeamSamples) / 16
     );
 
-    counterBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-    counterBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT;
 
+    VkBufferMemoryBarrier subBeamDataBarrier = {VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
+
+    subBeamDataBarrier.srcAccessMask  = VK_ACCESS_SHADER_WRITE_BIT;
+    subBeamDataBarrier.dstAccessMask  = VK_ACCESS_MEMORY_READ_BIT;
+    subBeamDataBarrier.buffer         = m_beamAsInfoBuffer.buffer;
+    subBeamDataBarrier.offset         = 0;
+    subBeamDataBarrier.size = m_maxNumSubBeams * sizeof(ShaderVkAccelerationStructureInstanceKHR);  // for sub beamphoton counter and beam counter
+  
     vkCmdPipelineBarrier(
-        m_pbBuildCommandBuffer, 
-        VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
-        VK_PIPELINE_STAGE_TRANSFER_BIT, 
+        cmdBuf, 
+        VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,         
+        VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, 
         0, 
-        0, nullptr, 
-        1, &counterBarrier, 
-        0, nullptr
-    );
-
-    VkBufferCopy cpy;
-    cpy.size      = sizeof(uint32_t);
-    cpy.srcOffset = 0;
-    cpy.dstOffset = 0;
-
-    vkCmdCopyBuffer(
-        m_pbBuildCommandBuffer, 
-        m_beamBuffer.buffer, 
-        m_beamAsCountReadBuffer.buffer, 
+        0, 
+        nullptr, 
         1, 
-        &cpy
+        &subBeamDataBarrier, 
+        0, 
+        nullptr
     );
-    vkEndCommandBuffer(m_pbBuildCommandBuffer);
 
-    VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
-    VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
-    submitInfo.pWaitDstStageMask = nullptr;
-    submitInfo.pWaitSemaphores = nullptr; 
-    submitInfo.waitSemaphoreCount   = 0;
-    submitInfo.pSignalSemaphores  = nullptr;
-    submitInfo.signalSemaphoreCount = 0;
-    submitInfo.pCommandBuffers    = &m_pbBuildCommandBuffer;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pNext              = nullptr;
 
-    // Submit to the graphics queue passing a wait fence
-    vkResetFences(m_device, 1, &m_beamCounterReadFence);
-    vkQueueSubmit(m_queue, 1, &submitInfo, m_beamCounterReadFence);
-    m_debug.endLabel(m_pbBuildCommandBuffer);
-
-    vkWaitForFences(m_device, 1, &m_beamCounterReadFence, VK_TRUE, UINT64_MAX);
-
-    void*    numBeamAsdata = m_alloc.map(m_beamAsCountReadBuffer);
-    uint32_t numBeamAs     = *(reinterpret_cast<uint32_t*>(numBeamAsdata));
-    m_alloc.unmap(m_beamAsCountReadBuffer);
-    numBeamAs = numBeamAs > m_maxNumSubBeams ? m_maxNumSubBeams : numBeamAs;
-
-    vkResetCommandBuffer(m_pbBuildCommandBuffer, 0);
-    vkBeginCommandBuffer(m_pbBuildCommandBuffer, &beginInfo);
-    m_debug.beginLabel(m_pbBuildCommandBuffer, "Beam AS build");
-
-    VkBuildAccelerationStructureFlagsKHR flags  = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-    bool                                 update = false;
+    VkBuildAccelerationStructureFlagsKHR flags  = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR;
+    bool                                 update = m_pbTlas.accel != nullptr;
     bool                                 motion = false;
 
     VkBufferDeviceAddressInfo bufferInfo{
@@ -1311,47 +1281,90 @@ void HelloVulkan::buildPbTlas(const nvmath::vec4f& clearColor)
     };
     VkDeviceAddress instBufferAddr = vkGetBufferDeviceAddress(m_device, &bufferInfo);
 
-    // Creating the TLAS
-    nvvk::Buffer scratchBuffer;
-    m_pbBuilder.cmdCreateTlas(
-        m_pbBuildCommandBuffer, 
-        numBeamAs, 
-        instBufferAddr, 
-        scratchBuffer, 
-        flags, 
-        update, 
-        motion
+    // Wraps a device pointer to the above uploaded instances.
+    VkAccelerationStructureGeometryInstancesDataKHR instancesVk{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR};
+    instancesVk.data.deviceAddress = instBufferAddr;
+
+    // Put the above into a VkAccelerationStructureGeometryKHR. We need to put the instances struct in a union and label it as instance data.
+    VkAccelerationStructureGeometryKHR topASGeometry{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
+    topASGeometry.geometryType       = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+    topASGeometry.geometry.instances = instancesVk;
+
+    // Find sizes
+    VkAccelerationStructureBuildGeometryInfoKHR buildInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR};
+    buildInfo.flags         = flags;
+    buildInfo.geometryCount = 1;
+    buildInfo.pGeometries   = &topASGeometry;
+    buildInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+    buildInfo.type                     = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+    buildInfo.srcAccelerationStructure = VK_NULL_HANDLE;
+
+
+    VkAccelerationStructureBuildSizesInfoKHR sizeInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR};
+    vkGetAccelerationStructureBuildSizesKHR(
+        m_device, 
+        VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, 
+        &buildInfo, 
+        &m_maxNumSubBeams, 
+        &sizeInfo
     );
-    vkEndCommandBuffer(m_pbBuildCommandBuffer);
 
-    VkTimelineSemaphoreSubmitInfo timelineInfo;
-    timelineInfo.sType                     = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
-    timelineInfo.pNext                     = NULL;
-    timelineInfo.waitSemaphoreValueCount   = 0;
-    timelineInfo.pWaitSemaphoreValues      = nullptr;
-    timelineInfo.signalSemaphoreValueCount = num_semaphores;
-    timelineInfo.pSignalSemaphoreValues    = m_pbBuilderSemaphoresSignalValues.data();
-
-    submitInfo.pWaitDstStageMask           = nullptr;
-    submitInfo.pNext                       = &timelineInfo;
-    submitInfo.waitSemaphoreCount          = 0;
-    submitInfo.pWaitSemaphores             = nullptr;
-    submitInfo.signalSemaphoreCount        = num_semaphores;
-    submitInfo.pSignalSemaphores           = m_pbBuilderSemaphores.data();
-
-    vkResetFences(m_device, 1, &m_pbBuildFence);
-    
-    vkQueueSubmit(m_queue, 1, &submitInfo, m_pbBuildFence);
-
-    for(int i = 0; i < num_semaphores; i++)
+    // Create TLAS
+    if(update == false)
     {
-      m_pbBuilderSemaphoresWaitValues[i] += 1;
-      m_pbBuilderSemaphoresSignalValues[i] += 1;
+        VkAccelerationStructureCreateInfoKHR createInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR};
+        createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+        createInfo.size = sizeInfo.accelerationStructureSize;
+
+        m_pbTlas = m_alloc.createAcceleration(createInfo);
+
     }
 
-    vkWaitForFences(m_device, 1, &m_pbBuildFence, VK_TRUE, UINT64_MAX);
-    m_alloc.destroy(scratchBuffer);
-    m_debug.endLabel(m_pbBuildCommandBuffer);
+
+    // Allocate the scratch memory
+    if(m_beamTlasScratchBuffer.buffer == VK_NULL_HANDLE)
+    {
+
+        m_beamTlasScratchBuffer = m_alloc.createBuffer(
+            sizeInfo.buildScratchSize,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+        );
+    }
+
+    VkBufferDeviceAddressInfo scratchBufferInfo{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, m_beamTlasScratchBuffer.buffer};
+    VkDeviceAddress           scratchAddress = vkGetBufferDeviceAddress(m_device, &scratchBufferInfo);
+
+    // Update build information
+    buildInfo.srcAccelerationStructure  = update ? m_pbTlas.accel : VK_NULL_HANDLE;
+    buildInfo.dstAccelerationStructure  = m_pbTlas.accel;
+    buildInfo.scratchData.deviceAddress = scratchAddress;
+
+    // Build Offsets info: n instances
+    VkAccelerationStructureBuildRangeInfoKHR        buildOffsetInfo{m_maxNumSubBeams, 0, 0, 0};
+    const VkAccelerationStructureBuildRangeInfoKHR* pBuildOffsetInfo = &buildOffsetInfo;
+
+    // Build the TLAS
+    vkCmdBuildAccelerationStructuresKHR(cmdBuf, 1, &buildInfo, &pBuildOffsetInfo);
+    
+    m_debug.endLabel(cmdBuf);
+
+    VkMemoryBarrier tlasBarrier = {VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+
+    tlasBarrier.srcAccessMask        = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
+    tlasBarrier.dstAccessMask        = VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR;
+
+    vkCmdPipelineBarrier(
+        cmdBuf, 
+        VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, 
+        VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+        0, 
+        1, 
+        &tlasBarrier, 
+        0, 
+        nullptr, 
+        0, 
+        nullptr
+    );
 
 }
 
@@ -1544,60 +1557,3 @@ void HelloVulkan::updateFrame()
   }
 }
 
-void HelloVulkan::submitFrame()
-{
-  uint32_t imageIndex = m_swapChain.getActiveImageIndex();
-  vkResetFences(m_device, 1, &m_waitFences[imageIndex]);
-
-  // In case of using NVLINK
-  const uint32_t                deviceMask  = m_useNvlink ? 0b0000'0011 : 0b0000'0001;
-  const std::array<uint32_t, 2> deviceIndex = {0, 1};
-
-  VkDeviceGroupSubmitInfo deviceGroupSubmitInfo{VK_STRUCTURE_TYPE_DEVICE_GROUP_SUBMIT_INFO_KHR};
-  deviceGroupSubmitInfo.waitSemaphoreCount            = 2;
-  deviceGroupSubmitInfo.commandBufferCount            = 1;
-  deviceGroupSubmitInfo.pCommandBufferDeviceMasks     = &deviceMask;
-  //deviceGroupSubmitInfo.signalSemaphoreCount          = m_useNvlink ? 2 : 1;
-  deviceGroupSubmitInfo.signalSemaphoreCount          = 2;
-  deviceGroupSubmitInfo.pSignalSemaphoreDeviceIndices = deviceIndex.data();
-  deviceGroupSubmitInfo.pWaitSemaphoreDeviceIndices   = deviceIndex.data();
-
-  VkSemaphore semaphoreRead  = m_swapChain.getActiveReadSemaphore();
-  VkSemaphore semaphoreWrite = m_swapChain.getActiveWrittenSemaphore();
-
-  VkSemaphore waitSemaphors[2] = {m_pbBuilderSemaphores[imageIndex], semaphoreRead};
-  VkSemaphore signalSemaphors[2] = {m_pbBuilderSemaphores[imageIndex], semaphoreWrite};
-
-  //uint64_t waitValues[2]   = {m_pbBuilderSemaphoresWaitValues[imageIndex], 0};
-  //uint64_t signalVaules[2] = {m_pbBuilderSemaphoresSignalValues[imageIndex], 0};
-  VkTimelineSemaphoreSubmitInfo timelineInfo;
-  timelineInfo.sType                     = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
-  timelineInfo.pNext                     = NULL;
-  timelineInfo.waitSemaphoreValueCount   = 2;
-  timelineInfo.pWaitSemaphoreValues      = &m_pbBuilderSemaphoresWaitValues[imageIndex];
-  timelineInfo.signalSemaphoreValueCount = 2;
-  timelineInfo.pSignalSemaphoreValues    = &m_pbBuilderSemaphoresSignalValues[imageIndex];
-  timelineInfo.pNext                     = &deviceGroupSubmitInfo;
-
-  // Pipeline stage at which the queue submission will wait (via pWaitSemaphores)
-  const VkPipelineStageFlags waitStageMask[2] = {VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-  // The submit info structure specifies a command buffer queue submission batch
-  VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
-  submitInfo.pWaitDstStageMask = waitStageMask;  // Pointer to the list of pipeline stages that the semaphore waits will occur at
-  submitInfo.pWaitSemaphores = waitSemaphors;  // Semaphore(s) to wait upon before the submitted command buffer starts executing
-  submitInfo.waitSemaphoreCount   = 2;                // One wait semaphore
-  submitInfo.pSignalSemaphores    = signalSemaphors;  // Semaphore(s) to be signaled when command buffers have completed
-  submitInfo.signalSemaphoreCount = 2;                // One signal semaphore
-  submitInfo.pCommandBuffers = &m_commandBuffers[imageIndex];  // Command buffers(s) to execute in this batch (submission)
-  submitInfo.commandBufferCount = 1;                           // One command buffer
-  submitInfo.pNext              = &timelineInfo;
-
-  // Submit to the graphics queue passing a wait fence
-  vkQueueSubmit(m_queue, 1, &submitInfo, m_waitFences[imageIndex]);
-
-  m_pbBuilderSemaphoresWaitValues[imageIndex] += 1;
-  m_pbBuilderSemaphoresSignalValues[imageIndex] += 1;
-
-  // Presenting frame
-  m_swapChain.present(m_queue);
-}

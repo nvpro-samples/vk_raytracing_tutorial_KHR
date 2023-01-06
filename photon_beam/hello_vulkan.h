@@ -37,13 +37,6 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 
-class ResetAbleRaytracingBuilderKHR : public nvvk::RaytracingBuilderKHR
-{
-public:
-  void resetTlas();
-};
-
-
 class HelloVulkan : public nvvk::AppBaseVk
 {
 public:
@@ -77,6 +70,9 @@ public:
   nvvk::Buffer m_beamAsInfoBuffer;
   nvvk::Buffer m_beamAsCountReadBuffer;
 
+  nvvk::Buffer m_beamTlasScratchBuffer;
+  nvvk::AccelKHR m_pbTlas;
+
   float    m_airAlbedo{0.1f};
   float m_beamRadius{0.5f};
   float    m_photonRadius{0.5f};
@@ -102,6 +98,12 @@ public:
   bool          m_usePhotonBeam;
   float         m_hgAssymFactor;
   bool          m_showDirectColor;
+
+  bool m_isLightMotionOn;
+  bool m_isLightVariationOn;
+  float m_lightVariationInterval;
+  float m_seedTime;
+  uint32_t m_randomSeed;
 
   // Information pushed at each draw call
   PushConstantRaster m_pcRaster{
@@ -129,6 +131,7 @@ public:
 
 
   // #Post - Draw the rendered image on a quad using a tonemapper
+  void addSeedTime(float timeDetla);
   void createOffscreenRender();
   void createPostPipeline();
   void createPostDescriptor();
@@ -153,20 +156,18 @@ public:
   auto primitiveToVkGeometry(const nvh::GltfPrimMesh& prim);
   void createBottomLevelAS();
   void createTopLevelAS();
-  void createBeamBoxBlas();
+  void createBeamASResources();
   void createRtDescriptorSet();
   void updateRtDescriptorSet();
   void updateRtDescriptorSetBeamTlas();
   void createRtPipeline();
 
-  void createBeamASCommandBuffer();
   void createPbDescriptorSet();
   void createPbPipeline();
-  void buildPbTlas(const nvmath::vec4f& clearColor);
+  void buildPbTlas(const nvmath::vec4f& clearColor, const VkCommandBuffer& cmdBuf);
 
   void raytrace(const VkCommandBuffer& cmdBuf);
   void updateFrame();
-  void submitFrame();
 
   VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
   nvvk::RaytracingBuilderKHR                      m_rtBuilder;
@@ -181,13 +182,7 @@ public:
 
   PushConstantRay m_pcRay{};
 
-  VkFence                                           m_beamCounterReadFence;
-  VkFence                                           m_pbBuildFence;
-  std::vector<VkSemaphore>                          m_pbBuilderSemaphores;
-  std::vector<uint64_t>                             m_pbBuilderSemaphoresWaitValues;
-  std::vector<uint64_t>                             m_pbBuilderSemaphoresSignalValues;
-  VkCommandBuffer                                   m_pbBuildCommandBuffer;
-  ResetAbleRaytracingBuilderKHR                     m_pbBuilder;
+  nvvk::RaytracingBuilderKHR                        m_pbBuilder; // only used for creating Blas
   nvvk::DescriptorSetBindings m_pbDescSetLayoutBind;
   VkDescriptorPool            m_pbDescPool;
   VkDescriptorSetLayout       m_pbDescSetLayout;
