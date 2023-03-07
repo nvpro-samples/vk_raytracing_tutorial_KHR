@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2021-2023, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,8 +29,7 @@ void ObjLoader::loadModel(const std::string& filename)
   reader.ParseFromFile(filename);
   if(!reader.Valid())
   {
-    LOGE(reader.Error().c_str());
-    std::cerr << "Cannot load: " << filename << std::endl;
+    LOGE("Cannot load %s: %s", filename.c_str(), reader.Error().c_str());
     assert(reader.Valid());
   }
 

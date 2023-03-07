@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2021, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2014-2023, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -196,8 +196,8 @@ void HelloVulkan::loadScene(const std::string& filename)
   {
     assert(!"Error while loading scene");
   }
-  LOGW(warn.c_str());
-  LOGE(error.c_str());
+  LOGW("%s", warn.c_str());
+  LOGE("%s", error.c_str());
 
 
   m_gltfScene.importMaterials(tmodel);
