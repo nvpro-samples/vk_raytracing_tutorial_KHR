@@ -47,3 +47,25 @@ Tutorial | Details
 ![img](ray_tracing_specialization/images/specialization.png) | [Specialization Constants](ray_tracing_specialization) <br> Showing how to use specialization constant and using interactively different specialization.
 ![img](ray_tracing_advanced_compilation/images/high_level_advanced_compilation.png) | [Advanced Compilation](ray_tracing_advanced_compilation) <br> Shows how to create reusable pipeline libraries and compile pipelines on multiple threads.
 ![img](ray_tracing_motionblur/images/motionblur.png) | [Motion Blur](ray_tracing_motionblur) <br> Using vertex motion and instance motion: matrix and SRT.
+
+## Going Further
+
+At this point, if you have followed the tutorials, the other ray tracing examples should be quite easy to follow. 
+
+The [Vulkan Mini-Samples](https://github.com/nvpro-samples/vk_mini_samples) contain many interesting ray tracing examples:
+
+|  | |
+|---|---|
+|[Micro-Mesh Displacement](https://github.com/nvpro-samples/vk_mini_samples/tree/main/samples/mm_displacement) | ![](https://github.com/nvpro-samples/vk_mini_samples/blob/main/samples/mm_displacement/docs/micromesh_th.jpg?raw=true)|
+| [Micromap Opacity](https://github.com/nvpro-samples/vk_mini_samples/blob/main/samples/mm_opacity) | ![](https://github.com/nvpro-samples/vk_mini_samples/blob/main/samples/mm_opacity/docs/opacity_th.jpg?raw=true)|
+| [Raytrace](https://github.com/nvpro-samples/vk_mini_samples/blob/main/samples/raytrace) | ![](https://github.com/nvpro-samples/vk_mini_samples/blob/main/samples/raytrace/docs/raytrace_th.jpg?raw=true)|
+| [Shading Execution Reorder](https://github.com/nvpro-samples/vk_mini_samples/blob/main/samples/ser_pathtrace) | ![](https://github.com/nvpro-samples/vk_mini_samples/blob/main/samples/ser_pathtrace/docs/ser_2_th.jpg?raw=true)|
+
+
+### Other Repositories
+
+
+|  | |
+|---|---|
+| [vk_shaded_gltfscene](https://github.com/nvpro-samples/vk_shaded_gltfscene) This sample loads glTF (.gltf/.glb) scenes and will ray trace or rasterize it using glTF 2.0 PBR material and textures. It can display an HDR image in the background and be lit by that HDR or use a built-in Sun&Sky. It renders in multiple passes, background, scene, and then tone maps the result. It shows how multiple resources (geometry, materials and textures) can be shared between the two rendering systems. | ![](https://github.com/nvpro-samples/vk_shaded_gltfscene/blob/master/doc/rtx.png?raw=true) |
+| [vk_raytrace](https://github.com/nvpro-samples/vk_raytrace) This project is a glTF 2.0 sample viewer using Vulkan ray tracing. It follows the ray tracing tutorial and combines all chapters into a single example. Supports both glTF PBR and Disney PBR material, uses the RTX pipeline or the Ray Query in a single compute shader. Many glTF extensions are supported, such as KHR_materials_clearcoat, KHR_materials_transmission, KHR_texture_transform, and a few more. | ![](https://github.com/nvpro-samples/vk_raytrace/blob/master/doc/vk_raytrace.png?raw=true)|
