@@ -57,16 +57,17 @@ float rnd(inout uint prev)
 // Sampling
 //-------------------------------------------------------------------------------------------------
 
-// Randomly sampling around +Z
+// Randomly samples from a cosine-weighted hemisphere oriented in the `z` direction.
+// From Ray Tracing Gems section 16.6.1, "Cosine-Weighted Hemisphere Oriented to the Z-Axis"
 vec3 samplingHemisphere(inout uint seed, in vec3 x, in vec3 y, in vec3 z)
 {
-#define M_PI 3.141592
+#define M_PI 3.14159265
 
   float r1 = rnd(seed);
   float r2 = rnd(seed);
-  float sq = sqrt(1.0 - r2);
+  float sq = sqrt(r1);
 
-  vec3 direction = vec3(cos(2 * M_PI * r1) * sq, sin(2 * M_PI * r1) * sq, sqrt(r2));
+  vec3 direction = vec3(cos(2 * M_PI * r2) * sq, sin(2 * M_PI * r2) * sq, sqrt(1. - r1));
   direction      = direction.x * x + direction.y * y + direction.z * z;
 
   return direction;

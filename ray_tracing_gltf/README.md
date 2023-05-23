@@ -452,8 +452,8 @@ struct hitPayload
 
 This modification will recursively trace until the `depth`hits 10 (hardcoded) or hit an emissive element (light).
 
-The only information that we will keep from the shader, is the calculation of the hit state: position, normal. So
-all code from `// Vector toward the light` to the end can be remove and be replaced by the following.
+The only information that we will keep from the shader, is the calculation of the hit state: the position and normal. So
+all code from `// Vector toward the light` to the end can be removed and be replaced by the following.
 
 ~~~~C
   // https://en.wikipedia.org/wiki/Path_tracing
@@ -467,12 +467,18 @@ all code from `// Vector toward the light` to the end can be remove and be repla
   vec3 rayOrigin    = world_position;
   vec3 rayDirection = samplingHemisphere(prd.seed, tangent, bitangent, world_normal);
 
-  // Probability of the newRay (cosine distributed)
-  const float p = 1 / M_PI;
+  const float cos_theta = dot(rayDirection, world_normal);
+  // Probability density function of samplingHemisphere choosing this rayDirection
+  const float p = cos_theta / M_PI;
 
   // Compute the BRDF for this ray (assuming Lambertian reflection)
-  float cos_theta = dot(rayDirection, world_normal);
-  vec3  BRDF      = mat.pbrBaseColorFactor.xyz / M_PI;
+  vec3 albedo = mat.pbrBaseColorFactor.xyz;
+  if(mat.pbrBaseColorTexture > -1)
+  {
+    uint txtId = mat.pbrBaseColorTexture;
+    albedo *= texture(texturesMap[nonuniformEXT(txtId)], texcoord0).xyz;
+  }
+  vec3 BRDF = albedo / M_PI;
 
   // Recursively trace reflected light sources.
   if(prd.depth < 10)
