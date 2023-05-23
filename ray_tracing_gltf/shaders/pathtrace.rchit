@@ -110,12 +110,13 @@ void main()
   vec3 rayOrigin    = world_position;
   vec3 rayDirection = samplingHemisphere(prd.seed, tangent, bitangent, world_normal);
 
-  // Probability of the newRay (cosine distributed)
-  const float p = 1 / M_PI;
-
   // Compute the BRDF for this ray (assuming Lambertian reflection)
   float cos_theta = dot(rayDirection, world_normal);
-  vec3  albedo    = mat.pbrBaseColorFactor.xyz;
+
+  // Probability of the newRay (cosine distributed)
+  const float p = cos_theta / M_PI;
+
+  vec3 albedo = mat.pbrBaseColorFactor.xyz;
   if(mat.pbrBaseColorTexture > -1)
   {
     uint txtId = mat.pbrBaseColorTexture;
