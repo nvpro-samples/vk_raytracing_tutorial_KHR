@@ -25,6 +25,7 @@
 #include <array>
 #include <iostream>
 
+#define IMGUI_DEFINE_MATH_OPERATORS
 #include "backends/imgui_impl_glfw.h"
 #include "imgui.h"
 
