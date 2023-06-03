@@ -1188,7 +1188,7 @@ To be able to focus on the pipeline generation, we provide simple shaders:
 The `shaders` folder now contains 3 more files:
 
 * `raytrace.rgen` contains the ray generation program. It also declares its access to the ray tracing output buffer
-  `image`, and the ray tracing acceleration structure `topLevelAS`, bound as an `accelerationStructureKHR`. For now this
+  `image`, and the ray tracing acceleration structure `topLevelAS`, bound as an `accelerationStructureEXT`. For now this
   shader program simply writes a constant color into the output buffer.
 
 * `raytrace.rmiss` defines the miss shader. This shader will be executed when no geometry is hit, and will write a
