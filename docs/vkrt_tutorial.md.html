@@ -715,7 +715,8 @@ invoked upon hitting the object (`VkAccelerationStructureInstanceKHR::instanceSh
     
     In this specific example, we could have ignored the custom index, since the Id
     will be equivalent to `gl_InstanceId` (as `gl_InstanceId` specifies the index of the
-    instance that intersects the current ray, which is in this case the same value as `i`).
+    instance that intersects the current ray, which is in this case the same value as `ObjInstance::objIndex`: the
+    index of the object in `HelloVulkan::m_instances` and the value we'll set `gl_InstanceCustomIndex` to below).
     In later examples the value will be different.
 
 This index and the notion of hit group are tied to the definition of the ray tracing pipeline and the Shader Binding
@@ -956,7 +957,7 @@ In the header `hello_vulkan.h`, we declare the objects related to this additiona
   VkDescriptorSet                                 m_rtDescSet;
 ~~~~
 
-The acceleration structure will be accessible by the Ray Generation shader, as we want to call `TraceRayEXT()` from this
+The acceleration structure will be accessible by the Ray Generation shader, as we want to call `traceRayEXT()` from this
 shader. Later in this document, we will also make it accessible from the Closest Hit shader, in order to send rays from
 there as well. The output image is the offscreen image used by the rasterization, and will be written only by the
 RayGen shader.
@@ -1387,7 +1388,7 @@ rayPipelineInfo.pGroups    = m_rtShaderGroups.data();
 The ray generation and closest hit shaders can trace rays, making the ray tracing a potentially recursive process. To
 allow the underlying RTX layer to optimize the pipeline we indicate the maximum recursion depth used by our shaders. For
 the simplistic shaders we currently have, we set this depth to 1, meaning that we must not trigger
-recursion at all (i.e. a hit shader calling `TraceRayEXT()`). Note that it is preferable to keep the recursion level
+recursion at all (i.e. a hit shader calling `traceRayEXT()`). Note that it is preferable to keep the recursion level
 as low as possible, replacing it by a loop formulation instead.
 
 ~~~~ C
@@ -1792,7 +1793,7 @@ layout(location = 0) rayPayloadEXT hitPayload prd;
 
 The `main` function of the shader then starts by computing the floating-point pixel coordinates, normalized between 0
 and 1. The `gl_LaunchIDEXT` contains the integer coordinates of the pixel being rendered, while `gl_LaunchSizeEXT`
-corresponds to the image size provided when calling `traceRayEXT`.
+corresponds to the image size provided when calling `vkCmdTraceRaysKHR`.
 
 ~~~~ C
 void main()
