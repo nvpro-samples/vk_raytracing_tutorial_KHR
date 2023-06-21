@@ -1,0 +1,8 @@
+newmtl  default
+illum 4
+d 0.5 
+Ns 16
+Ni 0 
+Ka 0 0 0
+Kd 0.982062 0.857638 0.400811
+Ks 1 1 1

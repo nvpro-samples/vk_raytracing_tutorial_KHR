@@ -1,0 +1,251 @@
+<meta charset="utf-8" lang="en">
+
+**Converting VK_NV_ray_tracing to VK_KHR_ray_tracing**
+
+This document is a quick guide on what need to be changed to convert an existing application 
+using NV ray tracing extension to KHR.
+
+# The Obvious
+
+For most structures and enum, the ending with NV can be replaced with KHR. 
+
+This is true for example for:
+
+Some examples:
+
+      NVIDIA                   |         KHRONOS
+-------------------------------|-----------------------------
+VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_RAYGEN_BIT_KHR 
+VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR
+VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV | VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_KHR
+VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_NV | VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR
+[Types and Flags]
+
+NVIDIA                   |         KHRONOS
+-------------------------------|-----------------------------
+ VkWriteDescriptorSetAccelerationStructureNV |  VkWriteDescriptorSetAccelerationStructureKHR
+ VkRayTracingShaderGroupCreateInfoNV |  VkRayTracingShaderGroupCreateInfoKHR
+ VkRayTracingPipelineCreateInfoNV |  VkRayTracingPipelineCreateInfoKHR
+[Structures]
+
+
+# Handles version Device Addresses -> memory allocations
+
+With KHR, we no longer pass the buffer or an handle, but the `vk::DeviceAddress`. 
+First, when allocating a buffer, it has to have the `VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT` flag.
+Similarly, the memory associated with this buffer, needs also the `VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT` flag.
+
+For the memory allocation, this could be done like this:
+
+~~~~ C++
+vk::MemoryAllocateFlagsInfo memFlagInfo;
+memFlagInfo.setFlags(vk::MemoryAllocateFlagBits::eDeviceAddress);
+
+vk::MemoryAllocateInfo memAlloc;
+memAlloc.setPNext(&memFlagInfo);
+// Allocate memory
+~~~~
+
+The buffer address could then be retrieved like this:
+
+~~~~ C++
+vk::DeviceAddress vertexAddress = m_device.getBufferAddress({model.vertexBuffer.buffer});
+~~~~
+
+# Where is GeometryNV?
+
+The structure to create BLAS was replaced by different structures. 
+
+* `vk::AccelerationStructureCreateGeometryTypeInfoKHR` : describe how the acceleration structure is created. It is an indication how large it could be.
+* `vk::AccelerationStructureGeometryKHR` : the geometry to build, addresses of vertices and indices
+* `vk::AccelerationStructureBuildOffsetInfoKHR` : the number of elements to build and offsets 
+
+Those three structures can be an array of each, meaning that a BLAS can be a combination fo multiple geometries.
+
+
+As an example on how those are filed. It returns `nvvkpp::RaytracingBuilderKHR::Blas` which has vectors
+of the above structures.
+
+~~~~ C++
+//--------------------------------------------------------------------------------------------------
+// Converting a OBJ primitive to the ray tracing geometry used for the BLAS
+//
+auto HelloVulkan::objectToVkGeometryKHR(const ObjModel& model)
+{
+  // Setting up the creation info of acceleration structure
+  vk::AccelerationStructureCreateGeometryTypeInfoKHR asCreate;
+  asCreate.setGeometryType(vk::GeometryTypeKHR::eTriangles);
+  asCreate.setIndexType(vk::IndexType::eUint32);
+  asCreate.setVertexFormat(vk::Format::eR32G32B32Sfloat);
+  asCreate.setMaxPrimitiveCount(model.nbIndices / 3);  // Nb triangles
+  asCreate.setMaxVertexCount(model.nbVertices);
+  asCreate.setAllowsTransforms(VK_FALSE);  // No adding transformation matrices
+
+  // Building part
+  vk::DeviceAddress vertexAddress = m_device.getBufferAddress({model.vertexBuffer.buffer});
+  vk::DeviceAddress indexAddress  = m_device.getBufferAddress({model.indexBuffer.buffer});
+
+  vk::AccelerationStructureGeometryTrianglesDataKHR triangles;
+  triangles.setVertexFormat(asCreate.vertexFormat);
+  triangles.setVertexData(vertexAddress);
+  triangles.setVertexStride(sizeof(VertexObj));
+  triangles.setIndexType(asCreate.indexType);
+  triangles.setIndexData(indexAddress);
+  triangles.setTransformData({});
+
+  // Setting up the build info of the acceleration
+  vk::AccelerationStructureGeometryKHR asGeom;
+  asGeom.setGeometryType(asCreate.geometryType);
+  asGeom.setFlags(vk::GeometryFlagBitsKHR::eOpaque);
+  asGeom.geometry.setTriangles(triangles);
+
+  // The primitive itself
+  vk::AccelerationStructureBuildOffsetInfoKHR offset;
+  offset.setFirstVertex(0);
+  offset.setPrimitiveCount(asCreate.maxPrimitiveCount);
+  offset.setPrimitiveOffset(0);
+  offset.setTransformOffset(0);
+
+  // Our blas is only one geometry, but could be made of many geometries
+  nvvkpp::RaytracingBuilderKHR::Blas blas;
+  blas.asGeometry.emplace_back(asGeom);
+  blas.asCreateGeometryInfo.emplace_back(asCreate);
+  blas.asBuildOffsetInfo.emplace_back(offset);
+
+  return blas;
+}
+~~~~ 
+
+
+# Creating and building BLAS/TLAS
+
+With the structures filled in, there are some similarities with the NVIDIA extension.
+
+## BLAS
+
+The construction of a BLAS AS will look like this:
+
+~~~~ C++ 
+vk::AccelerationStructureCreateInfoKHR asCreateInfo{{}, vk::AccelerationStructureTypeKHR::eBottomLevel};
+asCreateInfo.setFlags(vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace);
+asCreateInfo.setMaxGeometryCount((uint32_t)blas.asCreateGeometryInfo.size());
+asCreateInfo.setPGeometryInfos(blas.asCreateGeometryInfo.data());
+
+// Create an acceleration structure identifier and allocate memory to
+// store the resulting structure data
+blas.as = m_alloc.createAcceleration(asCreateInfo);
+~~~~ 
+
+To retrieve the memory requirements, there is a new flag, to be build on the host or the device.
+
+~~~~ C++
+vk::AccelerationStructureMemoryRequirementsInfoKHR memoryRequirementsInfo{
+  vk::AccelerationStructureMemoryRequirementsTypeKHR::eBuildScratch,
+  vk::AccelerationStructureBuildTypeKHR::eDevice, blas.as.accel};
+~~~~ 
+
+Building the acceleration structure requires to pass a pointer to the array of vk::AccelerationStructureGeometryKHR.
+
+~~~~ C++
+const vk::AccelerationStructureGeometryKHR*   pGeometry = blas.asGeometry.data();
+vk::AccelerationStructureBuildGeometryInfoKHR bottomASInfo{vk::AccelerationStructureTypeKHR::eBottomLevel};
+bottomASInfo.setFlags(flags);
+bottomASInfo.setUpdate(VK_FALSE);
+bottomASInfo.setSrcAccelerationStructure({});
+bottomASInfo.setDstAccelerationStructure(blas.as.accel);
+bottomASInfo.setGeometryArrayOfPointers(VK_FALSE);
+bottomASInfo.setGeometryCount((uint32_t)blas.asGeometry.size());
+bottomASInfo.setPpGeometries(&pGeometry);
+bottomASInfo.setScratchData(scratchAddress);
+~~~~ 
+
+
+It will be also necessary to create an array of pointers to the vk::AccelerationStructureBuildOffsetInfoKHR of each BLAS.
+
+~~~~ C++
+// Pointers of offset
+std::vector<const vk::AccelerationStructureBuildOffsetInfoKHR*> pBuildOffset(blas.asBuildOffsetInfo.size());
+for(size_t i = 0; i < blas.asBuildOffsetInfo.size(); i++)
+  pBuildOffset[i] = &blas.asBuildOffsetInfo[i];
+~~~~ 
+
+## TLAS
+
+The same structures are now used to build the top-level, using instances as the type of geometry.
+
+FOr example, here how can be created the AS for an array of instances
+
+~~~~ C++
+vk::AccelerationStructureCreateGeometryTypeInfoKHR geometryCreate{vk::GeometryTypeKHR::eInstances};
+geometryCreate.setMaxPrimitiveCount(static_cast<uint32_t>(instances.size()));
+geometryCreate.setAllowsTransforms(VK_TRUE);
+
+vk::AccelerationStructureCreateInfoKHR asCreateInfo{{}, vk::AccelerationStructureTypeKHR::eTopLevel};
+asCreateInfo.setFlags(flags);
+asCreateInfo.setMaxGeometryCount(1);
+asCreateInfo.setPGeometryInfos(&geometryCreate);
+
+// Create the acceleration structure object and allocate the memory
+// required to hold the TLAS data
+m_tlas.as = m_alloc.createAcceleration(asCreateInfo);
+~~~~
+
+
+
+
+Also, there are now a structure to hold the instances `vk::AccelerationStructureInstanceKHR`
+You will need to fill an array with all the information, create a buffer and use 
+the address to set the geometry
+
+~~~~ C++
+// Allocate the instance buffer and copy its contents from host to device
+// memory
+m_instBuffer = m_alloc.createBuffer(cmdBuf, geometryInstances,
+                                    vk::BufferUsageFlagBits::eRayTracingKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+m_debug.setObjectName(m_instBuffer.buffer, "TLASInstances");
+vk::DeviceAddress instanceAddress = m_device.getBufferAddress(m_instBuffer.buffer);
+
+vk::AccelerationStructureGeometryKHR topASGeometry{vk::GeometryTypeKHR::eInstances};
+topASGeometry.geometry.instances.setArrayOfPointers(VK_FALSE);
+topASGeometry.geometry.instances.setData(instanceAddress);
+~~~~ 
+
+
+
+
+# Calling TraceRaysKHR
+
+This is very close to the NVIDIA version, the difference is instead of passing buffer addresses, offsets, strides,
+for each stages, we have to fill vk::StridedBufferRegionKHR structure of each stages, which have
+the same parameters: buffer, offset, stride and SBT size 
+
+Example:
+
+~~~~ C++
+vk::DeviceSize sbtSize = progSize * (vk::DeviceSize)m_rtShaderGroups.size();
+
+const vk::StridedBufferRegionKHR raygenShaderBindingTable = {m_rtSBTBuffer.buffer, rayGenOffset,
+                                                             progSize, sbtSize};
+const vk::StridedBufferRegionKHR missShaderBindingTable   = {m_rtSBTBuffer.buffer, missOffset,
+                                                           progSize, sbtSize};
+const vk::StridedBufferRegionKHR hitShaderBindingTable    = {m_rtSBTBuffer.buffer, hitGroupOffset,
+                                                          progSize, sbtSize};
+const vk::StridedBufferRegionKHR callableShaderBindingTable;
+
+cmdBuf.traceRaysKHR(&raygenShaderBindingTable, &missShaderBindingTable, &hitShaderBindingTable,
+                    &callableShaderBindingTable,      //
+                    m_size.width, m_size.height, 1);  //
+
+~~~~                     
+
+
+
+
+<!-- Markdeep: -->
+<link rel="stylesheet" href="vkrt_tutorial.css?">
+<script> window.markdeepOptions = { tocStyle: "medium" };</script>
+<script src="markdeep.min.js" charset="utf-8"></script>
+<script src="https://developer.nvidia.com/sites/default/files/akamai/gameworks/whitepapers/markdeep.min.js" charset="utf-8"></script>
+<script>
+    window.alreadyProcessedMarkdeep || (document.body.style.visibility = "visible")
+</script>

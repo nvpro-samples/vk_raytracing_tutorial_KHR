@@ -1,0 +1,1526 @@
+<meta charset="utf-8" lang="en">
+**NVIDIA Vulkan Ray Tracing Tutorial**
+**Trace Rays Indirect**
+
+<small>Authors: David Zhao Akeley </small>
+
+![](Images/indirect_scissor/intro.png)
+
+This is an extension of the [Vulkan ray tracing tutorial](vkrt_tutorial.md.html).
+
+We will discuss the `vkCmdTraceRaysIndirectKHR` command, which allows the
+`width`, `height`, and `depth` of a trace ray command to be specifed by a
+buffer on the device, rather than directly by the host. As a demonstration,
+this example will add colorful lanterns to the scene that add their own light
+and shadows, with a finite radius of effect. A compute shader will calculate
+scissor rectangles for each lantern, and an indirect trace rays command will
+dispatch rays for lanterns only within those scissor rectangles.
+
+# Outline
+
+The basic idea is to split up ray tracing into seperate passes. The first pass
+is similar to the original tutorial: it fills in the entire output image,
+calculating lighting from the main light in the scene. Subsequently, one
+pass is run within a scissor rectangle for each lantern to add its light
+contribution to the output image.
+
+The steps to accomplish this are:
+
+* Add a buffer to store lantern positions, colors, and scissor rectangles.
+  These lanterns are separate from the OBJ geometry loaded in the main
+  tutorial. Run a compute shader each frame to fill in the scissor rectangles.
+
+* Build a BLAS for a lantern, and add lantern instances to the TLAS.
+  As lanterns are self-illuminating, the closest hit shader used to shade
+  ordinary OBJ geometry is inappropriate, so, we will add a new hit group (new
+  closest-hit shader) for lanterns to the SBT, and set `hitGroupId`
+  for lantern instances to `1` so this hit group is used.
+
+* Modify the ray generation shader so that it emulates additive blending,
+  and supports drawing within scissor rectangles (in the main tutorial,
+  the raygen shader assumes the ray trace dispatch covers the whole screen).
+
+* Add shadow rays in lantern passes, cast towards the lantern whose light
+  contribution is being added in the current pass. To detect whether the
+  expected lantern was hit, we add a new miss shader and two new closest
+  hit shaders (one for OBJ instances, one for lanterns) that return the
+  index of the lantern hit (if any).
+
+* Add one `vkCmdTraceRaysIndirectKHR` call in `HelloVulkan::raytrace` for
+  each lantern in the scene.
+
+If everything goes well, we should see something like this (the "lantern debug"
+checkbox enables visualizing the scissor rectangles).
+
+![](Images/indirect_scissor/bounding.png)
+
+# Lantern Scissor Rectangles
+
+In this step we set up the buffer storing lantern info, and a compute shader
+for calculating the scissor rectangles.
+
+## Allocate Host Storage
+
+We first need to stage the vector of lanterns on the host in a vector.
+Since this is not an animation example, we won't be concerned with
+keeping track of changes to this vector: changes are forbidden after the
+acceleration structures are built.
+
+In `hello_vulkan.h`, declare a struct for holding information about
+the lanterns on the host.
+
+```` C
+  // Information on each colored lantern illuminating the scene.
+  struct Lantern
+  {
+    nvmath::vec3f position;
+    nvmath::vec3f color;
+    float         brightness;
+    float         radius;     // Max world-space distance that light illuminates.
+  };
+````
+
+Then declare a vector of `Lantern` and add
+a new function for configuring a new lantern in the scene.
+
+```` C
+  // Array of lanterns in scene. Not modifiable after acceleration structure build.
+  std::vector<Lantern> m_lanterns;
+  void addLantern(nvmath::vec3f pos, nvmath::vec3f color, float brightness, float radius);
+````
+
+The `addLantern` function is implemented as
+
+```` C
+// Add a light-emitting colored lantern to the scene. May only be called before TLAS build.
+void HelloVulkan::addLantern(nvmath::vec3f pos, nvmath::vec3f color, float brightness, float radius)
+{
+  assert(m_lanternCount == 0); // Indicates TLAS build has not happened yet.
+
+  m_lanterns.push_back({pos, color, brightness, radius});
+}
+````
+
+In `main.cpp`, we insert calls for adding some lanterns.
+
+```` C
+  // Creation of the example
+  helloVk.loadModel(nvh::findFile("media/scenes/Medieval_building.obj", defaultSearchPaths, true));
+  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
+  helloVk.addLantern({ 8.000f, 1.100f,  3.600f}, {1.0f, 0.0f, 0.0f}, 0.4f, 4.0f);
+  helloVk.addLantern({ 8.000f, 0.600f,  3.900f}, {0.0f, 1.0f, 0.0f}, 0.4f, 4.0f);
+  helloVk.addLantern({ 8.000f, 1.100f,  4.400f}, {0.0f, 0.0f, 1.0f}, 0.4f, 4.0f);
+  helloVk.addLantern({ 1.730f, 1.812f, -1.604f}, {0.0f, 0.4f, 0.4f}, 0.4f, 4.0f);
+  helloVk.addLantern({ 1.730f, 1.862f,  1.916f}, {0.0f, 0.2f, 0.4f}, 0.3f, 3.0f);
+  helloVk.addLantern({-2.000f, 1.900f, -0.700f}, {0.8f, 0.8f, 0.6f}, 0.4f, 3.9f);
+  helloVk.addLantern({ 0.100f, 0.080f, -2.392f}, {1.0f, 0.0f, 1.0f}, 0.5f, 5.0f);
+  helloVk.addLantern({ 1.948f, 0.080f,  0.598f}, {1.0f, 1.0f, 1.0f}, 0.6f, 6.0f);
+  helloVk.addLantern({-2.300f, 0.080f,  2.100f}, {0.0f, 0.7f, 0.0f}, 0.6f, 6.0f);
+  helloVk.addLantern({-1.400f, 4.300f,  0.150f}, {1.0f, 1.0f, 0.0f}, 0.7f, 7.0f);
+````
+
+## Lantern Device Storage
+
+In `hello_vulkan.h`, declare a struct for storing lanterns on the device.
+This includes the host information, plus a scissor rectangle.
+```` C
+  // Information on each colored lantern, plus the info needed for dispatching the
+  // indirect ray trace command used to add its brightness effect.
+  // The dispatched ray trace covers pixels (offsetX, offsetY) to
+  // (offsetX + indirectCommand.width - 1, offsetY + indirectCommand.height - 1).
+  struct LanternIndirectEntry
+  {
+    // Filled in by the device using a compute shader.
+    // NOTE: I rely on indirectCommand being the first member.
+    VkTraceRaysIndirectCommandKHR indirectCommand;
+    int32_t                       offsetX;
+    int32_t                       offsetY;
+
+    // Filled in by the host.
+    Lantern                       lantern;
+  };
+````
+
+!!! NOTE
+    `VkTraceRaysIndirectCommandKHR` is just a struct of 3 `int32_t` defining
+    the `width`, `height`, `depth` of a trace ray command.
+
+
+We also declare an equivalent structure for shaders in the file
+`LanternIndirectEntry.glsl`. We avoid using `vec3` due to differences
+in alignment in C++ and GLSL.
+```` C
+struct LanternIndirectEntry
+{
+  // VkTraceRaysIndirectCommandKHR
+  int indirectWidth;
+  int indirectHeight;
+  int indirectDepth;
+
+  // Pixel coordinate of scissor rect upper-left.
+  int offsetX;
+  int offsetY;
+
+  // Lantern starts here:
+  // Can't use vec3 due to alignment.
+  float x, y, z;
+  float red, green, blue;
+  float brightness;
+  float radius;
+};
+````
+
+To store the lanterns on the device, declare the Vulkan buffer of `LanternIndirectEntry`
+in `hello_vulkan.h`
+
+```` C
+  // Buffer to source vkCmdTraceRaysIndirectKHR indirect parameters and lantern color,
+  // position, etc. from when doing lantern lighting passes.
+  nvvk::Buffer m_lanternIndirectBuffer;
+  VkDeviceSize m_lanternCount = 0; // Set to actual lantern count after TLAS build, as
+                                   // that is the point no more lanterns may be added.
+````
+
+and fill it with a `createLanternIndirectBuffer` function. For performance,
+we allocate a device-local buffer. We need usage flags for
+
+* Storage buffer use, so the compute shader can write to it.
+* Indirect buffer use, so we can source indirect parameters from it when dispatching a ray trace.
+* Device address use, as `vkCmdTraceRaysIndirectKHR` expects a device address.
+* Transfer dst use, so the buffer can be initialized with the lantern colors and positions from `m_lanterns`.
+
+```` C
+// Allocate the buffer used to pass lantern info + ray trace indirect parameters to ray tracer.
+// Fill in the lantern info from m_lanterns (indirect info is filled per-frame on device
+// using a compute shader). Must be called only after TLAS build.
+//
+// The buffer is an array of LanternIndirectEntry, entry i is for m_lanterns[i].
+void HelloVulkan::createLanternIndirectBuffer()
+{
+  assert(m_lanternCount > 0);
+  assert(m_lanternCount == m_lanterns.size());
+
+  // m_alloc behind the scenes uses cmdBuf to transfer data to the buffer.
+  nvvk::CommandPool cmdBufGet(m_device, m_graphicsQueueIndex);
+  VkCommandBuffer   cmdBuf = cmdBufGet.createCommandBuffer();
+
+  using Usage             = VkBufferUsageFlagBits;
+  m_lanternIndirectBuffer = m_alloc.createBuffer(sizeof(LanternIndirectEntry) * m_lanternCount,
+                                                 VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT
+                                                     | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+  std::vector<LanternIndirectEntry> entries(m_lanternCount);
+  for(size_t i = 0; i < m_lanternCount; ++i)
+    entries[i].lantern = m_lanterns[i];
+  vkCmdUpdateBuffer(cmdBuf, m_lanternIndirectBuffer.buffer, 0, entries.size() * sizeof entries[0], entries.data());
+
+  cmdBufGet.submitAndWait(cmdBuf);
+}
+````
+
+Call this function in `main.cpp`, after the AS build (the AS build will be modified later).
+
+```` C
+  helloVk.initRayTracing();
+  helloVk.createBottomLevelAS();
+  helloVk.createTopLevelAS();
+  helloVk.createLanternIndirectBuffer();
+````
+
+## Set up Compute Shader
+
+The compute shader will need the view and projection matrices, plus the Z near plane,
+screen dimensions, and length of the `LanternIndirectBuffer` array, in order to
+compute the scissor rectangles. Feed all of this in with a push constant, declared
+in `hello_vulkan.h`
+
+```` C
+  // Push constant for compute shader filling lantern indirect buffer.
+  // Barely fits in 128-byte push constant limit guaranteed by spec.
+  struct LanternIndirectPushConstants
+  {
+    nvmath::vec4 viewRowX; // First 3 rows of view matrix.
+    nvmath::vec4 viewRowY; // Set w=1 implicitly in shader.
+    nvmath::vec4 viewRowZ;
+
+    nvmath::mat4 proj;     // Perspective matrix
+    float nearZ;           // Near plane used to create projection matrix.
+
+    // Pixel dimensions of output image (needed to scale NDC to screen coordinates).
+    int32_t screenX;
+    int32_t screenY;
+
+    // Length of the LanternIndirectEntry array.
+    int32_t lanternCount;
+  } m_lanternIndirectPushConstants;
+````
+
+!!! NOTE Push Constant Limit
+    The Vulkan spec only guarantees 128 bytes of push constant, so to make everything
+    fit, we have to chop off the implicit bottom row of the view matrix.
+
+This push constant is consumed in the compute shader `shaders/lanternIndirect.comp`.
+We go through `lanternCount` iterations of a loop that fill in the scissor
+rectangle for each `LanternIndirectEntry` (splitting the work among 128
+invocations of the work group).
+
+```` C
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+
+// Compute shader for filling in raytrace indirect parameters for each lantern
+// based on the current camera position (passed as view and proj matrix in
+// push constant).
+//
+// Designed to be dispatched with only one work group; it alone fills in
+// the entire lantern array (of length lanternCount, in also push constant).
+
+#define LOCAL_SIZE 128
+layout(local_size_x = LOCAL_SIZE, local_size_y = 1, local_size_z = 1) in;
+
+#include "LanternIndirectEntry.glsl"
+
+layout(binding = 0, set = 0) buffer LanternArray { LanternIndirectEntry lanterns[]; } lanterns;
+
+layout(push_constant) uniform Constants
+{
+  vec4 viewRowX;
+  vec4 viewRowY;
+  vec4 viewRowZ;
+  mat4 proj;
+  float nearZ;
+  int screenX;
+  int screenY;
+  int lanternCount;
+}
+pushC;
+
+// Copy the technique of "2D Polyhedral Bounds of a Clipped,
+// Perspective-Projected 3D Sphere" M. Mara M. McGuire
+// http://jcgt.org/published/0002/02/05/paper.pdf
+// to compute a screen-space rectangle covering the given Lantern's
+// light radius-of-effect. Result is in screen (pixel) coordinates.
+void getScreenCoordBox(in LanternIndirectEntry lantern, out ivec2 lower, out ivec2 upper);
+
+// Use the xyz and radius of lanterns[i] plus the transformation matrices
+// in pushC to fill in the offset and indirect parameters of lanterns[i]
+// (defines the screen rectangle that this lantern's light is bounded in).
+void fillIndirectEntry(int i)
+{
+  LanternIndirectEntry lantern = lanterns.lanterns[i];
+  ivec2 lower, upper;
+  getScreenCoordBox(lantern, lower, upper);
+
+  lanterns.lanterns[i].indirectWidth  = max(0, upper.x - lower.x);
+  lanterns.lanterns[i].indirectHeight = max(0, upper.y - lower.y);
+  lanterns.lanterns[i].indirectDepth  = 1;
+  lanterns.lanterns[i].offsetX = lower.x;
+  lanterns.lanterns[i].offsetY = lower.y;
+}
+
+void main()
+{
+  for (int i = int(gl_LocalInvocationID.x); i < pushC.lanternCount; i += LOCAL_SIZE)
+  {
+    fillIndirectEntry(i);
+  }
+}
+
+/** Center is in camera space */
+void getBoundingBox(
+  in vec3 center,
+  in float radius,
+  in float nearZ,
+  in mat4 projMatrix,
+  out vec2 ndc_low,
+  out vec2 ndc_high) {
+````
+!!! TIP
+    Omitted code for computing scissor rectangles, taken from "2D Polyhedral Bounds of a Clipped,
+    Perspective-Projected 3D Sphere" by Michael Mara and Morgan McGuire.
+    http://jcgt.org/published/0002/02/05/paper.pdf
+```` C
+}
+
+void getScreenCoordBox(in LanternIndirectEntry lantern, out ivec2 lower, out ivec2 upper)
+{
+  vec4 lanternWorldCenter = vec4(lantern.x, lantern.y, lantern.z, 1);
+  vec3 center = vec3(
+    dot(pushC.viewRowX, lanternWorldCenter),
+    dot(pushC.viewRowY, lanternWorldCenter),
+    dot(pushC.viewRowZ, lanternWorldCenter));
+  vec2 ndc_low, ndc_high;
+  float paperNearZ = -abs(pushC.nearZ); // Paper expected negative nearZ, took 2 days to figure out!
+  getBoundingBox(center, lantern.radius, paperNearZ, pushC.proj, ndc_low, ndc_high);
+
+  // Convert NDC [-1,+1]^2 coordinates to screen coordinates, and clamp to stay in bounds.
+
+  lower.x = clamp(int((ndc_low.x  * 0.5 + 0.5) * pushC.screenX), 0, pushC.screenX);
+  lower.y = clamp(int((ndc_low.y  * 0.5 + 0.5) * pushC.screenY), 0, pushC.screenY);
+  upper.x = clamp(int((ndc_high.x * 0.5 + 0.5) * pushC.screenX), 0, pushC.screenX);
+  upper.y = clamp(int((ndc_high.y * 0.5 + 0.5) * pushC.screenY), 0, pushC.screenY);
+}
+````
+
+Now we just have to fill out the usual boilerplate for setting up the descriptor
+set (passes the `LanternIndirectEntry` array) and compute pipeline. We only have
+to allocate one descriptor as the `LanternIndirectEntry` array never changes.
+
+`hello_vulkan.h`:
+
+```` C
+nvvk::DescriptorSetBindings                       m_lanternIndirectDescSetLayoutBind;
+VkDescriptorPool                                  m_lanternIndirectDescPool;
+VkDescriptorSetLayout                             m_lanternIndirectDescSetLayout;
+VkDescriptorSet                                   m_lanternIndirectDescSet;
+VkPipelineLayout                                  m_lanternIndirectCompPipelineLayout;
+VkPipeline                                        m_lanternIndirectCompPipeline;
+````
+
+`hello_vulkan.cpp`:
+
+```` C
+//--------------------------------------------------------------------------------------------------
+// The compute shader just needs read/write access to the buffer of LanternIndirectEntry.
+void HelloVulkan::createLanternIndirectDescriptorSet()
+{
+  // Lantern buffer (binding = 0)
+  m_lanternIndirectDescSetLayoutBind.addBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
+
+  m_lanternIndirectDescPool      = m_lanternIndirectDescSetLayoutBind.createPool(m_device);
+  m_lanternIndirectDescSetLayout = m_lanternIndirectDescSetLayoutBind.createLayout(m_device);
+
+  VkDescriptorSetAllocateInfo allocateInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+  allocateInfo.descriptorPool     = m_lanternIndirectDescPool;
+  allocateInfo.descriptorSetCount = 1;
+  allocateInfo.pSetLayouts        = &m_lanternIndirectDescSetLayout;
+  vkAllocateDescriptorSets(m_device, &allocateInfo, &m_lanternIndirectDescSet);
+
+
+  assert(m_lanternIndirectBuffer.buffer);
+  VkDescriptorBufferInfo lanternBufferInfo{m_lanternIndirectBuffer.buffer, 0, m_lanternCount * sizeof(LanternIndirectEntry)};
+
+  std::vector<VkWriteDescriptorSet> writes;
+  writes.emplace_back(m_lanternIndirectDescSetLayoutBind.makeWrite(m_lanternIndirectDescSet, 0, &lanternBufferInfo));
+  vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+}
+
+// Create compute pipeline used to fill m_lanternIndirectBuffer with parameters
+// for dispatching the correct number of ray traces.
+void HelloVulkan::createLanternIndirectCompPipeline()
+{
+  // Compile compute shader and package as stage.
+  VkShaderModule computeShader =
+      nvvk::createShaderModule(m_device, nvh::loadFile("spv/lanternIndirect.comp.spv", true, defaultSearchPaths, true));
+  VkPipelineShaderStageCreateInfo stageInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+  stageInfo.stage  = VK_SHADER_STAGE_COMPUTE_BIT;
+  stageInfo.module = computeShader;
+  stageInfo.pName  = "main";
+
+  // Set up push constant and pipeline layout.
+  constexpr auto      pushSize   = static_cast<uint32_t>(sizeof(m_lanternIndirectPushConstants));
+  VkPushConstantRange pushCRange = {VK_SHADER_STAGE_COMPUTE_BIT, 0, pushSize};
+  static_assert(pushSize <= 128, "Spec guarantees only 128 byte push constant");
+  VkPipelineLayoutCreateInfo layoutInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+  layoutInfo.setLayoutCount         = 1;
+  layoutInfo.pSetLayouts            = &m_lanternIndirectDescSetLayout;
+  layoutInfo.pushConstantRangeCount = 1;
+  layoutInfo.pPushConstantRanges    = &pushCRange;
+  vkCreatePipelineLayout(m_device, &layoutInfo, nullptr, &m_lanternIndirectCompPipelineLayout);
+
+  // Create compute pipeline.
+  VkComputePipelineCreateInfo pipelineInfo{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
+  pipelineInfo.stage  = stageInfo;
+  pipelineInfo.layout = m_lanternIndirectCompPipelineLayout;
+  vkCreateComputePipelines(m_device, {}, 1, &pipelineInfo, nullptr, &m_lanternIndirectCompPipeline);
+
+  vkDestroyShaderModule(m_device, computeShader, nullptr);
+}
+````
+
+`main.cpp` (add after indirect buffer initialization).
+
+```` C
+  // #VKRay
+  helloVk.initRayTracing();
+  helloVk.createBottomLevelAS();
+  helloVk.createTopLevelAS();
+  helloVk.createLanternIndirectBuffer();
+  helloVk.createRtDescriptorSet();
+  helloVk.createRtPipeline();
+  helloVk.createLanternIndirectDescriptorSet();
+  helloVk.createLanternIndirectCompPipeline();
+````
+
+## Call Compute Shader
+
+In `HelloVulkan::raytrace`, we have to fill in the earlier push constant and
+dispatch the compute shader before moving
+on to the actual ray tracing. This is rather verbose due to the need for a
+pipeline barrier synchronizing access to the `LanternIndirectEntry` array
+between the compute shader and indirect draw stages.
+
+```` C
+//--------------------------------------------------------------------------------------------------
+// Ray Tracing the scene
+//
+// The raytracing is split into multiple passes:
+//
+// First pass fills in the initial values for every pixel in the output image.
+// Illumination and shadow rays come from the main light.
+//
+// Subsequently, one lantern pass is run for each lantern in the scene. We run
+// a compute shader to calculate a bounding scissor rectangle for each lantern's light
+// effect. This is stored in m_lanternIndirectBuffer. Then an indirect trace rays command
+// is run for every lantern within its scissor rectangle. The lanterns' light
+// contribution is additively blended into the output image.
+void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor)
+{
+  // Before tracing rays, we need to dispatch the compute shaders that
+  // fill in the ray trace indirect parameters for each lantern pass.
+
+  // First, barrier before, ensure writes aren't visible to previous frame.
+  VkBufferMemoryBarrier bufferBarrier{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
+  bufferBarrier.srcAccessMask       = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+  bufferBarrier.dstAccessMask       = VK_ACCESS_SHADER_WRITE_BIT;
+  bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  bufferBarrier.buffer              = m_lanternIndirectBuffer.buffer;
+  bufferBarrier.offset              = 0;
+  bufferBarrier.size                = m_lanternCount * sizeof m_lanterns[0];
+  vkCmdPipelineBarrier(cmdBuf,
+                       VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,   //
+                       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,  //
+                       VkDependencyFlags(0),                  //
+                       0, nullptr, 1, &bufferBarrier, 0, nullptr);
+
+  // Bind compute shader, update push constant and descriptors, dispatch compute.
+  vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_lanternIndirectCompPipeline);
+  nvmath::mat4 view                           = getViewMatrix();
+  m_lanternIndirectPushConstants.viewRowX     = view.row(0);
+  m_lanternIndirectPushConstants.viewRowY     = view.row(1);
+  m_lanternIndirectPushConstants.viewRowZ     = view.row(2);
+  m_lanternIndirectPushConstants.proj         = getProjMatrix();
+  m_lanternIndirectPushConstants.nearZ        = nearZ;
+  m_lanternIndirectPushConstants.screenX      = m_size.width;
+  m_lanternIndirectPushConstants.screenY      = m_size.height;
+  m_lanternIndirectPushConstants.lanternCount = int32_t(m_lanternCount);
+  vkCmdPushConstants(cmdBuf, m_lanternIndirectCompPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0,
+                     sizeof(LanternIndirectPushConstants), &m_lanternIndirectPushConstants);
+  vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_lanternIndirectCompPipelineLayout, 0, 1,
+                          &m_lanternIndirectDescSet, 0, nullptr);
+  vkCmdDispatch(cmdBuf, 1, 1, 1);
+
+  // Ensure compute results are visible when doing indirect ray trace.
+  bufferBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+  bufferBarrier.dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+  vkCmdPipelineBarrier(cmdBuf,
+                       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,  //
+                       VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,   //
+                       VkDependencyFlags(0),                  //
+                       0, nullptr, 1, &bufferBarrier, 0, nullptr);
+
+
+  // Now move on to the actual ray tracing.
+  m_debug.beginLabel(cmdBuf, "Ray trace");
+````
+
+!!! TIP `VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT`
+    `VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT`
+     covers the stage that sources indirect paramaters for compute and ray trace
+     indirect commands, not just graphics draw indirect commands.
+
+Since the near plane and view/projection matrices are used in multiple places now,
+they were factored out to common code in `hello_vulkan.h`.
+
+```` C
+  nvmath::mat4 getViewMatrix()
+  {
+    return CameraManip.getMatrix();
+  }
+
+  static constexpr float nearZ = 0.1f;
+  nvmath::mat4 getProjMatrix()
+  {
+    const float aspectRatio = m_size.width / static_cast<float>(m_size.height);
+    return nvmath::perspectiveVK(CameraManip.getFov(), aspectRatio, nearZ, 1000.0f);
+  }
+````
+
+The function for updating the uniform buffer is tweaked to match.
+
+```` C
+void HelloVulkan::updateUniformBuffer(const VkCommandBuffer& cmdBuf)
+{
+  const float aspectRatio = m_size.width / static_cast<float>(m_size.height);
+
+  CameraMatrices ubo = {};
+  ubo.view           = getViewMatrix();
+  ubo.proj           = getProjMatrix();
+````
+
+# Lantern Acceleration Structures and Closest Hit Shader
+
+## Bottom-level Acceleration Structure
+
+Lanterns will be drawn as spheres approximated by a triangular mesh. Declare
+in `hello_vulkan.h` functions for generating this mesh, and declare Vulkan
+buffers for storing the mesh's positions and indices, and a `BlasInput`
+for delivering this sphere mesh to the BLAS builder.
+
+```` C
+private:
+  void fillLanternVerts(std::vector<nvmath::vec3f>& vertices, std::vector<uint32_t>& indices);
+  void                                  createLanternModel();
+  
+  // Used to store lantern model, generated at runtime.
+  const float                           m_lanternModelRadius = 0.125;
+  nvvk::Buffer                          m_lanternVertexBuffer;
+  nvvk::Buffer                          m_lanternIndexBuffer;
+  nvvk::RaytracingBuilderKHR::BlasInput m_lanternBlasInput{};
+
+  // Index of lantern's BLAS in the BLAS array stored in m_rtBuilder.
+  size_t                                m_lanternBlasId;
+````
+
+In order to focus on the ray tracing, I omit the code for generating those vertex and index
+buffers. The relevent code in `HelloVulkan::createLanternModel` for creating the `BlasInput` is
+
+```` C
+// Package vertex and index buffers as BlasInput.
+VkDeviceAddress vertexAddress = nvvk::getBufferDeviceAddress(m_device, m_lanternVertexBuffer.buffer);
+VkDeviceAddress indexAddress  = nvvk::getBufferDeviceAddress(m_device, m_lanternIndexBuffer.buffer);
+
+auto maxPrimitiveCount = uint32_t(indices.size() / 3);
+
+// Describe buffer as packed array of float vec3.
+VkAccelerationStructureGeometryTrianglesDataKHR triangles{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR};
+triangles.vertexFormat             = VK_FORMAT_R32G32B32_SFLOAT;  // vec3 vertex position data.
+triangles.vertexData.deviceAddress = vertexAddress;
+triangles.vertexStride             = sizeof(nvmath::vec3f);
+// Describe index data (32-bit unsigned int)
+triangles.indexType               = VK_INDEX_TYPE_UINT32;
+triangles.indexData.deviceAddress = indexAddress;
+// Indicate identity transform by setting transformData to null device pointer.
+//triangles.transformData = {};
+triangles.maxVertex = uint32_t(vertices.size());
+
+// Identify the above data as containing opaque triangles.
+VkAccelerationStructureGeometryKHR asGeom{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
+asGeom.geometryType       = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+asGeom.flags              = VK_GEOMETRY_OPAQUE_BIT_KHR;
+asGeom.geometry.triangles = triangles;
+
+// The entire array will be used to build the BLAS.
+VkAccelerationStructureBuildRangeInfoKHR offset;
+offset.firstVertex     = 0;
+offset.primitiveCount  = maxPrimitiveCount;
+offset.primitiveOffset = 0;
+offset.transformOffset = 0;
+
+// Our blas is made from only one geometry, but could be made of many geometries
+m_lanternBlasInput.asGeometry.emplace_back(asGeom);
+m_lanternBlasInput.asBuildOffsetInfo.emplace_back(offset);
+````
+
+The principle difference from before is that the vertex array is now a packed array of
+float 3-vectors, hence, we call `triangles.setVertexStride(sizeof(nvmath::vec3f));`.
+
+Then, we add a call to create a lantern model and add the lantern model to the list of
+BLAS to build in `HelloVulkan::createBottomLevelAS`. Since we'll need the index of
+the lantern BLAS later to add lantern instances in the TLAS build, store the
+BLAS index for the lantern in `m_lanternBlasId`.
+
+```` C
+// Build the array of BLAS in m_rtBuilder. There are `m_objModel.size() + 1`-many BLASes.
+// The first `m_objModel.size()` are used for OBJ model BLASes, and the last one
+// is used for the lanterns (model generated at runtime).
+void HelloVulkan::createBottomLevelAS()
+{
+  // BLAS - Storing each primitive in a geometry
+  std::vector<nvvk::RaytracingBuilderKHR::BlasInput> allBlas;
+  allBlas.reserve(m_objModel.size() + 1);
+
+  // Add OBJ models.
+  for(const auto& obj : m_objModel)
+  {
+    auto blas = objectToVkGeometryKHR(obj);
+
+    // We could add more geometry in each BLAS, but we add only one for now
+    allBlas.emplace_back(blas);
+  }
+
+  // Add lantern model.
+  createLanternModel();
+  m_lanternBlasId = allBlas.size();
+  allBlas.emplace_back(m_lanternBlasInput);
+
+  m_rtBuilder.buildBlas(allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
+}
+````
+
+## Top-level acceleration structure
+
+In the TLAS build function, we add a loop for adding each lantern instance. This is also
+the point that the lanterns are set-in-stone (no more modifications to `m_lanterns`), so
+write `m_lanternCount`.
+
+```` C
+// Build the TLAS in m_rtBuilder. Requires that the BLASes were already built and
+// that all ObjInstance and lanterns have been added. One instance with hitGroupId=0
+// is created for every OBJ instance, and one instance with hitGroupId=1 for each lantern.
+//
+// gl_InstanceCustomIndexEXT will be the index of the instance or lantern in m_instances or
+// m_lanterns respectively.
+//--------------------------------------------------------------------------------------------------
+//
+//
+void HelloVulkan::createTopLevelAS()
+{
+    assert(m_lanternCount == 0);
+    m_lanternCount = m_lanterns.size();
+  
+    std::vector<VkAccelerationStructureInstanceKHR> tlas;
+    tlas.reserve(m_instances.size() + m_lanternCount);
+  
+    // Add the OBJ instances.
+    for(const HelloVulkan::ObjInstance& inst : m_instances)
+    {
+      VkAccelerationStructureInstanceKHR rayInst{};
+      rayInst.transform                      = nvvk::toTransformMatrixKHR(inst.transform);  // Position of the instance
+      rayInst.instanceCustomIndex            = inst.objIndex;                               // gl_InstanceCustomIndexEXT
+      rayInst.accelerationStructureReference = m_rtBuilder.getBlasDeviceAddress(inst.objIndex);
+      rayInst.flags                          = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+      rayInst.mask                           = 0xFF;       //  Only be hit if rayMask & instance.mask != 0
+      rayInst.instanceShaderBindingTableRecordOffset = 0;  // We will use the same hit group for all objects
+      tlas.emplace_back(rayInst);
+    }
+  
+    // Add lantern instances.
+    for(int i = 0; i < static_cast<int>(m_lanterns.size()); ++i)
+    {
+      VkAccelerationStructureInstanceKHR lanternInstance;
+      lanternInstance.transform           = nvvk::toTransformMatrixKHR(nvmath::translation_mat4(m_lanterns[i].position));
+      lanternInstance.instanceCustomIndex = i;
+      lanternInstance.accelerationStructureReference = m_rtBuilder.getBlasDeviceAddress(uint32_t(m_lanternBlasId));
+      lanternInstance.instanceShaderBindingTableRecordOffset = 1;  // Next hit group is for lanterns.
+      lanternInstance.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+      lanternInstance.mask                                   = 0xFF;
+      tlas.emplace_back(lanternInstance);
+    }
+  
+    m_rtBuilder.buildTlas(tlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
+  }
+````
+
+The principle differences are:
+
+* `instanceCustomId` is set to the index of the lantern in `m_lanternIndirectBuffer`, so we
+  can look up the lantern color in the forthcoming closest hit shader.
+
+* `hitGroupId` is set to `1`, so that lanterns will use a new closest hit shader instead
+  of the old one for OBJs.
+
+!!! TIP Helper Reminders
+    `instanceCustomId` corresponds to `VkAccelerationStructureInstanceKHR::instanceCustomIndex` in host
+    code and `gl_InstanceCustomIndexEXT` in shader code.
+    
+    `hitGroupId` corresponds to `VkAccelerationStructureInstanceKHR::instanceShaderBindingTableRecordOffset`.
+    
+    `blasId` has no Vulkan equivalent; it is translated to a BLAS device address in the `m_rtBuilder` helper.
+
+## Lantern Primary Ray Closest Hit Shader
+
+We now implement the closest hit shader for lanterns hit by primary rays (rays
+cast starting from the eye). First, we need to do a bit of preparation:
+
+* Add a bool to `hitPayload` to control whether additive blending is enabled or
+  not. The lanterns will be drawn at a constant brightness, so additive blending
+  is enabled for rays hitting OBJ instances and disabled for rays hitting lanterns.
+  The raygen shader will be updated later to take this bool into account.
+
+* Access the GLSL definition of `LanternIndirectEntry` so we can look up the lantern color.
+
+* Add a descriptor set to the raytrace pipeline to deliver the 
+
+We do the first two tasks in `raycommon.glsl`.
+
+```` C
+#include "LanternIndirectEntry.glsl"
+
+struct hitPayload
+{
+  vec3 hitValue;
+  bool additiveBlending;
+};
+````
+
+The last task is done in `HelloVulkan::createRtDescriptorSet`
+
+```` C
+// This descriptor set holds the Acceleration structure, output image, and lanterns array buffer.
+//
+void HelloVulkan::createRtDescriptorSet()
+{
+  // ...
+
+  // Lantern buffer (binding = 2)
+  m_rtDescSetLayoutBind.addBinding(eLanterns, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
+                                   VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
+  assert(m_lanternCount > 0);
+
+  // ...
+
+  std::vector<VkWriteDescriptorSet> writes;
+  
+  // ...
+  
+  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, eLanterns, &lanternBufferInfo));
+  vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+}
+````
+
+Now we can implement the new closest hit shader. Name this shader `lantern.rchit`.
+
+```` C
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+#include "raycommon.glsl"
+
+// Closest hit shader invoked when a primary ray hits a lantern.
+
+// clang-format off
+layout(location = 0) rayPayloadInEXT hitPayload prd;
+
+layout(binding = 2, set = 0) buffer LanternArray { LanternIndirectEntry lanterns[]; } lanterns;
+
+// clang-format on
+
+void main()
+{
+  // Just look up this lantern's color. Self-illuminating, so no lighting calculations.
+  LanternIndirectEntry lantern = lanterns.lanterns[nonuniformEXT(gl_InstanceCustomIndexEXT)];
+  prd.hitValue = vec3(lantern.red, lantern.green, lantern.blue);
+  prd.additiveBlending = false;
+}
+````
+
+This shader is fairly simple, we just had to look up the lantern color and return it in the
+payload. Here, we used the fact that in the TLAS instances setup, we set a lantern instance's
+`gl_InstanceCustomIndexEXT` to its position in the lanterns array.
+
+Now we just have to add the new hit group to the pipeline. This is more of the same,
+in the `HelloVulkan::createRtPipeline` function, we add the lantern closest hit
+group after the OBJ hit group, to match the `hitGroupId`s assigned earlier in the
+TLAS build.
+
+```` C
+
+enum StageIndices
+{
+  // ... 
+  eClosestHit,
+  eClosestHitLantern,
+  eShaderGroupCount
+};
+// ... 
+
+// OBJ Primary Ray Hit Group - Closest Hit
+stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytrace.rchit.spv", true, defaultSearchPaths, true));
+stage.stage         = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+stages[eClosestHit] = stage;
+
+// Lantern Primary Ray Hit Group
+stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/lantern.rchit.spv", true, defaultSearchPaths, true));
+stage.stage                = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+stages[eClosestHitLantern] = stage;
+
+// ... 
+
+// closest hit shader
+group.type             = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+group.generalShader    = VK_SHADER_UNUSED_KHR;
+group.closestHitShader = eClosestHit;
+m_rtShaderGroups.push_back(group);
+
+group.closestHitShader = eClosestHitLantern;
+m_rtShaderGroups.push_back(group);
+````
+
+We don't have to modify `HelloVulkan::createRtShaderBindingTable`. Changes to the number of
+group handles to copy into the SBT are picked up automatically from `m_rtShaderGroups.size()`.
+
+# Ray Generation Shader
+
+## Draw Within Scissor Rectangle
+
+The original ray generation shader assumed that `gl_LaunchSizeEXT` is the size of the entire
+screen. As this is no longer the case for scissor rectangles, we communicate the screen
+size through push constant instead. In addition, we also add to the push constants a number
+indicating which lantern pass is currently being drawn (-1 for the original full screen pass).
+
+Modify `m_pcRay` in `hello_vulkan.h`.
+
+```` C
+  // Push constant for ray trace pipeline.
+  struct RtPushConstant
+  {
+    // Background color
+    nvmath::vec4f clearColor;
+
+    // Information on the light in the sky used when lanternPassNumber = -1.
+    nvmath::vec3f lightPosition;
+    float         lightIntensity;
+    int32_t       lightType;
+
+    // -1 if this is the full-screen pass. Otherwise, this pass is to add light
+    // from lantern number lanternPassNumber. We use this to lookup trace indirect
+    // parameters in m_lanternIndirectBuffer.
+    int32_t       lanternPassNumber;
+
+    // Pixel dimensions of the output image.
+    int32_t       screenX;
+    int32_t       screenY;
+
+    // See m_lanternDebug.
+    int32_t       lanternDebug;
+  } m_pcRay;
+````
+
+We also update the GLSL push constant to match. Since the raygen shader now needs
+access to the push constant, move the push constant definition from `raytrace.rchit`
+to `raycommon.glsl`.
+
+```` C
+layout(push_constant) uniform Constants
+{
+  vec4  clearColor;
+  vec3  lightPosition;
+  float lightIntensity;
+  int   lightType;         // 0: point, 1: infinite
+  int   lanternPassNumber; // -1 if this is the full-screen pass. Otherwise, used to lookup trace indirect parameters.
+  int   screenX;
+  int   screenY;
+  int   lanternDebug;
+}
+pushC;
+````
+
+(`lanternDebug` will be used later to toggle visualising the scissor rectangles)
+
+
+This move also requires us to tweak `raytrace.rmiss`.
+
+````
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_GOOGLE_include_directive : enable
+#include "raycommon.glsl"
+
+layout(location = 0) rayPayloadInEXT hitPayload prd;
+
+void main()
+{
+  prd.hitValue = pushC.clearColor.xyz * 0.8;
+  prd.additiveBlending = false;
+}
+````
+
+We will cover initializing the new push constants later, when we look at `vkCmdTraceRaysIndirectKHR`.
+
+In `raytrace.rgen`, we have to replace the old code for calculating the pixel center.
+
+```` C
+void main()
+{
+  const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
+  const vec2 inUV        = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
+````
+
+with
+
+```` C
+layout(binding = 2, set = 0) buffer LanternArray { LanternIndirectEntry lanterns[]; } lanterns;
+
+void main()
+{
+  // Global light pass is a full screen rectangle (lower corner 0,0), but
+  // lantern passes are only run within rectangles that may be offset.
+  ivec2 pixelOffset = ivec2(0);
+  if (pushC.lanternPassNumber >= 0)
+  {
+    pixelOffset.x = lanterns.lanterns[pushC.lanternPassNumber].offsetX;
+    pixelOffset.y = lanterns.lanterns[pushC.lanternPassNumber].offsetY;
+  }
+
+  const ivec2 pixelIntCoord = ivec2(gl_LaunchIDEXT.xy) + pixelOffset;
+  const vec2 pixelCenter = vec2(pixelIntCoord) + vec2(0.5);
+  const vec2 inUV        = pixelCenter / vec2(pushC.screenX, pushC.screenY);
+  vec2       d           = inUV * 2.0 - 1.0;
+````
+
+Let's recap why this works. If `pushC.lanternPassNumber` is negative, we're drawing
+the first, full-screen pass, and this code behaves identically as before, except
+that `inUV` performs division by `(pushC.screenX, pushC.screenY)` instead of
+relying on `gl_LaunchSizeEXT` to be the screen size.
+
+Otherwise (`pushC.lanternPassNumber >= 0`), we're drawing a scissor rectangle for
+the given lantern number. Look up that lantern's `LanternIndirectEntry` in the
+array (notice that the descriptor binding for it is added). Its scissor rectangle
+is defined by:
+
+* `LanternIndirectEntry::offsetX`,`offsetY`: the pixel coordinate of the scissor box's
+  upper-left.
+
+* `LanternIndirectEntry::width`,`height`: the dimensions of the scissor box (not
+  directly used here; consumed by `vkCmdTraceRaysIndirectKHR`).
+
+The `gl_LaunchIDEXT` variable ranges from `(0,0)` to `(width-1, height-1)`, so to
+cover the correct pixels within the scissor, we just have to reposition
+`gl_LaunchIDEXT` by the offset `(offsetX, offsetY)`.
+
+## Additive Blending
+
+We also have to emulate additive blending. Instead of always writing to the output
+image:
+
+```` C
+  imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(prd.hitValue, 1.0));
+````
+
+we do
+
+```` C
+  // Either add to or replace output image color based on prd.additiveBlending.
+  // Global pass always replaces color as it is the first pass.
+  vec3 oldColor = vec3(0);
+  if (prd.additiveBlending && pushC.lanternPassNumber >= 0) {
+    oldColor = imageLoad(image, pixelIntCoord).rgb;
+  }
+  imageStore(image, pixelIntCoord, vec4(prd.hitValue + oldColor, 1.0));
+````
+
+thus adding the ray payload's color to the old image color if `prd.additiveBlending`
+is true and this is not the first, full-screen pass (the first pass must replace the
+output image color as its existing contents are garbage).
+
+# Lantern Shadow Rays
+
+We now have to set up a system for casting shadow rays from the OBJ closest hit
+shader to the lanterns. This requires us to
+
+* Detect in `raycast.rchit` whether we are in a lantern pass, and use this
+  to decide between casting shadow rays to the main light (as in the base
+  tutorial) or casting shadow rays to a lantern.
+
+* Declare a payload for which lantern (if any) was hit, and add a new miss shader
+  and two new closest hit shaders for filling that payload.
+
+* Use the `sbtRecordOffset` parameter of `traceRayEXT` to skip over the earlier
+  hit groups.
+
+## New payload
+
+In `raytrace.rchit` (called when an OBJ instance is hit by a primary ray), declare
+the new payload and the array of lanterns.
+
+```` C
+layout(location = 2) rayPayloadEXT int hitLanternInstance;
+
+layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
+layout(binding = 2, set = 0) buffer LanternArray { LanternIndirectEntry lanterns[]; } lanterns;
+````
+
+## New shaders
+
+We need a few simple shaders to report the number of the lantern hit (if any) by the shadow ray.
+First is the miss shader, `lanternShadow.rmiss`.
+
+```` C
+// Miss shader invoked when tracing shadow rays (rays towards lantern)
+// in lantern passes. Misses shouldn't really happen, but if they do,
+// report we did not hit any lantern by setting hitLanternInstance = -1.
+layout(location = 2) rayPayloadInEXT int hitLanternInstance;
+
+void main()
+{
+  hitLanternInstance = -1;
+}
+````
+
+Then a closest hit shader for OBJ instances hit by a lantern shadow ray.
+This also returns `-1` for "no lantern". Call this `lanternShadowObj.rchit`.
+
+```` C
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_GOOGLE_include_directive : enable
+#include "raycommon.glsl"
+
+// During a lantern pass, this closest hit shader is invoked when
+// shadow rays (rays towards lantern) hit a regular OBJ. Report back
+// that no lantern was hit (-1).
+
+// clang-format off
+layout(location = 2) rayPayloadInEXT int hitLanternInstance;
+
+// clang-format on
+
+void main()
+{
+  hitLanternInstance = -1;
+}
+````
+
+Finally, a closest hit shader for lantern instances, named `lanternShadowLantern.rchit`.
+
+```` C
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_GOOGLE_include_directive : enable
+#include "raycommon.glsl"
+
+// During a lantern pass, this closest hit shader is invoked when
+// shadow rays (rays towards lantern) hit a lantern. Report back
+// which lantern was hit.
+
+// clang-format off
+layout(location = 2) rayPayloadInEXT int hitLanternInstance;
+
+// clang-format on
+
+void main()
+{
+  hitLanternInstance = gl_InstanceCustomIndexEXT;
+}
+````
+
+Note that we really need to report back the lantern number, and
+not just a boolean "lantern hit" flag. In order to have lanterns cast
+shadows on each other, we must be able to detect that the shadow ray
+hit the "wrong" lantern.
+
+![](Images/indirect_scissor/rgb.png)
+
+## Add Shaders to Pipeline
+
+We add the new miss shader as miss shader 2 in the SBT, and the closest hit
+shaders as hit groups 2 and 3 in the SBT, following the earlier 2 hit
+groups for primary rays. Add the following code to `HelloVulkan::createRtPipeline`
+after loading `raytraceShadow.rmiss.spv`.
+
+```` C
+// Miss shader 2 is invoked when a shadow ray for lantern lighting misses the
+// lantern. It shouldn't be invoked, but I include it just in case.
+stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/lanternShadow.rmiss.spv", true, defaultSearchPaths, true));
+stage.stage          = VK_SHADER_STAGE_MISS_BIT_KHR;
+stages[eMissLantern] = stage;
+````
+
+and add this code for loading the last 2 closest hit shaders after loading
+`lantern.rchit.spv`:
+
+```` C
+// Lantern Primary Ray Hit Group
+stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/lantern.rchit.spv", true, defaultSearchPaths, true));
+stage.stage                = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+stages[eClosestHitLantern] = stage;
+
+// OBJ Lantern Shadow Ray Hit Group
+stage.module =
+    nvvk::createShaderModule(m_device, nvh::loadFile("spv/lanternShadowObj.rchit.spv", true, defaultSearchPaths, true));
+stage.stage                      = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+stages[eClosestHitLanternShdObj] = stage;
+
+// ... 
+
+// Lantern Shadow Miss
+group.type          = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+group.generalShader = eMissLantern;
+m_rtShaderGroups.push_back(group);
+
+
+// closest hit shader
+group.type             = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+group.generalShader    = VK_SHADER_UNUSED_KHR;
+group.closestHitShader = eClosestHit;
+m_rtShaderGroups.push_back(group);
+
+group.closestHitShader = eClosestHitLantern;
+m_rtShaderGroups.push_back(group);
+
+group.closestHitShader = eClosestHitLanternShdObj;
+m_rtShaderGroups.push_back(group);
+
+group.closestHitShader = eClosestHitLanternShd;
+m_rtShaderGroups.push_back(group);
+
+
+
+````
+
+We need to destroy the added shader modules at the end of the function.
+
+```` C
+  m_device.destroy(shadowmissSM);
+  // ...
+  m_device.destroy(lanternShadowObjChitSM);
+  m_device.destroy(lanternShadowLanternChitSM);
+````
+
+Through all this, we still load shader stages in the same order as they will appear
+in the SBT in order to keep things simple (note `stages.size()`). Add a comment
+at the top of this function to help us keep track of all the new shaders.
+
+```` C
+// Shader list:
+//
+// 0 ======  Ray Generation Shaders  =====================================================
+//
+//    Raygen shader: Ray generation shader. Casts primary rays from camera to scene.
+//
+// 1 ======  Miss Shaders  ===============================================================
+//
+//    Miss shader 0: Miss shader when casting primary rays. Fill in clear color.
+//
+// 2 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+//
+//    Miss shader 1: Miss shader when casting shadow rays towards main light.
+//                   Reports no shadow.
+//
+// 3 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+//
+//    Miss shader 2: Miss shader when casting shadow rays towards a lantern.
+//                   Reports no lantern hit (-1).
+//
+// 4 ======  Hit Groups for Primary Rays (sbtRecordOffset=0)  ============================
+//
+//    chit shader 0: Closest hit shader for primary rays hitting OBJ instances
+//                   (hitGroupId=0). Casts shadow ray (to sky light or to lantern,
+//                   depending on pass number) and returns specular
+//                   and diffuse light to add to output image.
+//
+// 5 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+//
+//    chit shader 1: Closest hit shader for primary rays hitting lantern instances
+//                   (hitGroupId=1). Returns color value to replace the current
+//                   image pixel color with (lanterns are self-illuminating).
+//
+// 6 - - - -  Hit Groups for Lantern Shadow Rays (sbtRecordOffset=2) - - - - - - - - - - -
+//
+//    chit shader 2: Closest hit shader for OBJ instances hit when casting shadow
+//                   rays to a lantern. Returns -1 to report that the shadow ray
+//                   failed to reach the targetted lantern.
+//
+// 7 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+//
+//    chit shader 3: Closest hit shader for lantern instances hit when casting shadow
+//                   rays to a lantern. Returns the gl_CustomInstanceIndexEXT [lantern
+//                   number] of the lantern hit.
+//
+// 8 =====================================================================================
+````
+
+## Compute Lighting Intensity
+
+Because the lanterns have color, we have to replace the scalar `lightIntensity`
+in `raytrace.rchit` with an RGB `colorIntensity`.
+
+```` C
+  // Vector toward the light
+  vec3  L;
+  vec3 colorIntensity = vec3(pushC.lightIntensity);
+  float lightDistance = 100000.0;
+````
+
+Then, we have to check if we're in a lantern pass (`lanternPassNumber >= 0`).
+If so, look up the lantern location in the `LanternIndirectEntry` array,
+and compute the light direction and intensity based on that position.
+
+```` C
+  // ray direction is towards lantern, if in lantern pass.
+  if (pushC.lanternPassNumber >= 0)
+  {
+    LanternIndirectEntry lantern = lanterns.lanterns[pushC.lanternPassNumber];
+    vec3 lDir       = vec3(lantern.x, lantern.y, lantern.z) - worldPos;
+    lightDistance   = length(lDir);
+    vec3 color      = vec3(lantern.red, lantern.green, lantern.blue);
+    // Lantern light decreases linearly. Not physically accurate, but looks good
+    // and avoids a hard "edge" at the radius limit. Use a constant value
+    // if lantern debug is enabled to clearly see the covered screen rectangle.
+    float distanceFade =
+      pushC.lanternDebug != 0
+        ? 0.3
+        : max(0, (lantern.radius - lightDistance) / lantern.radius);
+    colorIntensity  = color * lantern.brightness * distanceFade;
+    L               = normalize(lDir);
+  }
+````
+
+otherwise, do the old lighting calculations, except we again have to
+replace `float lightIntensity` with `vec3 colorIntensity`.
+
+```` C
+  // Non-lantern pass may have point light...
+  else if(pushC.lightType == 0)
+  {
+    vec3 lDir      = pushC.lightPosition - worldPos;
+    lightDistance  = length(lDir);
+    colorIntensity = vec3(pushC.lightIntensity / (lightDistance * lightDistance));
+    L              = normalize(lDir);
+  }
+  else  // or directional light.
+  {
+    L = normalize(pushC.lightPosition - vec3(0));
+  }
+````
+
+!!! NOTE `lanternDebug`
+    When `lanternDebug` is on, I disable diminishing lighting with distance, so
+    that the light will reach the edge of the scissor box, making the scissor
+    box easy to see. To toggle this variable, I declare `bool m_lanternDebug`
+    in `hello_vulkan.h`, and allow ImGui to control it:
+    
+    ```` C
+    void renderUI(HelloVulkan& helloVk)
+    {
+      ImGuiH::CameraWidget();
+      if(ImGui::CollapsingHeader("Light"))
+      {
+        // ...
+        ImGui::Checkbox("Lantern Debug", &helloVk.m_lanternDebug);
+      }
+    }
+    ````
+    
+    Then, every frame I copy `m_lanternDebug` to the push constant. The reason
+    I cannot directly modify the push constant through ImGui is that ImGui expects
+    a `bool` (usually 8-bits) while Vulkan expects a 32-bit boolean.
+
+## Casting Lantern Shadow Rays
+
+Use an `if` to ensure the original shadow rays are cast only in the non-lantern pass.
+
+```` C
+    // Ordinary shadow from the simple tutorial.
+    if (pushC.lanternPassNumber < 0) {
+      isShadowed = true;
+      uint  flags  = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT
+                      | gl_RayFlagsSkipClosestHitShaderEXT;
+      traceRayEXT(topLevelAS,  // acceleration structure
+                  flags,       // rayFlags
+                  0xFF,        // cullMask
+                  0,           // sbtRecordOffset
+                  0,           // sbtRecordStride
+                  1,           // missIndex
+                  origin,      // ray origin
+                  tMin,        // ray min range
+                  rayDir,      // ray direction
+                  tMax,        // ray max range
+                  1            // payload (location = 1)
+      );
+    }
+````
+
+Otherwise, we cast a ray towards a lantern. This ray is different in that
+
+* We actually need the closest hit shaders to run to return `hitLanternInstance`,
+  so do not provide the flags
+  ` gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT`.
+
+* Use miss shader 2, which we added earlier.
+
+* Pass 2 as `sbtRecordOffset`, so that the closest hit shaders we just added (number 2 and 3)
+  are used when hitting OBJ instances (`hitGroupId=0`) and lantern instances (`hitGroupId=1`)
+  respectively.
+
+The code is
+
+```` C
+    // Lantern shadow ray. Cast a ray towards the lantern whose lighting is being
+    // added this pass. Only the closest hit shader for lanterns will set
+    // hitLanternInstance (payload 2) to non-negative value.
+    else {
+      // Skip ray if no light would be added anyway.
+      if (colorIntensity == vec3(0)) {
+        isShadowed = true;
+      }
+      else {
+        uint flags = gl_RayFlagsOpaqueEXT;
+        hitLanternInstance = -1;
+        traceRayEXT(topLevelAS, // acceleration structure
+                    flags,      // rayFlags
+                    0xFF,       // cullMask
+                    2,          // sbtRecordOffset : lantern shadow hit groups start at index 2.
+                    0,          // sbtRecordStride
+                    2,          // missIndex       : lantern shadow miss shader is number 2.
+                    origin,     // ray origin
+                    tMin,       // ray min range
+                    rayDir,     // ray direction
+                    tMax,       // ray max range
+                    2           // payload (location = 2)
+        );
+        // Did we hit the lantern we expected?
+        isShadowed = (hitLanternInstance != pushC.lanternPassNumber);
+      }
+    }
+````
+
+Notice that we determine whether this lantern is shadowed at this pixel by
+checking if the hit lantern number matches the lantern whose light is being
+added this pass; again, this ensures lanterns correctly shadow each others' light.
+
+## Write Payload
+
+Replace `lightIntensity` with `colorIntensity` and ask the raygen shader
+for additive blending.
+
+```` C
+  prd.hitValue = colorIntensity * (attenuation * (diffuse + specular));
+  prd.additiveBlending = true;
+````
+
+# Trace Rays Indirect
+
+Everything is finally set up to actually run the extra lantern passes
+in `HelloVulkan::raytrace`. We've already dispatched the compute
+shader in an earlier section. After that, we can run the first raytrace
+pass. There are minimal changes from before, we just have to
+
+* Initialize the new push constant values (especially setting
+  `lanternPassNumber=-1` to indicate this is not a lantern pass).
+
+```` C
+  // Initialize push constant values
+  m_pcRay.clearColor     = clearColor;
+  m_pcRay.lightPosition  = m_pushConstant.lightPosition;
+  m_pcRay.lightIntensity = m_pushConstant.lightIntensity;
+  m_pcRay.lightType      = m_pushConstant.lightType;
+  m_pcRay.lanternPassNumber = -1; // Global non-lantern pass
+  m_pcRay.screenX = m_size.width;
+  m_pcRay.screenY = m_size.height;
+  m_pcRay.lanternDebug = m_lanternDebug;
+````
+
+* Update the addresses of the raygen, miss, and hit group sections of the SBT
+  to account for the added shaders.
+
+```` C
+  using Stride = VkStridedDeviceAddressRegionKHR;
+  std::array<Stride, 4> strideAddresses{
+      Stride{sbtAddress + 0u * groupSize, groupStride, groupSize * 1},  // raygen
+      Stride{sbtAddress + 1u * groupSize, groupStride, groupSize * 3},  // miss
+      Stride{sbtAddress + 4u * groupSize, groupStride, groupSize * 4},  // hit
+      Stride{0u, 0u, 0u}};                                              // callable
+
+  // First pass, illuminate scene with global light.
+  vkCmdTraceRaysKHR(cmdBuf, &strideAddresses[0], &strideAddresses[1], &strideAddresses[2], &strideAddresses[3],
+                    m_size.width, m_size.height, 1);
+````
+
+After that, we can open a loop for performing all lantern passes.
+
+```` C
+  // Lantern passes, ensure previous pass completed, then add light contribution from each lantern.
+  for (int i = 0; i < static_cast<int>(m_lanternCount); ++i)
+  {
+````
+
+Because the additive blending in the shader requires read-modify-write operations,
+we need a barrier between every pass.
+
+```` C
+// Barrier to ensure previous pass finished.
+VkImage                 offscreenImage{m_offscreenColor.image};
+VkImageSubresourceRange colorRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS};
+VkImageMemoryBarrier imageBarrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+imageBarrier.oldLayout           = VK_IMAGE_LAYOUT_GENERAL;
+imageBarrier.newLayout           = VK_IMAGE_LAYOUT_GENERAL;
+imageBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+imageBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+imageBarrier.image               = offscreenImage;
+imageBarrier.subresourceRange    = colorRange;
+imageBarrier.srcAccessMask       = VK_ACCESS_SHADER_WRITE_BIT;
+imageBarrier.dstAccessMask       = VK_ACCESS_SHADER_READ_BIT;
+vkCmdPipelineBarrier(cmdBuf,
+                     VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,  //
+                     VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,  //
+                     VkDependencyFlags(0),                          //
+                     0, nullptr, 0, nullptr, 1, &imageBarrier);
+````
+
+Then, we can pass the number of the lantern pass being performed (`i`), and look
+up the indirect parameters for that entry. Unlike draw and dispatch indirect, the
+indirect paramater location is passed as a raw device address, so we need to
+perform manual device pointer arithmetic to look up the $i^{th}$ entry of the
+`LanternIndirectEntry` array. Take advantage of the fact that `VkTraceRaysIndirectCommandKHR`
+is the first member of `LanternIndirectEntry`.
+
+```` C
+    // Set lantern pass number.
+    m_pcRay.lanternPassNumber = i;
+    vkCmdPushConstants(cmdBuf, m_rtPipelineLayout,
+                       VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
+                       0, sizeof(RtPushConstant), &m_pcRay);
+
+
+    VkDeviceAddress indirectDeviceAddress =
+        nvvk::getBufferDeviceAddress(m_device, m_lanternIndirectBuffer.buffer) + i * sizeof(LanternIndirectEntry);
+
+    // Execute lantern pass.
+    vkCmdTraceRaysIndirectKHR(cmdBuf, &strideAddresses[0], &strideAddresses[1],  //
+                              &strideAddresses[2], &strideAddresses[3],          //
+                              indirectDeviceAddress);
+  }
+````
+
+Everything should be in order now. We can see in this image that the cyan and purple lanterns
+are both shadowed by the doodad hanging off the side of the building, and the spikes on the
+roof cut shadows in the yellow lantern's light.
+
+![](Images/indirect_scissor/shadows.png)
+
+Zoom out and enable the lantern debug checkbox to see the scissor rectangles.
+
+![](Images/indirect_scissor/bounding2.png)
+
+## Cleanup
+
+One last loose end, we have to clean up all the new resources is `HelloVulkan::destroyResources`.
+
+```` C
+// Destroying all allocations
+//
+void HelloVulkan::destroyResources()
+{
+  // ...
+
+  // #VKRay
+  // ...
+  vkDestroyDescriptorPool(m_device, m_lanternIndirectDescPool, nullptr);
+  vkDestroyDescriptorSetLayout(m_device, m_lanternIndirectDescSetLayout, nullptr);
+  vkDestroyPipeline(m_device, m_lanternIndirectCompPipeline, nullptr);
+  vkDestroyPipelineLayout(m_device, m_lanternIndirectCompPipelineLayout, nullptr);
+  m_alloc.destroy(m_lanternIndirectBuffer);
+  m_alloc.destroy(m_lanternVertexBuffer);
+  m_alloc.destroy(m_lanternIndexBuffer);
+}
+````
+
+# Final Code
+
+You can find the final code in the folder [ray_tracing_indirect_scissor](https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/tree/master/ray_tracing_indirect_scissor)
+
+
+<!-- Markdeep: -->
+<link rel="stylesheet" href="vkrt_tutorial.css?">
+<script> window.markdeepOptions = { tocStyle: "medium" };</script>
+<script src="markdeep.min.js" charset="utf-8"></script>
+<script src="https://developer.nvidia.com/sites/default/files/akamai/gameworks/whitepapers/markdeep.min.js" charset="utf-8"></script>
+<script>
+    window.alreadyProcessedMarkdeep || (document.body.style.visibility = "visible")
+</script>

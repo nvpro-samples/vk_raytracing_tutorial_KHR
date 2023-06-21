@@ -1,0 +1,103 @@
+/*
+ * Copyright (c) 2019-2021, NVIDIA CORPORATION.  All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2021 NVIDIA CORPORATION
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_buffer_reference2 : require
+#include "raycommon.glsl"
+#include "wavefront.glsl"
+
+
+layout(set = 1, binding = eImplicit, scalar) buffer allSpheres_
+{
+  Sphere allSpheres[];
+};
+
+
+struct Ray
+{
+  vec3 origin;
+  vec3 direction;
+};
+
+// Ray-Sphere intersection
+// http://viclw17.github.io/2018/07/16/raytracing-ray-sphere-intersection/
+float hitSphere(const Sphere s, const Ray r)
+{
+  vec3  oc           = r.origin - s.center;
+  float a            = dot(r.direction, r.direction);
+  float b            = 2.0 * dot(oc, r.direction);
+  float c            = dot(oc, oc) - s.radius * s.radius;
+  float discriminant = b * b - 4 * a * c;
+  if(discriminant < 0)
+  {
+    return -1.0;
+  }
+  else
+  {
+    return (-b - sqrt(discriminant)) / (2.0 * a);
+  }
+}
+
+// Ray-AABB intersection
+float hitAabb(const Aabb aabb, const Ray r)
+{
+  vec3  invDir = 1.0 / r.direction;
+  vec3  tbot   = invDir * (aabb.minimum - r.origin);
+  vec3  ttop   = invDir * (aabb.maximum - r.origin);
+  vec3  tmin   = min(ttop, tbot);
+  vec3  tmax   = max(ttop, tbot);
+  float t0     = max(tmin.x, max(tmin.y, tmin.z));
+  float t1     = min(tmax.x, min(tmax.y, tmax.z));
+  return t1 > max(t0, 0.0) ? t0 : -1.0;
+}
+
+void main()
+{
+  Ray ray;
+  ray.origin    = gl_WorldRayOriginEXT;
+  ray.direction = gl_WorldRayDirectionEXT;
+
+  // Sphere data
+  Sphere sphere = allSpheres[gl_PrimitiveID];
+
+  float tHit    = -1;
+  int   hitKind = gl_PrimitiveID % 2 == 0 ? KIND_SPHERE : KIND_CUBE;
+  if(hitKind == KIND_SPHERE)
+  {
+    // Sphere intersection
+    tHit = hitSphere(sphere, ray);
+  }
+  else
+  {
+    // AABB intersection
+    Aabb aabb;
+    aabb.minimum = sphere.center - vec3(sphere.radius);
+    aabb.maximum = sphere.center + vec3(sphere.radius);
+    tHit         = hitAabb(aabb, ray);
+  }
+
+  // Report hit point
+  if(tHit > 0)
+    reportIntersectionEXT(tHit, hitKind);
+}

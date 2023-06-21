@@ -1,0 +1,9 @@
+newmtl  cube_instance_material
+illum 3
+d 1  
+Ns 32
+Ni 0
+Ka 0 0 0
+Kd .1 .8 .3
+Ks 0.95 0.95 0.95
+

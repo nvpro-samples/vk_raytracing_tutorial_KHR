@@ -1,0 +1,61 @@
+                        <meta charset="utf-8">
+
+# Environment Setup
+
+## Beta Installation
+
+If you are in the Beta period, install and compile all of the following
+
+* Latest driver: https://developer.nvidia.com/vulkan-driver
+* Latest Vulkan headers: https://github.com/KhronosGroup/Vulkan-Headers
+* Latest glslangValidator: https://github.com/KhronosGroup/glslang 
+
+!!! Warning Beta
+    Copy/replace `glslangValidator.exe` in the VulkanSDK bin directory.<br>
+    Ex: `C:\VulkanSDK\1.2.131.1\Bin`
+
+
+## Structure
+
+This tutorial is a modification of [`ray_tracing__simple`](https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/tree/master/ray_tracing__simple), which is the result of the ray tracing tutorial. 
+All following instructions are based on the modification of this project.
+
+Besides the current repository, you will also need to clone or download the following repositories:
+
+* [nvpro_core](https://github.com/nvpro-samples/nvpro_core): The primary framework that all samples depend on.
+
+The directory structure should be looking like:
+
+**********************************************************
+*   \ 
+*   |
+*   +-- 📂 nvpro_core
+*   |   
+*   +-- 📂 vk_raytracing_tutorial_KHR
+*   |   |
+*   |   +-- 📂 ray_tracing__simple (<-- Start here)
+*   |   |   
+*   |   +-- 📂 ray_tracing_...
+*   |   |   
+*   |   ⋮   
+*   |
+*   ⋮
+**********************************************************
+
+
+!!! Warning CMake
+    **Run CMake** in vk_raytracing_tutorial_KHR. 
+
+!!! Warning Beta Vulkan SDK
+    Modify `VULKAN > VULKAN_HEADERS_OVERRIDE_INCLUDE_DIR` to the path to beta vulkan headers.
+
+!!! Error
+    **32 bit is not supported**
+
+<!-- Markdeep: -->
+<link rel="stylesheet" href="vkrt_tutorial.css?">
+<script> window.markdeepOptions = { tocStyle: "medium" };</script>
+<script src="https://developer.nvidia.com/sites/default/files/akamai/gameworks/whitepapers/markdeep.min.js" charset="utf-8"></script>
+<script>
+    window.alreadyProcessedMarkdeep || (document.body.style.visibility = "visible")
+</script>

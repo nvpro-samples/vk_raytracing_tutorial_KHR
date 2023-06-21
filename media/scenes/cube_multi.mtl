@@ -1,0 +1,53 @@
+newmtl grey
+illum 1
+d 1 
+Ns 0.975 
+Ni 0 
+Ka 0 0 0
+Kd  0.7 0.7 0.7
+Ks 0 0 0
+
+newmtl yellow
+illum 1
+d 1 
+Ns 0.975 
+Ni 0 
+Ka 0 0 0
+Kd 0.982062 0.857638 0.400811
+Ks 0 0 0
+
+newmtl red
+illum 1
+d 1 
+Ns 0.975 
+Ni 0 
+Ka 0 0 0
+Kd 0.982062 0.1 0.1
+Ks 0 0 0
+
+newmtl blue
+illum 1
+d 1 
+Ns 0.975 
+Ni 0 
+Ka 0 0 0
+Kd 0.1 0.9 0.1
+Ks 0 0 0
+
+newmtl green
+illum 1
+d 1 
+Ns 0.975 
+Ni 0 
+Ka 0 0 0
+Kd  0.1 0.1 0.982062
+Ks 0 0 0
+
+newmtl magenta
+illum 1
+d 1 
+Ns 0.975 
+Ni 0 
+Ka 0 0 0
+Kd  0.982062 0.1 0.982062
+Ks 0 0 0

@@ -1,0 +1,2341 @@
+                        <meta charset="utf-8">
+            **NVIDIA Vulkan Ray Tracing Tutorial**
+<small>
+By [Martin-Karl Lefrançois](https://devblogs.nvidia.com/author/mlefrancois/),
+   [Pascal Gautron](https://devblogs.nvidia.com/author/pgautron/), Neil Bickford, David Akeley
+</small>
+
+
+The focus of this document and the provided code is to showcase a basic integration of
+ray tracing within an existing Vulkan sample, using the
+[`VK_KHR_ray_tracing_pipeline`](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VK_KHR_ray_tracing_pipeline)
+extension. This tutorial starts from a basic Vulkan application and provides step-by-step instructions to modify and add
+methods and functions. The sections are organized by components, with subsections identifying the modified functions.
+
+![Final Result](Images/resultRaytraceShadowMedieval.png width="350px")
+
+!!! Note GitHub repository 
+    https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR
+
+# Introduction
+<script type="preformatted">
+This tutorial highlights the steps to add ray tracing to an existing Vulkan application, and assumes a working knowledge
+of Vulkan in general. The code verbosity of classical components such as swapchain management, render passes etc. is
+reduced using [C++ API helpers](https://github.com/nvpro-samples/nvpro_core/tree/master/nvvk) and
+NVIDIA's [nvpro-samples](https://github.com/nvpro-samples/build_all) framework. This framework contains many advanced
+examples and best practices for Vulkan and OpenGL. We also use a helper for the creation of the ray tracing acceleration
+structures, but we will document its contents extensively in this tutorial.
+
+!!! Note Note
+    For educational purposes all the code is contained in a very small set of files. 
+    A real integration would require additional levels of abstraction.
+    
+[//]: #  This may be the most platform independent comment
+
+# Environment Setup
+
+**The preferred way** to download the project (including NVVK) is to use the
+nvpro-samples `build_all` script.
+
+In a command line, clone the `nvpro-samples/build_all` repository from
+[https://github.com/nvpro-samples/build_all](https://github.com/nvpro-samples/build_all):
+
+~~~~~
+git clone https://github.com/nvpro-samples/build_all.git
+~~~~~
+
+Then open the `build_all` folder and run either `clone_all.bat` (Windows) or
+`clone_all.sh` (Linux).
+
+**If you want to clone as few repositories as possible**, open a command line,
+and run the following commands to clone the repositories you need:
+~~~~~
+git clone --recursive --shallow-submodules https://github.com/nvpro-samples/nvpro_core.git
+git clone https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR.git
+~~~~~
+
+## Generating the Solution
+
+One typical way to store the build system is to create a `build` directory below the 
+main project. You can use CMake-GUI or do the following steps.
+
+~~~~~
+cd vk_raytracing_tutorial_KHR
+mkdir build
+cd build
+cmake ..
+~~~~~
+
+!!! Note Note
+    If you are not using Visual Studio 2019 and up, make sure to choose x64 platform. For 2019, it is the default
+    but not for previous versions.
+
+
+## Tools Installation
+
+You need a graphics card with support for the `VK_KHR_ray_tracing_pipeline` extension.
+For NVIDIA graphics cards, you need a [Vulkan driver](https://developer.nvidia.com/vulkan-driver)
+released in 2021 or later.
+
+The [Vulkan SDK](https://vulkan.lunarg.com/sdk/home) 1.2.161 and up will work with this project.
+This version was tested with 1.2.182.0.
+
+
+# Compiling & Running 
+
+Open the solution located in the build directory, then compile and run 
+[`vk_ray_tracing__before_KHR`](https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/tree/master/ray_tracing__before). 
+
+This example will be the starting point of the tutorial. It is a simple framework allowing us to 
+load OBJ files and rasterize them using Vulkan. You can find an overview of how this example is done,
+see [Base Overview](https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/blob/master/ray_tracing__before/README.md#nvidia-vulkan-ray-tracing-tutorial).
+We will enable ray tracing using this framework, which can load geometries and render scenes. 
+
+![First Run](Images/resultRasterCube.png width="350px")
+
+
+The following steps in the tutorial will be modifying this project 
+`vk_ray_tracing__before_KHR` and will add support for ray tracing. The 
+end result of the tutorial is the project `vk_ray_tracing__simple_KHR`.
+It is possible to look in that project if something went wrong. 
+
+The project `vk_ray_tracing__simple_KHR` will be the starting point for the 
+extra tutorials.
+
+
+# Ray Tracing Setup
+
+Go to the `main` function of the `main.cpp` file, and find where we request Vulkan extensions with
+`nvvk::ContextCreateInfo`.
+To be able to use ray tracing, we will need `VK_KHR_ACCELERATION_STRUCTURE` and `VK_KHR_RAY_TRACING_PIPELINE`.
+Those extensions have also dependencies on other extension, therefore all the following
+extensions will need to be added.
+
+~~~~ C
+// #VKRay: Activate the ray tracing extension
+VkPhysicalDeviceAccelerationStructureFeaturesKHR accelFeature{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR};
+contextInfo.addDeviceExtension(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, false, &accelFeature);  // To build acceleration structures
+VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR};
+contextInfo.addDeviceExtension(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, false, &rtPipelineFeature);  // To use vkCmdTraceRaysKHR
+contextInfo.addDeviceExtension(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);  // Required by ray tracing pipeline
+~~~~
+
+Behind the scenes, the helper is selecting a physical device supporting the required `VK_KHR_*` extensions,
+then placing the `VkPhysicalDevice*FeaturesKHR` structs on the `pNext` chain of `VkDeviceCreateInfo` before
+calling `vkCreateDevice`. This enables the ray tracing features and fills in the two structs with info on the
+device's ray tracing capabilities. If you are curious, this is done in the Vulkan context creation helper: 
+[`Context::initInstance()`](https://github.com/nvpro-samples/nvpro_core/blob/1c59039a1ab0d777c79a29b09879a2686ec286dc/nvvk/context_vk.cpp#L211).
+
+!!! NOTE Loading function pointers
+    As in OpenGL, when using extensions in Vulkan, you need to manually load in function pointers for extensions, using
+    `vkGetInstanceProcAddr` and `vkGetDeviceProcAddr`. The `nvvk::Context` class that this sample depends on magically does
+    this for you, for the Vulkan C API by calling [`load_VK_EXTENSIONS`](https://github.com/nvpro-samples/nvpro_core/blob/fd6f14c4ddcb6b2ec1e79462d372b32f3838b016/nvvk/extensions_vk.cpp#L2647). 
+
+In the `HelloVulkan` class in `hello_vulkan.h`, add an initialization function and a member storing the capabilities of
+the GPU for ray tracing:
+
+~~~~ C
+// #VKRay
+void                                            initRayTracing();
+VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
+~~~~
+
+At the end of `hello_vulkan.cpp`, add the body of `initRayTracing()`, which will query the ray tracing capabilities
+of the GPU using this extension. In particular, it will obtain the maximum recursion depth,
+i.e. the number of nested ray tracing calls that can be performed from a single ray. This can be seen as the number
+of times a ray can bounce in the scene in a recursive path tracer. Note that for performance purposes, recursion
+should in practice be kept to a minimum, favoring a loop formulation. This also queries the shader header size,
+needed in a later section for creating the shader binding table.
+
+
+~~~~ C
+//--------------------------------------------------------------------------------------------------
+// Initialize Vulkan ray tracing
+// #VKRay
+void HelloVulkan::initRayTracing()
+{
+  // Requesting ray tracing properties
+  VkPhysicalDeviceProperties2 prop2{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
+  prop2.pNext = &m_rtProperties;
+  vkGetPhysicalDeviceProperties2(m_physicalDevice, &prop2);
+}
+~~~~
+
+## main
+
+In `main.cpp`, in the `main()` function, we call the initialization method right after 
+`helloVk.updateDescriptorSet();`
+
+~~~~ C
+// #VKRay
+helloVk.initRayTracing();
+~~~~
+
+!!! Note: Exercise 
+    When running the program, you can put a breakpoint in the `initRayTracing()` method to inspect 
+    the resulting values. On a Quadro RTX 6000, the maximum recursion depth is 31, and the shader 
+    group handle size is 16.
+
+# Acceleration Structure
+
+To be efficient, ray tracing requires organizing the geometry into an acceleration structure (AS)
+that will reduce the number of ray-triangle intersection tests during rendering. This is typically implemented 
+in hardware as a hierarchical structure, but only two levels are exposed to the user: a single top-level acceleration structure (TLAS)
+referencing any number of bottom-level acceleration structures (BLAS), up to the limit
+`VkPhysicalDeviceAccelerationStructurePropertiesKHR::maxInstanceCount`. Typically, a BLAS
+corresponds to individual 3D models within a scene, and a TLAS corresponds to an entire scene built
+by positioning (with 3-by-4 transformation matrices) individual referenced BLASes.
+
+BLASes store the actual vertex data. They are built from one or more vertex
+buffers, each with its own transformation matrix (separate from the TLAS matrices), allowing us
+to store multiple positioned models within a single BLAS. Note that if an object is instantiated several times within
+the same BLAS, its geometry will be duplicated. This can be particularly useful for improving performance
+on static, non-instantiated scene components (as a rule of thumb, the fewer BLAS, the better).
+
+The TLAS will contain the object instances, each
+with its own transformation matrix and reference to a corresponding BLAS.
+We will start with a single bottom-level AS and a top-level AS instancing it once with an identity transform.
+
+
+![Figure [step]: Acceleration Structure](Images/AccelerationStructure.svg)
+
+This sample loads an OBJ file and stores its indices, vertices and material data into an `ObjModel` structure. This
+model is referenced by an `ObjInstance` structure which also contains the transformation matrix of that particular
+instance. For ray tracing the `ObjModel` and list of `ObjInstance`s will then naturally fit the BLAS and TLAS, respectively.
+
+To simplify the ray tracing setup we use a helper class that acts as a container for one TLAS referencing an array of BLASes,
+with utility functions for building those acceleration structures. In the header file `hello_vulkan.h`, include the `raytrace_vkpp` helper
+
+~~~~ C
+// #VKRay
+#include "nvvk/raytraceKHR_vk.hpp"
+~~~~
+
+so that we can add that helper as a member in the `HelloVulkan` class,
+
+~~~~ C
+nvvk::RaytracingBuilderKHR m_rtBuilder;
+~~~~
+
+and initialize it at the end of `initRaytracing()`:
+
+~~~~ C
+m_rtBuilder.setup(m_device, &m_alloc, m_graphicsQueueIndex);
+~~~~
+
+!!! Note Memory Management
+    The raytrace helper uses [`"nvvk/resourceallocator_vk.hpp"`](https://github.com/nvpro-samples/nvpro_core/blob/master/nvvk/resourceallocator_vk.hpp)
+    to avoid having to deal with vulkan memory management.
+    This provides the `nvvk::AccelKHR` type, which consists of a `VkAccelerationStructureKHR` paired
+    with info needed by the allocator to manage the buffer memory backing it. The resource allocation can use different
+    memory allocation strategy (memory allocator). In this tutorial, we are using our own version 
+    [DMA](https://github.com/nvpro-samples/nvpro_core/blob/master/nvvk/memallocator_dma_vk.hpp).
+    Other memory allocators can be selected, such as the [Vulkan Memory Allocator (VMA)](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator)
+    and a dedicated memory allocator, which is the simple one-`VkDeviceMemory`-per-object strategy, 
+    which is easiest to understand for teaching purposes but not practical for production use.
+
+## Bottom-Level Acceleration Structure
+
+The first step of building a BLAS object consists in converting the geometry data of an `ObjModel` into
+multiple structures consumed by the AS builder. We are holding all those structures under 
+`nvvk::RaytracingBuilderKHR::BlasInput`
+
+Add a new method to the `HelloVulkan`
+class:
+
+~~~~ C
+auto objectToVkGeometryKHR(const ObjModel& model);
+~~~~
+
+!!! Note Note
+    The `objectToVkGeometryKHR()` function is returning `nvvk::RaytracingBuilderKHR::BlasInput` but we are using the C++ `auto` as it is 
+    automatically deducted by the compiler.
+
+
+
+Its implementation will fill three structures that will eventually be passed to the AS builder (`vkCmdBuildAccelerationStructuresKHR`).
+
+* `VkAccelerationStructureGeometryTrianglesDataKHR`: device pointer to the buffers holding triangle vertex/index data,
+  along with information for interpreting it as an array (stride, data type, etc.)
+
+* `VkAccelerationStructureGeometryKHR`: wrapper around the above with the geometry type enum (triangles in this case) plus flags
+  for the AS builder. This is needed because `VkAccelerationStructureGeometryTrianglesDataKHR` is passed as part of the union
+  `VkAccelerationStructureGeometryDataKHR` (the geometry could also be instances, for the TLAS builder, or AABBs, not covered here).
+
+* `VkAccelerationStructureBuildRangeInfoKHR`: the indices within the vertex arrays to source input geometry for the BLAS.
+
+!!! Tip VkAccelerationStructureGeometryKHR / VkAccelerationStructureBuildRangeInfoKHR split
+    A potential point of confusion is how `VkAccelerationStructureGeometryKHR` and `VkAccelerationStructureBuildRangeInfoKHR`
+    are ultimately passed as separate arguments to the AS builder but work in concert to determine the actual memory to source
+    vertices from. As a crude analogy, this is similar to how `glVertexAttribPointer` defines how to interpret a buffer as a vertex
+    array while the actual numeric arguments to `glDrawArrays` determine what section of that array is actually drawn.
+
+
+Multiple of the above structure can be combined in arrays and built into a single BLAS. In this example,
+this array will always be a length of one. There would be reason for having multiple geometry per BLAS. The
+main reason is the acceleration structure will be more efficient, as it will properly divide the volume with intersecting
+objects. This should be concider only for large or complex static group of objects.
+
+Note that we consider all objects opaque for now, and indicate this to the builder for
+potential optimization. (More specifically, this disables calls to the anyhit shader, described later).
+
+~~~~ C
+//--------------------------------------------------------------------------------------------------
+// Convert an OBJ model into the ray tracing geometry used to build the BLAS
+//
+auto HelloVulkan::objectToVkGeometryKHR(const ObjModel& model)
+{
+  // BLAS builder requires raw device addresses.
+  VkDeviceAddress vertexAddress = nvvk::getBufferDeviceAddress(m_device, model.vertexBuffer.buffer);
+  VkDeviceAddress indexAddress  = nvvk::getBufferDeviceAddress(m_device, model.indexBuffer.buffer);
+
+  uint32_t maxPrimitiveCount = model.nbIndices / 3;
+
+  // Describe buffer as array of VertexObj.
+  VkAccelerationStructureGeometryTrianglesDataKHR triangles{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR};
+  triangles.vertexFormat             = VK_FORMAT_R32G32B32_SFLOAT;  // vec3 vertex position data.
+  triangles.vertexData.deviceAddress = vertexAddress;
+  triangles.vertexStride             = sizeof(VertexObj);
+  // Describe index data (32-bit unsigned int)
+  triangles.indexType               = VK_INDEX_TYPE_UINT32;
+  triangles.indexData.deviceAddress = indexAddress;
+  // Indicate identity transform by setting transformData to null device pointer.
+  //triangles.transformData = {};
+  triangles.maxVertex = model.nbVertices;
+
+  // Identify the above data as containing opaque triangles.
+  VkAccelerationStructureGeometryKHR asGeom{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
+  asGeom.geometryType       = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+  asGeom.flags              = VK_GEOMETRY_OPAQUE_BIT_KHR;
+  asGeom.geometry.triangles = triangles;
+
+  // The entire array will be used to build the BLAS.
+  VkAccelerationStructureBuildRangeInfoKHR offset;
+  offset.firstVertex     = 0;
+  offset.primitiveCount  = maxPrimitiveCount;
+  offset.primitiveOffset = 0;
+  offset.transformOffset = 0;
+
+  // Our blas is made from only one geometry, but could be made of many geometries
+  nvvk::RaytracingBuilderKHR::BlasInput input;
+  input.asGeometry.emplace_back(asGeom);
+  input.asBuildOffsetInfo.emplace_back(offset);
+
+  return input;
+}
+~~~~
+
+!!! Note Vertex Attributes
+    In the above code, we took advantage of the fact that position is the first member of the `VertexObj` struct.
+    If it were at any other position, we would have had to manually adjust `vertexAddress` using `offsetof`.
+    Only the position attribute is needed for the AS build; later, we will learn to bind the vertex buffers while
+    raytracing and look up the other needed attributes manually.
+
+!!! Warning Memory Safety
+    `BlasInput` acts essentially as a fancy device pointer to vertex buffer data; no actual vertex data is copied or managed
+    by the helper. For this simple example, we are relying on the fact that all models are loaded at
+    startup and remain in memory unchanged until the BLAS is created. If you are dynamically loading and unloading parts of a larger
+    scene, or dynamically generating vertex data, it is your responsibility to avoid race conditions with the AS builder.
+
+In the `HelloVulkan` class declaration, we can now add the `createBottomLevelAS()` method that will generate a
+`nvvk::RaytracingBuilderKHR::BlasInput` for each object, and trigger a BLAS build:
+
+~~~~ C
+void createBottomLevelAS();
+~~~~
+
+The implementation loops over all the loaded models and fills in an array of `nvvk::RaytracingBuilderKHR::BlasInput` before
+triggering a build of all BLASes in a batch. The resulting acceleration structures will be stored
+within the helper in the order of construction, so that they can be directly referenced by index later.
+
+~~~~ C
+void HelloVulkan::createBottomLevelAS()
+{
+  // BLAS - Storing each primitive in a geometry
+  std::vector<nvvk::RaytracingBuilderKHR::BlasInput> allBlas;
+  allBlas.reserve(m_objModel.size());
+  for(const auto& obj : m_objModel)
+  {
+    auto blas = objectToVkGeometryKHR(obj);
+
+    // We could add more geometry in each BLAS, but we add only one for now
+    allBlas.emplace_back(blas);
+  }
+  m_rtBuilder.buildBlas(allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
+}
+~~~~
+
+
+### Helper Details: RaytracingBuilder::buildBlas()
+
+This helper function is already present in `raytraceKHR_vkpp.hpp`: it can be reused in many projects, and is
+part of the set of helpers provided by the [nvpro-samples](https://github.com/nvpro-samples). The function
+will generate one BLAS for each `RaytracingBuilderKHR::BlasInput`:
+
+Creating a Bottom-Level-Accelerated-Structure, requires the following elements:
+
+* `VkAccelerationStructureBuildGeometryInfoKHR` : to create and build the acceleration structure. 
+  It is referencing the array of `VkAccelerationStructureGeometryKHR` created in `objectToVkGeometryKHR()`
+* `VkAccelerationStructureBuildRangeInfoKHR`: a reference to the range, also created in `objectToVkGeometryKHR()`
+* `VkAccelerationStructureBuildSizesInfoKHR`: the size require for the creation of the AS and the scratch buffer
+* `nvvk::AccelKHR`: the result
+
+The above data will be stored in a structure `BuildAccelerationStructure` to ease the creation.
+
+At the begining of the function, we are only initializing data that we will need later. 
+
+~~~~C
+//--------------------------------------------------------------------------------------------------
+// Create all the BLAS from the vector of BlasInput
+// - There will be one BLAS per input-vector entry
+// - There will be as many BLAS as input.size()
+// - The resulting BLAS (along with the inputs used to build) are stored in m_blas,
+//   and can be referenced by index.
+// - if flag has the 'Compact' flag, the BLAS will be compacted
+//
+void nvvk::RaytracingBuilderKHR::buildBlas(const std::vector<BlasInput>& input, VkBuildAccelerationStructureFlagsKHR flags)
+{
+  m_cmdPool.init(m_device, m_queueIndex);
+  uint32_t     nbBlas = static_cast<uint32_t>(input.size());
+  VkDeviceSize asTotalSize{0};     // Memory size of all allocated BLAS
+  uint32_t     nbCompactions{0};   // Nb of BLAS requesting compaction
+  VkDeviceSize maxScratchSize{0};  // Largest scratch size
+~~~~ 
+
+The next part is to populate the `BuildAccelerationStructure` for each BLAS, setting the reference to the 
+geometry, the build range, the size of the memory needed for the build, and the size of the scratch buffer. 
+We will reuse the same scratch memory for each build, so we keep track of the maximum scratch memory ever needed. 
+Later, we will allocate a scratch buffer of this size.
+
+
+
+~~~~C
+// Preparing the information for the acceleration build commands.
+std::vector<BuildAccelerationStructure> buildAs(nbBlas);
+for(uint32_t idx = 0; idx < nbBlas; idx++)
+{
+  // Filling partially the VkAccelerationStructureBuildGeometryInfoKHR for querying the build sizes.
+  // Other information will be filled in the createBlas (see #2)
+  buildAs[idx].buildInfo.type          = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+  buildAs[idx].buildInfo.mode          = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+  buildAs[idx].buildInfo.flags         = input[idx].flags | flags;
+  buildAs[idx].buildInfo.geometryCount = static_cast<uint32_t>(input[idx].asGeometry.size());
+  buildAs[idx].buildInfo.pGeometries   = input[idx].asGeometry.data();
+
+  // Build range information
+  buildAs[idx].rangeInfo = input[idx].asBuildOffsetInfo.data();
+
+  // Finding sizes to create acceleration structures and scratch
+  std::vector<uint32_t> maxPrimCount(input[idx].asBuildOffsetInfo.size());
+  for(auto tt = 0; tt < input[idx].asBuildOffsetInfo.size(); tt++)
+    maxPrimCount[tt] = input[idx].asBuildOffsetInfo[tt].primitiveCount;  // Number of primitives/triangles
+  vkGetAccelerationStructureBuildSizesKHR(m_device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+                                          &buildAs[idx].buildInfo, maxPrimCount.data(), &buildAs[idx].sizeInfo);
+
+  // Extra info
+  asTotalSize += buildAs[idx].sizeInfo.accelerationStructureSize;
+  maxScratchSize = std::max(maxScratchSize, buildAs[idx].sizeInfo.buildScratchSize);
+  nbCompactions += hasFlag(buildAs[idx].buildInfo.flags, VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR);
+}
+~~~~
+
+After looping over all BLAS, we have the largest scratch buffer size and we will create it.
+
+~~~~ C 
+// Allocate the scratch buffers holding the temporary data of the acceleration structure builder
+nvvk::Buffer scratchBuffer =
+    m_alloc->createBuffer(maxScratchSize, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+VkBufferDeviceAddressInfo bufferInfo{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, scratchBuffer.buffer};
+VkDeviceAddress           scratchAddress = vkGetBufferDeviceAddress(m_device, &bufferInfo);
+~~~~ 
+
+The following section is for querying the real size of each BLAS. 
+To know the size that the BLAS is really taking, we use queries of the type `VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR`.
+This is needed if we want to compact the acceleration structure in a second step. By default, the 
+size returned by `vkGetAccelerationStructureBuildSizesKHR` has the size of the worst case. After creation,
+the real space can be smaller, and it is possible to copy the acceleration structure to one that is 
+using exactly what is needed. This could save over 50% of the device memory usage.
+
+~~~~ C
+// Allocate a query pool for storing the needed size for every BLAS compaction.
+VkQueryPool queryPool{VK_NULL_HANDLE};
+if(nbCompactions > 0)  // Is compaction requested?
+{
+  assert(nbCompactions == nbBlas);  // Don't allow mix of on/off compaction
+  VkQueryPoolCreateInfo qpci{VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO};
+  qpci.queryCount = nbBlas;
+  qpci.queryType  = VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR;
+  vkCreateQueryPool(m_device, &qpci, nullptr, &queryPool);
+}
+~~~~
+
+!!! Note Compaction
+    To use compaction the BLAS flag must have VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR
+
+
+Creating all BLAS in a single command buffer might work, but it could stall the pipeline and potentially create problems.
+To avoid this potential problem, we split the BLAS creation into chunks of ~256MB of required memory. 
+And if we request compaction, we will do it immediately, thus limiting the memory allocation required.
+
+See below for the split of BLAS creation. The function `cmdCreateBlas` and `cmdCompactBlas` will be detailed later.
+
+
+~~~~ C 
+// Batching creation/compaction of BLAS to allow staying in restricted amount of memory
+std::vector<uint32_t> indices;  // Indices of the BLAS to create
+VkDeviceSize          batchSize{0};
+VkDeviceSize          batchLimit{256'000'000};  // 256 MB
+for(uint32_t idx = 0; idx < nbBlas; idx++)
+{
+  indices.push_back(idx);
+  batchSize += buildAs[idx].sizeInfo.accelerationStructureSize;
+  // Over the limit or last BLAS element
+  if(batchSize >= batchLimit || idx == nbBlas - 1)
+  {
+    VkCommandBuffer cmdBuf = m_cmdPool.createCommandBuffer();
+    cmdCreateBlas(cmdBuf, indices, buildAs, scratchAddress, queryPool);
+    m_cmdPool.submitAndWait(cmdBuf);
+
+    if(queryPool)
+    {
+      VkCommandBuffer cmdBuf = m_cmdPool.createCommandBuffer();
+      cmdCompactBlas(cmdBuf, indices, buildAs, queryPool);
+      m_cmdPool.submitAndWait(cmdBuf);  // Submit command buffer and call vkQueueWaitIdle
+
+      // Destroy the non-compacted version
+      destroyNonCompacted(indices, buildAs);
+    }
+    // Reset
+
+    batchSize = 0;
+    indices.clear();
+  }
+}
+~~~~ 
+
+The created acceleration structure is kept in this class, such that it can be retrieved with the index of creation. 
+
+~~~~ C
+// Keeping all the created acceleration structures
+for(auto& b : buildAs)
+{
+  m_blas.emplace_back(b.as);
+}
+~~~~ 
+
+Finally we are cleaning up what we use. 
+
+~~~~ C
+// Clean up
+vkDestroyQueryPool(m_device, queryPool, nullptr);
+m_alloc->finalizeAndReleaseStaging();
+m_alloc->destroy(scratchBuffer);
+m_cmdPool.deinit();
+~~~~ 
+
+#### cmdCreateBlas 
+
+~~~~ C
+//--------------------------------------------------------------------------------------------------
+// Creating the bottom level acceleration structure for all indices of `buildAs` vector.
+// The array of BuildAccelerationStructure was created in buildBlas and the vector of
+// indices limits the number of BLAS to create at once. This limits the amount of
+// memory needed when compacting the BLAS.
+void nvvk::RaytracingBuilderKHR::cmdCreateBlas(VkCommandBuffer                          cmdBuf,
+                                               std::vector<uint32_t>                    indices,
+                                               std::vector<BuildAccelerationStructure>& buildAs,
+                                               VkDeviceAddress                          scratchAddress,
+                                               VkQueryPool                              queryPool)
+{
+~~~~ 
+
+First we reset the query to know the real size of the BLAS
+
+~~~~C
+if(queryPool)  // For querying the compaction size
+  vkResetQueryPool(m_device, queryPool, 0, static_cast<uint32_t>(indices.size()));
+uint32_t queryCnt{0};
+~~~~ 
+
+This function is creating all the BLAS defined by the index chunk. 
+
+~~~~ C
+for(const auto& idx : indices)
+{
+~~~~
+
+
+The creation of the BLAS consist in two steps: 
+
+* Creating the acceleration structure: we use `createAcceleration()` from our memory allocator abstraction and
+  the information about the size we get earlier. This will create the buffer and acceleration structure.
+* Building the acceleration structure: with the acceleration structure, the scratch buffer and information on the geometry,
+  this makes the actual build of the BLAS. 
+
+
+Behind the scenes, `m_alloc->createAcceleration` is creating a buffer of the size indicated by the acceleration structure
+size query, giving it the `VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR` and `VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT`
+usage bits (the latter is needed as the TLAS builder will need the raw address of the BLASes), and binding the acceleration structure
+to its allocated memory by filling in the `buffer` field of `VkAccelerationStructureCreateInfoKHR`. Unlike buffers and images,
+where `Vk*` handle allocation and memory binding is done in separate steps, an acceleration structure is both created and bound
+to memory with one `vkCreateAccelerationStructureKHR` call.
+
+
+~~~~ C
+// Actual allocation of buffer and acceleration structure.
+VkAccelerationStructureCreateInfoKHR createInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR};
+createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+createInfo.size = buildAs[idx].sizeInfo.accelerationStructureSize;  // Will be used to allocate memory.
+buildAs[idx].as = m_alloc->createAcceleration(createInfo);
+NAME_IDX_VK(buildAs[idx].as.accel, idx);
+NAME_IDX_VK(buildAs[idx].as.buffer.buffer, idx);
+
+// BuildInfo #2 part
+buildAs[idx].buildInfo.dstAccelerationStructure  = buildAs[idx].as.accel;  // Setting where the build lands
+buildAs[idx].buildInfo.scratchData.deviceAddress = scratchAddress;  // All build are using the same scratch buffer
+
+// Building the bottom-level-acceleration-structure
+vkCmdBuildAccelerationStructuresKHR(cmdBuf, 1, &buildAs[idx].buildInfo, &buildAs[idx].rangeInfo);
+~~~~
+
+
+Note the barrier after each call to the build: For the sake of simplicity we are reusing scratch space across builds, 
+so we need to make sure the previous build is finished before starting the next one. 
+Ideally, we should have used multiple regions of a scratch buffer so multiple BLAS could be built simultaneously.
+
+~~~~ C
+// Since the scratch buffer is reused across builds, we need a barrier to ensure one build
+// is finished before starting the next one.
+VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+barrier.srcAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
+barrier.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR;
+vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+                     VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, 0, 1, &barrier, 0, nullptr, 0, nullptr);
+~~~~
+
+Then we add the size query only if needed 
+
+~~~~ C
+if(queryPool)
+{
+  // Add a query to find the 'real' amount of memory needed, use for compaction
+  vkCmdWriteAccelerationStructuresPropertiesKHR(cmdBuf, 1, &buildAs[idx].buildInfo.dstAccelerationStructure,
+                                                VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR, queryPool, queryCnt++);
+}
+}
+}
+~~~~ 
+
+
+Although this approach has the advantage of keeping all BLAS independent, building many BLAS efficiently would require allocating a larger scratch buffer and launching multiple builds simultaneously.
+This current tutorial does not use compaction, which could significantly reduce the memory footprint of the acceleration structures. These two aspects will be part of a future advanced tutorial.
+
+
+#### cmdCompactBlas
+
+What follows is when the compact flag is set. This part, which is optional, will compact the BLAS into the memory 
+it actually uses. We have to wait until all BLAS are built, to make a copy in the more suitable memory space. 
+This is the reason why we used `m_cmdPool.submitAndWait(cmdBuf)` before calling this function.
+
+
+~~~~ C 
+//--------------------------------------------------------------------------------------------------
+// Create and replace a new acceleration structure and buffer based on the size retrieved by the
+// Query.
+void nvvk::RaytracingBuilderKHR::cmdCompactBlas(VkCommandBuffer                          cmdBuf,
+                                                std::vector<uint32_t>                    indices,
+                                                std::vector<BuildAccelerationStructure>& buildAs,
+                                                VkQueryPool                              queryPool)
+{
+~~~~
+
+In broad terms, compaction works as follows: 
+
+* Get the values from the query 
+* Create a new acceleration structure with the smaller size
+* Copy the previous acceleration structure to the new allocated one
+* Destroy previous acceleration structure. 
+
+~~~~ C 
+uint32_t                    queryCtn{0};
+std::vector<nvvk::AccelKHR> cleanupAS;  // previous AS to destroy
+
+// Get the compacted size result back
+std::vector<VkDeviceSize> compactSizes(static_cast<uint32_t>(indices.size()));
+vkGetQueryPoolResults(m_device, queryPool, 0, (uint32_t)compactSizes.size(), compactSizes.size() * sizeof(VkDeviceSize),
+                      compactSizes.data(), sizeof(VkDeviceSize), VK_QUERY_RESULT_WAIT_BIT);
+
+for(auto idx : indices)
+{
+  buildAs[idx].cleanupAS                          = buildAs[idx].as;           // previous AS to destroy
+  buildAs[idx].sizeInfo.accelerationStructureSize = compactSizes[queryCtn++];  // new reduced size
+
+  // Creating a compact version of the AS
+  VkAccelerationStructureCreateInfoKHR asCreateInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR};
+  asCreateInfo.size = buildAs[idx].sizeInfo.accelerationStructureSize;
+  asCreateInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+  buildAs[idx].as   = m_alloc->createAcceleration(asCreateInfo);
+  NAME_IDX_VK(buildAs[idx].as.accel, idx);
+  NAME_IDX_VK(buildAs[idx].as.buffer.buffer, idx);
+
+  // Copy the original BLAS to a compact version
+  VkCopyAccelerationStructureInfoKHR copyInfo{VK_STRUCTURE_TYPE_COPY_ACCELERATION_STRUCTURE_INFO_KHR};
+  copyInfo.src  = buildAs[idx].buildInfo.dstAccelerationStructure;
+  copyInfo.dst  = buildAs[idx].as.accel;
+  copyInfo.mode = VK_COPY_ACCELERATION_STRUCTURE_MODE_COMPACT_KHR;
+  vkCmdCopyAccelerationStructureKHR(cmdBuf, &copyInfo);
+}
+}
+~~~~ 
+
+
+
+
+
+
+
+## Top-Level Acceleration Structure
+
+The TLAS is the entry point in the ray tracing scene description, and stores all the instances. Add a new method
+to the `HelloVulkan` class:
+
+~~~~ C
+void createTopLevelAS();
+~~~~
+
+We represent an instance with `VkAccelerationStructureInstanceKHR`, which stores its transform matrix (`transform`)
+a reference of its corresponding BLAS (`blasId`) in the vector passed to `buildBlas`. It also contains an instance identifier that will
+be available during shading as `gl_InstanceCustomIndex`, as well as the index of the hit group that represents the shaders that will be
+invoked upon hitting the object (`VkAccelerationStructureInstanceKHR::instanceShaderBindingTableRecordOffset`, a.k.a. `hitGroupId` in the helper).
+
+!!! WARNING gl_InstanceId
+    Do not confuse `gl_InstanceID` with `gl_InstanceCustomIndex`. The `gl_InstanceID` is simply
+    the index of the intersected instance as it appeared in the array of instances used to build
+    the TLAS.
+    
+    In this specific example, we could have ignored the custom index, since the Id
+    will be equivalent to `gl_InstanceId` (as `gl_InstanceId` specifies the index of the
+    instance that intersects the current ray, which is in this case the same value as `ObjInstance::objIndex`: the
+    index of the object in `HelloVulkan::m_instances` and the value we'll set `gl_InstanceCustomIndex` to below).
+    In later examples the value will be different.
+
+This index and the notion of hit group are tied to the definition of the ray tracing pipeline and the Shader Binding
+Table, described later in this tutorial and used to select determine which shaders are invoked at runtime. For now
+it suffices to say that we will use only one hit group for the whole scene, and hence the hit group index is always 0.
+Finally, the instance may indicate culling preferences, such as backface culling, using its `VkGeometryInstanceFlagsKHR
+flags` member. In our example we decide to disable culling altogether
+for simplicity and independence on the winding of the input models.
+
+Once all the instance objects are created we trigger the TLAS build, directing the builder to prefer generating a TLAS
+optimized for tracing performance (rather than AS size, for example).
+
+~~~~ C
+//--------------------------------------------------------------------------------------------------
+//
+//
+void HelloVulkan::createTopLevelAS()
+{
+  std::vector<VkAccelerationStructureInstanceKHR> tlas;
+  tlas.reserve(m_instances.size());
+  for(const HelloVulkan::ObjInstance& inst : m_instances)
+  {
+    VkAccelerationStructureInstanceKHR rayInst{};
+    rayInst.transform                      = nvvk::toTransformMatrixKHR(inst.transform);  // Position of the instance
+    rayInst.instanceCustomIndex            = inst.objIndex;                               // gl_InstanceCustomIndexEXT
+    rayInst.accelerationStructureReference = m_rtBuilder.getBlasDeviceAddress(inst.objIndex);
+    rayInst.flags                          = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    rayInst.mask                           = 0xFF;       //  Only be hit if rayMask & instance.mask != 0
+    rayInst.instanceShaderBindingTableRecordOffset = 0;  // We will use the same hit group for all objects
+    tlas.emplace_back(rayInst);
+  }
+  m_rtBuilder.buildTlas(tlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
+}
+~~~~
+
+As usual in Vulkan, we need to explicitly destroy the objects we created by adding a call at the end of 
+`HelloVulkan::destroyResources`:
+
+~~~~ C
+  // #VKRay
+  m_rtBuilder.destroy();
+~~~~
+
+!!! Note getBlasDeviceAddress()
+    `getBlasDeviceAddress()` returns the acceleration structure device address of the `blasId`. The id correspond to 
+    the created BLAS in `buildBlas`.
+
+### Helper Details: RaytracingBuilder::buildTlas()
+
+The helper function for building top-level acceleration structures is part of the
+[nvpro-samples](https://github.com/nvpro-samples)
+and builds a TLAS from a vector of `Instance` objects.
+
+We first set up a command buffer and copy the user's TLAS flags.
+
+~~~~ C
+  // Creating the top-level acceleration structure from the vector of Instance
+  // - See struct of Instance
+  // - The resulting TLAS will be stored in m_tlas
+  // - update is to rebuild the Tlas with updated matrices
+  void buildTlas(const std::vector<VkAccelerationStructureInstanceKHR>&         instances,
+                 VkBuildAccelerationStructureFlagsKHR flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR,
+                 bool                                 update = false)
+  {
+    // Cannot call buildTlas twice except to update.
+    assert(m_tlas.accel == VK_NULL_HANDLE || update);
+    uint32_t countInstance = static_cast<uint32_t>(instances.size());
+
+    // Command buffer to create the TLAS
+    nvvk::CommandPool genCmdBuf(m_device, m_queueIndex);
+    VkCommandBuffer   cmdBuf = genCmdBuf.createCommandBuffer();
+~~~~
+
+Next, we need to upload the Vulkan instances to the device.
+
+~~~~ C
+    // Command buffer to create the TLAS
+    nvvk::CommandPool genCmdBuf(m_device, m_queueIndex);
+    VkCommandBuffer   cmdBuf = genCmdBuf.createCommandBuffer();
+
+    // Create a buffer holding the actual instance data (matrices++) for use by the AS builder
+    nvvk::Buffer instancesBuffer;  // Buffer of instances containing the matrices and BLAS ids
+    instancesBuffer = m_alloc->createBuffer(cmdBuf, instances,
+                                            VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+                                                | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
+    NAME_VK(instancesBuffer.buffer);
+    VkBufferDeviceAddressInfo bufferInfo{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, instancesBuffer.buffer};
+    VkDeviceAddress           instBufferAddr = vkGetBufferDeviceAddress(m_device, &bufferInfo);
+
+    // Make sure the copy of the instance buffer are copied before triggering the acceleration structure build
+    VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
+    vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+                         0, 1, &barrier, 0, nullptr, 0, nullptr);
+~~~~
+
+At this point, we have a command buffer (`cmdBuf`), a number of instances(`countInstance`) and the address of the buffer holding
+all the `VkAccelerationStructureInstanceKHR`. With this information, we call a function that will build the TLAS. This function
+will allocate a scratch buffer that we will need to destroy once all work is done. 
+
+~~~~C
+    // Creating the TLAS
+    nvvk::Buffer scratchBuffer;
+    cmdCreateTlas(cmdBuf, countInstance, instBufferAddr, scratchBuffer, flags, update, motion);
+
+    // Finalizing and destroying temporary data
+    genCmdBuf.submitAndWait(cmdBuf);  // queueWaitIdle inside.
+    m_alloc->finalizeAndReleaseStaging();
+    m_alloc->destroy(scratchBuffer);
+    m_alloc->destroy(instancesBuffer);
+}
+~~~~
+
+This lower function is the actual construction of the top-level-acceleration-structure. 
+
+~~~~ C
+//--------------------------------------------------------------------------------------------------
+// Low level of Tlas creation - see buildTlas
+//
+void nvvk::RaytracingBuilderKHR::cmdCreateTlas(VkCommandBuffer                      cmdBuf,
+                                               uint32_t                             countInstance,
+                                               VkDeviceAddress                      instBufferAddr,
+                                               nvvk::Buffer&                        scratchBuffer,
+                                               VkBuildAccelerationStructureFlagsKHR flags,
+                                               bool                                 update,
+                                               bool                                 motion)
+{
+~~~~
+
+The next part is filling the structures for building the TLAS. It is one geometry containing many instances. 
+
+~~~~C
+  // Wraps a device pointer to the above uploaded instances.
+  VkAccelerationStructureGeometryInstancesDataKHR instancesVk{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR};
+  instancesVk.data.deviceAddress = instBufferAddr;
+
+  // Put the above into a VkAccelerationStructureGeometryKHR. We need to put the instances struct in a union and label it as instance data.
+  VkAccelerationStructureGeometryKHR topASGeometry{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
+  topASGeometry.geometryType       = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+  topASGeometry.geometry.instances = instancesVk;
+
+  // Find sizes
+  VkAccelerationStructureBuildGeometryInfoKHR buildInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR};
+  buildInfo.flags         = flags;
+  buildInfo.geometryCount = 1;
+  buildInfo.pGeometries   = &topASGeometry;
+  buildInfo.mode = update ? VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR : VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+  buildInfo.type                     = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+  buildInfo.srcAccelerationStructure = VK_NULL_HANDLE;
+
+  VkAccelerationStructureBuildSizesInfoKHR sizeInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR};
+  vkGetAccelerationStructureBuildSizesKHR(m_device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &buildInfo,
+                                          &countInstance, &sizeInfo);
+
+~~~~
+
+We can create the acceleration structure, not building it yet.
+
+~~~~C
+    VkAccelerationStructureCreateInfoKHR createInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR};
+    createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+    createInfo.size = sizeInfo.accelerationStructureSize;
+
+    m_tlas = m_alloc->createAcceleration(createInfo);
+    NAME_VK(m_tlas.accel);
+    NAME_VK(m_tlas.buffer.buffer);
+
+~~~~
+
+Building the acceleration structure, also requires to create a scratch buffer.
+
+~~~~C
+
+  // Allocate the scratch memory
+  scratchBuffer = m_alloc->createBuffer(sizeInfo.buildScratchSize,
+                                        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+
+  VkBufferDeviceAddressInfo bufferInfo{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, scratchBuffer.buffer};
+  VkDeviceAddress           scratchAddress = vkGetBufferDeviceAddress(m_device, &bufferInfo);
+  NAME_VK(scratchBuffer.buffer);
+
+~~~~
+
+Finally, we can build the acceleration structure.
+  
+~~~~C
+  // Update build information
+  buildInfo.srcAccelerationStructure  = VK_NULL_HANDLE;
+  buildInfo.dstAccelerationStructure  = m_tlas.accel;
+  buildInfo.scratchData.deviceAddress = scratchAddress;
+
+  // Build Offsets info: n instances
+  VkAccelerationStructureBuildRangeInfoKHR        buildOffsetInfo{countInstance, 0, 0, 0};
+  const VkAccelerationStructureBuildRangeInfoKHR* pBuildOffsetInfo = &buildOffsetInfo;
+
+  // Build the TLAS
+  vkCmdBuildAccelerationStructuresKHR(cmdBuf, 1, &buildInfo, &pBuildOffsetInfo);
+}
+~~~~
+
+## main
+
+In the `main` function, we can now add the creation of the geometry instances and acceleration structures
+ right after initializing ray tracing:
+
+~~~~ C
+// #VKRay
+helloVk.initRayTracing();
+helloVk.createBottomLevelAS();
+helloVk.createTopLevelAS();
+~~~~
+
+# Ray Tracing Descriptor Set
+
+The ray tracing shaders, like the rasterization shaders, use external resources referenced by a descriptor set. With the
+rasterization graphics pipeline, when drawing a scene using different materials, we can group objects by material and
+order draws by material used. A material's pipeline and descriptors only need to be bound when drawing objects of that material.
+
+In contrast, with ray tracing, it is not possible to know in advance which objects will be hit by a ray, so any shader may
+be invoked at any time. The Vulkan ray tracing extension then uses a single set of descriptor sets containing all the
+resources necessary to render the scene: for example, it would contain all the textures for all the materials.
+Additionally, since the acceleration structure holds only position data, we need to pass the original vertex and index
+buffers to the shaders, so that we can manually look up the other vertex attributes.
+
+To maintain compatibility between rasterization and ray tracing, we will re-use, from the old rasterization renderer,
+the descriptor set containing the scene information, and will add another descriptor set referencing the TLAS and the
+buffer in which we store the output image.
+
+In the header `hello_vulkan.h`, we declare the objects related to this additional descriptor set:
+
+~~~~ C
+  void           createRtDescriptorSet();
+
+  nvvk::DescriptorSetBindings                     m_rtDescSetLayoutBind;
+  VkDescriptorPool                                m_rtDescPool;
+  VkDescriptorSetLayout                           m_rtDescSetLayout;
+  VkDescriptorSet                                 m_rtDescSet;
+~~~~
+
+The acceleration structure will be accessible by the Ray Generation shader, as we want to call `traceRayEXT()` from this
+shader. Later in this document, we will also make it accessible from the Closest Hit shader, in order to send rays from
+there as well. The output image is the offscreen image used by the rasterization, and will be written only by the
+RayGen shader.
+
+~~~~ C
+//--------------------------------------------------------------------------------------------------
+// This descriptor set holds the Acceleration structure and the output image
+//
+void HelloVulkan::createRtDescriptorSet()
+{
+  m_rtDescSetLayoutBind.addBinding(RtxBindings::eTlas, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1,
+                                   VK_SHADER_STAGE_RAYGEN_BIT_KHR);  // TLAS
+  m_rtDescSetLayoutBind.addBinding(RtxBindings::eOutImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1,
+                                   VK_SHADER_STAGE_RAYGEN_BIT_KHR);  // Output image
+
+  m_rtDescPool      = m_rtDescSetLayoutBind.createPool(m_device);
+  m_rtDescSetLayout = m_rtDescSetLayoutBind.createLayout(m_device);
+
+  VkDescriptorSetAllocateInfo allocateInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+  allocateInfo.descriptorPool     = m_rtDescPool;
+  allocateInfo.descriptorSetCount = 1;
+  allocateInfo.pSetLayouts        = &m_rtDescSetLayout;
+  vkAllocateDescriptorSets(m_device, &allocateInfo, &m_rtDescSet);
+
+
+  VkAccelerationStructureKHR                   tlas = m_rtBuilder.getAccelerationStructure();
+  VkWriteDescriptorSetAccelerationStructureKHR descASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
+  descASInfo.accelerationStructureCount = 1;
+  descASInfo.pAccelerationStructures    = &tlas;
+  VkDescriptorImageInfo imageInfo{{}, m_offscreenColor.descriptor.imageView, VK_IMAGE_LAYOUT_GENERAL};
+
+  std::vector<VkWriteDescriptorSet> writes;
+  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eTlas, &descASInfo));
+  writes.emplace_back(m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eOutImage, &imageInfo));
+  vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+}
+~~~~
+
+## Additions to the Scene Descriptor Set
+
+As the ray tracing shaders also have to access the scene description, we need to extend the access flags of the
+corresponding buffers in the original `createDescriptorSetLayout()`. The RayGen should access the camera matrices to
+compute ray directions, and the ClosestHit needs access to the materials, scene instances, textures, vertex buffers, and
+index buffers. Even though the vertex and index buffers will only be used by the ray tracing shaders we add them to this
+descriptor set as they semantically fit the Scene descriptor set.
+
+~~~~ C
+// Camera matrices
+m_descSetLayoutBind.addBinding(SceneBindings::eGlobals, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
+                               VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+// Obj descriptions
+m_descSetLayoutBind.addBinding(SceneBindings::eObjDescs, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
+                               VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
+// Textures
+m_descSetLayoutBind.addBinding(SceneBindings::eTextures, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nbTxt,
+                               VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
+~~~~
+
+Originally the buffers containing the vertices and indices were only used by the rasterization pipeline. 
+The ray tracing will need to use those buffers as storage buffers, so we add `VK_BUFFER_USAGE_STORAGE_BUFFER_BIT`;
+additionally, the buffers will be read by the acceleration structure builder, which requires raw device addresses
+(in `VkAccelerationStructureGeometryTrianglesDataKHR`), so the buffer also needs
+ `VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR` bits.
+
+We update the usage of the buffers in `loadModel`:
+
+~~~~ C
+VkBufferUsageFlags flag   = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+VkBufferUsageFlags rayTracingFlags = // used also for building acceleration structures 
+    flag | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+model.vertexBuffer   = m_alloc.createBuffer(cmdBuf, loader.m_vertices, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | rayTracingFlags);
+model.indexBuffer    = m_alloc.createBuffer(cmdBuf, loader.m_indices, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | rayTracingFlags);
+model.matColorBuffer = m_alloc.createBuffer(cmdBuf, loader.m_materials, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | flag);
+model.matIndexBuffer = m_alloc.createBuffer(cmdBuf, loader.m_matIndx, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | flag);
+~~~~
+
+!!! Note: Array of Buffers 
+    Each model (OBJ) was constructed with a buffer of vertices, indices, and materials. Therefore the 
+    scene has vectors of those buffers. In the shaders, we access the right buffer using the 
+    the ObjectID used by the Instance. This is convenient, as we have access to all the data 
+    of the scene while ray tracing.
+
+## Descriptor Update
+
+As with the rasterization descriptor set, the ray tracing descriptor set needs to be updated if its contents change.
+This typically happens when resizing the window, as the output image is recreated and needs to be re-linked to the
+descriptor set. The update is performed in a new method of the `HelloVulkan` class:
+
+~~~~ C
+void updateRtDescriptorSet();
+~~~~
+
+The implementation is straightforward, just update the output image reference:
+
+~~~~ C
+//--------------------------------------------------------------------------------------------------
+// Writes the output image to the descriptor set
+// - Required when changing resolution
+//
+void HelloVulkan::updateRtDescriptorSet()
+{
+  // (1) Output buffer
+  VkDescriptorImageInfo imageInfo{{}, m_offscreenColor.descriptor.imageView, VK_IMAGE_LAYOUT_GENERAL};
+  VkWriteDescriptorSet  wds = m_rtDescSetLayoutBind.makeWrite(m_rtDescSet, RtxBindings::eOutImage, &imageInfo);
+  vkUpdateDescriptorSets(m_device, 1, &wds, 0, nullptr);
+}
+~~~~
+
+!!! Note Note
+    We are using [`nvvk::DescriptorSetBindings`](https://github.com/nvpro-samples/nvpro_core/tree/master/nvvk#class-nvvkdescriptorsetbindings) 
+    to help creating the descriptor sets. This removes a lot of duplacted code and potential errors. 
+
+
+We can then add the update call to the `onResize()` method to link it to the resizing event:
+
+~~~~ C
+  updateRtDescriptorSet();
+~~~~
+
+The resources created in this section need to be destroyed when closing the application by adding the following to
+`destroyResources`:
+
+~~~~ C
+vkDestroyDescriptorPool(m_device, m_rtDescPool, nullptr);
+vkDestroyDescriptorSetLayout(m_device, m_rtDescSetLayout, nullptr);
+~~~~
+
+## main
+
+In the `main` function, we create the descriptor set after the other ray tracing calls:
+
+~~~~ C
+  helloVk.createRtDescriptorSet();
+~~~~
+
+# Ray Tracing Pipeline
+
+As mentioned earlier, when ray tracing, unlike rasterization, we cannot group draws by material, so, every shader must be
+available for execution at any time when ray tracing, and the shaders executed are selected on the device at runtime.
+The ultimate goal of the next two sections is to assemble a Shader Binding Table (SBT): the structure
+that makes this runtime shader selection possible. This is essentially a table of opaque shader handles (probably device
+addresses), analagous to a `C++` vtable, except that we have to build this table ourselves (also, the user can smuggle additional
+information in the SBT using `shaderRecordEXT`, not covered here). The steps to do so are:
+
+* Load and compile shaders into `VkShaderModule`s in the usual way.
+
+* Package those `VkShaderModule`s into an array of `VkPipelineShaderStageCreateInfo`.
+
+* Create an array of `VkRayTracingShaderGroupCreateInfoKHR`; each will eventually become an SBT entry.
+  At this point, the shader groups reference individual shaders by their index in the above `VkPipelineShaderStageCreateInfo`
+  array as no device addresses have yet been allocated.
+
+* Compile the above two arrays (plus a pipeline layout, as usual) into a raytracing pipeline using `vkCreateRayTracingPipelineKHR`.
+
+* The pipeline compilation converted the earlier array of shader indices into an array of shader handles.
+  Query this with `vkGetRayTracingShaderGroupHandlesKHR`.
+
+* Allocate a buffer with the `VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR` usage bit, and copy the handles in.
+
+The ray trace pipeline behaves more like the compute pipeline than the rasterization graphics pipeline. Ray traces
+are dispatched in an abstract 3D `width/height/depth` space, with results manually written using `imageStore`. However,
+unlike the compute pipeline, you dispatch individual shader invocations, rather than local groups. The entry point for ray tracing is
+
+* The **ray generation** shader, which we will call for each pixel. It will
+  typically initialize a ray starting at the location of the camera, in a direction given by evaluating the camera lens
+  model at the pixel location. It will then invoke `traceRayEXT()`, that will shoot the ray in the scene. `traceRayEXT`
+  invokes the next few shader types, which communicate results using ray trace payloads.
+
+Ray trace payloads are declared as `rayPayloadEXT` or `rayPayloadInEXT` variables; together, they establish
+a caller/callee relationship between shader stages. Each invocation of a shader creates its own local copy
+of its declared `rayPayloadEXT` variables, when invoking another shader by calling `traceRayEXT()`,
+the caller can select one of its payloads to be made visible to the
+callee shader as its `rayPayloadInEXT` variable (also known as the "incoming payload").
+
+Declare payloads wisely, as excessive memory usage reduces SM occupancy (parallelism).
+
+The next two shader types should be used:
+
+* The **miss** shader is executed when a ray does not intersect any geometry. For instance, it might sample an
+  environment map, or return a simple color through the ray payload.
+
+* The **closest hit** shader is called upon hitting the geometric instance closest to the starting point of the ray.
+  This shader can for example perform lighting calculations and return the results through the ray payload. There can be
+  as many closest hit shaders as needed, much like how a rasterization-based application has multiple pixel shaders
+  depending on its objects.
+
+Two more shader types can optionally be used:
+
+* The **intersection** shader, which allows intersecting user-defined geometry. For example, this can be used to
+  intersect geometry placeholders for on-demand geometry loading, or intersecting procedural geometry without tessellating
+  them beforehand. Using this shader requires modifying how the acceleration structures are built, and is beyond the scope
+  of this tutorial. We will instead rely on the built-in ray-triangle intersection test provided by the extension, which
+  returns 2 floating-point values representing the barycentric coordinates `(u,v)` of the hit point inside the triangle.
+  For a triangle made of vertices `v0`, `v1`, `v2`, the barycentric coordinates define the weights of the vertices as
+  follows:
+
+***********************
+*            . u      *
+*           / \       *
+*          / v1\      *
+*         /     \     *
+*        /       \    *
+* 1-u-v / v0   v2 \ v *
+*      '-----------'  *
+***********************
+  
+ 
+* The **any hit** shader is executed on each potential intersection: when searching for the hit point closest to the ray
+  origin, several candidates may be found on the way. The any hit shader can frequently be used to efficiently implement
+  alpha-testing. If the alpha test fails, the ray traversal can continue without having to call `traceRayEXT()` again. The
+  built-in any hit shader is simply a pass-through returning the intersection to the traversal engine, which will
+  determine which ray intersection is the closest. For this example, such shaders will never be invoked as we specified the
+  opaque flag while building the acceleration structures.
+
+![Figure [step]: The Ray Tracing Pipeline](Images/ShaderPipeline.svg)
+
+We will start with a pipeline containing only the 3 main shader programs: a single ray generation shader, a single miss
+shader, and a single hit group made only of a closest hit shader. This is done by first compiling each GLSL shader
+program into SPIR-V. These SPIR-V shaders will be linked together into a ray tracing pipeline, which will be able to
+route the intersection calculations to the right hit shaders.
+
+To be able to focus on the pipeline generation, we provide simple shaders:
+
+## Adding Shaders
+
+!!! Note: [Download Ray Tracing Shaders](files/shaders.zip)
+    Download the shaders and extract the content into `src/shaders`. Then rerun CMake, which will add those files to the project.
+
+The `shaders` folder now contains 3 more files:
+
+* `raytrace.rgen` contains the ray generation program. It also declares its access to the ray tracing output buffer
+  `image`, and the ray tracing acceleration structure `topLevelAS`, bound as an `accelerationStructureEXT`. For now this
+  shader program simply writes a constant color into the output buffer.
+
+* `raytrace.rmiss` defines the miss shader. This shader will be executed when no geometry is hit, and will write a
+  constant color into the ray payload `rayPayloadInEXT`. Since our current ray generation program does not trace any rays
+  for now, this shader will not be called.
+
+* `raytrace.rchit` contains a very simple closest hit shader. It will be executed upon hitting the geometry (our
+  triangles). As the miss shader, it takes the ray payload `rayPayloadInEXT`. It also has a second input defining the
+  intersection attributes `hitAttributeEXT` (i.e. the barycentric coordinates) as provided by the built-in
+  triangle-ray intersection test. This shader simply writes a constant color to the payload.
+
+In the header file, let's add the definition of the ray tracing pipeline building method, and the storage members of the
+pipeline:
+
+~~~~ C
+void                                              createRtPipeline();
+
+std::vector<VkRayTracingShaderGroupCreateInfoKHR> m_rtShaderGroups;
+VkPipelineLayout                                  m_rtPipelineLayout;
+VkPipeline                                        m_rtPipeline;
+~~~~
+
+The pipeline will also use push constants to store global uniform values, namely the background color and
+the light source information. Since we are setting the information on host and using it on device, this 
+structure will be set in `shaders/host_device.h`.
+
+~~~~ C
+// Push constant structure for the ray tracer
+struct PushConstantRay
+{
+  vec4  clearColor;
+  vec3  lightPosition;
+  float lightIntensity;
+  int   lightType;
+};
+~~~~
+
+In `HelloVulkan` class, add a member for the push constant
+
+~~~~ C 
+// Push constant for ray tracer
+PushConstantRay m_pcRay{};
+~~~~ 
+
+Our implementation of the ray tracing pipeline generation starts by adding the ray generation and miss shader stages,
+followed by the closest hit shader. Note that this order is arbitrary, as the extension allows the developer to set up
+the pipeline in any order. The "stages" terminology is a holdover from the rasterization pipeline; in raytracing,
+we orchestrate the order that shaders are invoked and the data flow between them ourselves.
+
+All stages are stored in an `std::vector` of `VkPipelineShaderStageCreateInfo` objects. As mentioned, at this step,
+indices within this vector will be used as unique identifiers for the shaders. The 3 stages will be using the
+same entry point "main". Then we create a `vkCreateShaderModule` from the pre-compiled shader and defined which
+stage it correspond to. 
+
+~~~~ C
+//--------------------------------------------------------------------------------------------------
+// Pipeline for the ray tracer: all shaders, raygen, chit, miss
+//
+void HelloVulkan::createRtPipeline()
+{
+  enum StageIndices
+  {
+    eRaygen,
+    eMiss,
+    eClosestHit,
+    eShaderGroupCount 
+  };
+
+  // All stages
+  std::array<VkPipelineShaderStageCreateInfo, eShaderGroupCount> stages{};
+  VkPipelineShaderStageCreateInfo              stage{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+  stage.pName = "main";  // All the same entry point
+  // Raygen
+  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytrace.rgen.spv", true, defaultSearchPaths, true));
+  stage.stage    = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+  stages[eRaygen] = stage;
+  // Miss
+  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytrace.rmiss.spv", true, defaultSearchPaths, true));
+  stage.stage  = VK_SHADER_STAGE_MISS_BIT_KHR;
+  stages[eMiss] = stage;
+  // Hit Group - Closest Hit
+  stage.module = nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytrace.rchit.spv", true, defaultSearchPaths, true));
+  stage.stage  = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+  stages[eClosestHit] = stage;
+~~~~ 
+
+These identifiers are stored in the
+`VkRayTracingShaderGroupCreateInfoKHR` structure. This structure first specifies a `type`, which represents the kind of
+shader group represented in the structure. Ray generation and miss shaders are called 'general' shaders. In this case the
+type is `VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR`, and only the `generalShader` member of the structure is filled. The other ones are set to
+`VK_SHADER_UNUSED_KHR`. This is also the case for the callable shaders, not used in this tutorial. In our layout the ray
+generation comes first (0), followed by the miss shader (1).
+
+~~~~ C
+  // Shader groups
+  VkRayTracingShaderGroupCreateInfoKHR group{VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR};
+  group.anyHitShader       = VK_SHADER_UNUSED_KHR;
+  group.closestHitShader   = VK_SHADER_UNUSED_KHR;
+  group.generalShader      = VK_SHADER_UNUSED_KHR;
+  group.intersectionShader = VK_SHADER_UNUSED_KHR;
+
+  // Raygen
+  group.type          = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+  group.generalShader = eRaygen;
+  m_rtShaderGroups.push_back(group);
+
+  // Miss
+  group.type          = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+  group.generalShader = eMiss;
+  m_rtShaderGroups.push_back(group);
+
+~~~~
+
+As detailed before, intersections are managed by 3 kinds of shaders: the intersection shader computes the ray-geometry
+intersections, the any-hit shader is run for every potential intersection, and the closest hit shader is applied to the
+closest hit point along the ray. Those 3 shaders are bound into a hit group. In our case the geometry is made of
+triangles, so the `type` of the `VkRayTracingShaderGroupCreateInfoKHR` is `VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR`. 
+We first reset the `generalShader` to `VK_SHADER_UNUSED_KHR`.
+Raytrace hardware therefore takes
+the place of the intersection shader, so, we leave the `intersectionShader` member to `VK_SHADER_UNUSED_KHR`. We do not use an any-hit
+shader, letting the system use a built-in pass-through shader. Therefore, we also leave the `anyHitShader` to
+`VK_SHADER_UNUSED_KHR`. The only shader we define is then the closest hit shader, by setting the `closestHitShader`
+member to the index `2` (`chit`), since the `stages` vector already contains the ray generation and miss
+shaders.
+
+~~~~ C
+// closest hit shader
+group.type             = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+group.generalShader    = VK_SHADER_UNUSED_KHR;
+group.closestHitShader = eClosestHit;
+m_rtShaderGroups.push_back(group);
+~~~~
+
+Note that if the geometry were not triangles, we would have set the `type` to `VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR`, and would have to
+define an intersection shader.
+
+After creating the shader groups, we need to setup the pipeline layout that will describe how the pipeline
+will access external data:
+
+~~~~ C
+  VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo;
+~~~~
+
+We first add the push constant range to allow the ray tracing shaders to access the global uniform values:  
+
+~~~~ C
+// Push constant: we want to be able to update constants used by the shaders
+VkPushConstantRange pushConstant{VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
+                                 0, sizeof(PushConstantRay)};
+
+
+VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+pipelineLayoutCreateInfo.pPushConstantRanges    = &pushConstant;
+~~~~
+
+As described earlier, the pipeline uses two descriptor sets: `set=0` is specific to the ray tracing pipeline (TLAS and
+output image), and `set=1` is shared with the rasterization (scene data):
+
+~~~~ C
+// Descriptor sets: one specific to ray tracing, and one shared with the rasterization pipeline
+std::vector<VkDescriptorSetLayout> rtDescSetLayouts = {m_rtDescSetLayout, m_descSetLayout};
+pipelineLayoutCreateInfo.setLayoutCount             = static_cast<uint32_t>(rtDescSetLayouts.size());
+pipelineLayoutCreateInfo.pSetLayouts                = rtDescSetLayouts.data();
+~~~~
+
+The pipeline layout information is now complete, allowing us to create the layout itself.
+
+~~~~ C  
+vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_rtPipelineLayout);
+~~~~
+
+The creation of the ray tracing pipeline is different from the classical graphics pipeline. In the graphics pipeline we
+simply need to fill in the fixed set of programmable stages (vertex, fragment, etc.). The ray tracing pipeline can
+contain an arbitrary number of stages depending on the number of active shaders in the scene.
+
+We first provide all the stages that will be used:
+
+~~~~ C
+// Assemble the shader stages and recursion depth info into the ray tracing pipeline
+VkRayTracingPipelineCreateInfoKHR rayPipelineInfo{VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR};
+rayPipelineInfo.stageCount = static_cast<uint32_t>(stages.size());  // Stages are shaders
+rayPipelineInfo.pStages    = stages.data();
+~~~~
+
+Then, we indicate how the shaders can be assembled into groups. A ray generation or miss shader is a group by
+itself, but hit groups can comprise up to 3 shaders (intersection, any hit, closest hit).
+
+~~~~ C
+// In this case, m_rtShaderGroups.size() == 3: we have one raygen group,
+// one miss shader group, and one hit group.
+rayPipelineInfo.groupCount = static_cast<uint32_t>(m_rtShaderGroups.size());
+rayPipelineInfo.pGroups    = m_rtShaderGroups.data();
+~~~~
+
+The ray generation and closest hit shaders can trace rays, making the ray tracing a potentially recursive process. To
+allow the underlying RTX layer to optimize the pipeline we indicate the maximum recursion depth used by our shaders. For
+the simplistic shaders we currently have, we set this depth to 1, meaning that we must not trigger
+recursion at all (i.e. a hit shader calling `traceRayEXT()`). Note that it is preferable to keep the recursion level
+as low as possible, replacing it by a loop formulation instead.
+
+~~~~ C
+rayPipelineInfo.maxPipelineRayRecursionDepth = 1;  // Ray depth
+rayPipelineInfo.layout                       = m_rtPipelineLayout;
+
+vkCreateRayTracingPipelinesKHR(m_device, {}, {}, 1, &rayPipelineInfo, nullptr, &m_rtPipeline);
+~~~~
+
+Once the pipeline has been created we discard the shader modules:
+
+~~~~ C
+  for(auto& s : stages)
+    vkDestroyShaderModule(m_device, s.module, nullptr);
+}
+~~~~
+
+The pipeline layout and the pipeline itself also have to be cleaned up upon closing, hence we add this to
+`destroyResources`:
+
+~~~~ C
+vkDestroyPipeline(m_device, m_rtPipeline, nullptr);
+vkDestroyPipelineLayout(m_device, m_rtPipelineLayout, nullptr);
+~~~~
+
+## main
+
+In the `main` function, we call the pipeline construction after the other ray tracing calls:
+
+~~~~ C
+  helloVk.createRtPipeline();
+~~~~
+
+# Shader Binding Table
+
+In a typical rasterization setup, a current shader and its associated resources are bound prior to drawing the
+corresponding objects, then another shader and resource set can be bound for some other objects, and so on. Since ray
+tracing can hit any surface of the scene at any time, all shaders must be available simultaneously.
+
+The Shader Binding Table is the "blueprint" of the ray tracing process. This allows us to select which ray generation shader
+to use as the entry point, which miss shader to execute if no intersections are found, and which hit shader groups can be executed
+for each instance. This association between instances and shader groups is created when setting up the geometry: for each
+instance we provided a `hitGroupId` in the TLAS. This value is used to calculate the index in the SBT corresponding to the hit
+group for that instance. The needed stride between entries is calculated from
+
+* `PhysicalDeviceRayTracingPipelinePropertiesKHR::shaderGroupHandleSize`
+
+* `PhysicalDeviceRayTracingPipelinePropertiesKHR::shaderGroupBaseAlignment`
+
+* The size of any user-provided `shaderRecordEXT` data if used (in this case, no).
+
+## Handles
+
+The SBT is a collection of up to four arrays containing the handles of the shader groups used in the ray tracing pipeline, one array for each of the **ray generation**, **miss**, **hit** and **callable** (not used here) shader groups. In our example, we will create a buffer storing the arrays for the first three groups. Right now, we only have one shader of each type, so each "array" is just a handle to a group of shaders.
+
+The buffer will have the following structure, which will be used later when calling `vkCmdTraceRaysKHR`:
+
+![](Images/sbt_0.png)
+
+We will ensure that all starting groups start with an address aligned to `shaderGroupBaseAlignment` and that each entry in the group is aligned to `shaderGroupHandleAlignment` bytes. 
+All group entries are aligned with `shaderGroupHandleAlignment`. 
+
+!!! Warning Size and Alignment Gotcha
+    Pay close attention that the alignment corresponds to the handle or group size.
+    There is no guarantee that the alignment corresponds to the handle or group size, so rounding up is necessary.
+    Using `groupHandleSize` as the stride may coincidentally work on your hardware, but not all hardware.
+    On hardware with a smaller handle size than alignment, it is possible to interleave some shaderRecordEXT data without additional memory usage.
+    
+    Round up sizes to the next alignment using the formula
+    
+    $alignedSize = [size + (alignment - 1)]\ \texttt{&}\ \texttt{~}(alignment - 1)$
+
+
+!!! Note Special Case
+    RayGen size and stride need to have the same value. 
+
+We first add the declarations of the SBT creation method and the SBT buffer itself in the `HelloVulkan` class:
+
+~~~~ C
+void           createRtShaderBindingTable();
+
+nvvk::Buffer                    m_rtSBTBuffer;
+VkStridedDeviceAddressRegionKHR m_rgenRegion{};
+VkStridedDeviceAddressRegionKHR m_missRegion{};
+VkStridedDeviceAddressRegionKHR m_hitRegion{};
+VkStridedDeviceAddressRegionKHR m_callRegion{};
+~~~~
+
+At the beginning of `createRtShaderBindingTable()` we collect information about the groups. There is always one and only one raygen, so we add the constant **1**.
+
+~~~~ C
+//--------------------------------------------------------------------------------------------------
+// The Shader Binding Table (SBT)
+// - getting all shader handles and write them in a SBT buffer
+// - Besides exception, this could be always done like this
+//
+void HelloVulkan::createRtShaderBindingTable()
+{
+  uint32_t missCount{1};
+  uint32_t hitCount{1};
+  auto     handleCount = 1 + missCount + hitCount;
+  uint32_t handleSize  = m_rtProperties.shaderGroupHandleSize;
+~~~~
+
+The following sets the stride and size for each group. With the exception of RayGen, the stride will be the size of the handle aligned to the `shaderGroupHandleAlignment`. And the size of each group, is the number of elements in the group aligned to the `shaderGroupBaseAlignment`.
+
+~~~~ C
+// The SBT (buffer) need to have starting groups to be aligned and handles in the group to be aligned.
+uint32_t handleSizeAligned = nvh::align_up(handleSize, m_rtProperties.shaderGroupHandleAlignment);
+
+m_rgenRegion.stride = nvh::align_up(handleSizeAligned, m_rtProperties.shaderGroupBaseAlignment);
+m_rgenRegion.size   = m_rgenRegion.stride;  // The size member of pRayGenShaderBindingTable must be equal to its stride member
+m_missRegion.stride = handleSizeAligned;
+m_missRegion.size   = nvh::align_up(missCount * handleSizeAligned, m_rtProperties.shaderGroupBaseAlignment);
+m_hitRegion.stride  = handleSizeAligned;
+m_hitRegion.size    = nvh::align_up(hitCount * handleSizeAligned, m_rtProperties.shaderGroupBaseAlignment);
+~~~~
+
+We then fetch the handles to the shader groups of the pipeline.
+
+~~~~ C
+// Get the shader group handles
+uint32_t             dataSize = handleCount * handleSize;
+std::vector<uint8_t> handles(dataSize);
+auto result = vkGetRayTracingShaderGroupHandlesKHR(m_device, m_rtPipeline, 0, handleCount, dataSize, handles.data());
+assert(result == VK_SUCCESS);
+~~~~
+
+The following will allocate the buffer that will hold the handle data. Note that the SBT buffer needs the `VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR` flag. In order to trace rays we will also need the address of the SBT, which requires the `VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT` flag.
+
+~~~~ C
+// Allocate a buffer for storing the SBT.
+VkDeviceSize sbtSize = m_rgenRegion.size + m_missRegion.size + m_hitRegion.size + m_callRegion.size;
+m_rtSBTBuffer        = m_alloc.createBuffer(sbtSize,
+                                     VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+                                         | VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR,
+                                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+m_debug.setObjectName(m_rtSBTBuffer.buffer, std::string("SBT"));  // Give it a debug name for NSight.
+~~~~
+
+In the next section, we store the device address of each shader group. Since we do not use callables, we leave it at 0.
+
+~~~~ C
+// Find the SBT addresses of each group
+VkBufferDeviceAddressInfo info{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, m_rtSBTBuffer.buffer};
+VkDeviceAddress           sbtAddress = vkGetBufferDeviceAddress(m_device, &info);
+m_rgenRegion.deviceAddress           = sbtAddress;
+m_missRegion.deviceAddress           = sbtAddress + m_rgenRegion.size;
+m_hitRegion.deviceAddress            = sbtAddress + m_rgenRegion.size + m_missRegion.size;
+~~~~
+
+This lambda function will return the pointer to the previously retrieved handle. We will use this function to copy the data from the handle into the SBT buffer.
+
+~~~~ C
+// Helper to retrieve the handle data
+auto getHandle = [&] (int i) { return handles.data() + i * handleSize; };
+~~~~
+
+Since our buffer is visible to the host, we will map its memory in preparation for the data copy. 
+
+~~~~ C
+// Map the SBT buffer and write in the handles.
+auto*    pSBTBuffer = reinterpret_cast<uint8_t*>(m_alloc.map(m_rtSBTBuffer));
+uint8_t* pData{nullptr};
+uint32_t handleIdx{0};
+~~~~ 
+
+Copy the RayGen handle. Only the handle data is copied, even if the stride and size are larger.
+
+~~~~ C
+// Raygen
+pData = pSBTBuffer;
+memcpy(pData, getHandle(handleIdx++), handleSize);
+~~~~
+
+Set the pointer to the beginning of the miss group and copy all the miss handles.
+We only have one miss group for now, but this for-loop will work when we add more missed shaders. 
+
+~~~~ C 
+// Miss
+pData = pSBTBuffer + m_rgenRegion.size;
+for(uint32_t c = 0; c < missCount; c++)
+{
+  memcpy(pData, getHandle(handleIdx++), handleSize);
+  pData += m_missRegion.stride;
+}
+~~~~
+
+In the same way, copy the handles for the hit group.
+
+~~~~ C
+// Hit
+pData = pSBTBuffer + m_rgenRegion.size + m_missRegion.size;
+for(uint32_t c = 0; c < hitCount; c++)
+{
+  memcpy(pData, getHandle(handleIdx++), handleSize);
+  pData += m_hitRegion.stride;
+}
+~~~~ 
+
+Finalize and Clean up.
+
+~~~~ C
+  m_alloc.unmap(m_rtSBTBuffer);
+  m_alloc.finalizeAndReleaseStaging();
+}
+
+~~~~
+
+As with other resources, we destroy the SBT in `destroyResources`:
+
+~~~~ C
+  m_alloc.destroy(m_rtSBTBuffer);
+~~~~
+
+
+
+!!! Tip Shader order
+    As with the pipeline, there is no requirement that raygen, miss, and hit groups come
+    in this order. Since there's no reason to change the order, we constructed SBT entries
+    0, 1, and 2 to correspond to entries 0, 1, and 2 of the `VkPipelineShaderStageCreateInfo`
+    array used to build the pipeline. In general though, the order of the SBT need not match
+    the pipeline shader stage order.
+
+!!! Tip SBT Wrapper
+    The number of entries per group can be retrieved from the `VkPhysicalDeviceRayTracingPipelinePropertiesKHR` that we used to create the ray tracing pipeline. The advantage of retrieving information from this structure, is that we don't have to follow a specific order. It goes beyond this tutorial, but we have a wrapper class that does all of the above automatically. You can find its implementation in 
+    [`nnvk::SBTWrapper`](https://github.com/nvpro-samples/nvpro_core/tree/master/nvvk#sbtwrapper_vkhpp).
+    Some of the extra samples will be using this class. 
+
+
+
+## main
+
+In the `main` function, we now add the construction of the Shader Binding Table:
+
+~~~~ C
+  helloVk.createRtShaderBindingTable();
+~~~~
+
+# Ray Tracing
+
+Let's create a function that will record commands to call the ray trace shaders. First, add the declaration to the header
+
+~~~~ C
+void       raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor);
+~~~~
+
+We first bind the pipeline and its layout, and set the push constants that will be available throughout the pipeline:
+
+~~~~ C
+//--------------------------------------------------------------------------------------------------
+// Ray Tracing the scene
+//
+void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor)
+{
+  m_debug.beginLabel(cmdBuf, "Ray trace");
+  // Initializing push constant values
+  m_pcRay.clearColor     = clearColor;
+  m_pcRay.lightPosition  = m_pcRaster.lightPosition;
+  m_pcRay.lightIntensity = m_pcRaster.lightIntensity;
+  m_pcRay.lightType      = m_pcRaster.lightType;
+
+  std::vector<VkDescriptorSet> descSets{m_rtDescSet, m_descSet};
+  vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipeline);
+  vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipelineLayout, 0,
+                          (uint32_t)descSets.size(), descSets.data(), 0, nullptr);
+  vkCmdPushConstants(cmdBuf, m_rtPipelineLayout,
+                     VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
+                     0, sizeof(PushConstantRay), &m_pcRay);
+~~~~
+  
+Fortunately, all information about each `VkStridedDeviceAddressRegionKHR` was created in the `createRtShaderBindingTable()`.
+
+We can finally call `traceRaysKHR` that will add the ray tracing launch in the command buffer. Note that the SBT buffer
+address is mentioned several times. This is due to the possibility of separating the SBT into several buffers, one for each
+type: ray generation, miss shaders, hit groups, and callable shaders (outside the scope of this tutorial). The last
+three parameters are equivalent to the grid size of a compute launch, and represent the total number of threads. Since
+we want to trace one ray per pixel, the grid size has the width and height of the output image, and a depth of 1.
+
+~~~~ C  
+  vkCmdTraceRaysKHR(cmdBuf, &m_rgenRegion, &m_missRegion, &m_hitRegion, &m_callRegion, m_size.width, m_size.height, 1);
+  m_debug.endLabel(cmdBuf);
+}
+~~~~
+!!! TIP Raygen shader selection
+    If you built a pipeline with multiple raygen shaders, the raygen shader can be selected by changing the
+    device address.
+
+!!! TIP SBTWrapper 
+    When using the SBTWrapper, the above could be replaced by folowing.
+    ```
+    auto& regions = m_stbWrapper.getRegions();
+    vkCmdTraceRaysKHR(cmdBuf, &regions[0], &regions[1], &regions[2], &regions[3], size.width, size.height, 1);
+    ```
+
+# Let's Ray Trace
+
+Now we have everything set up to be able to trace rays: the acceleration structure, the descriptor sets, the ray tracing
+pipeline and the shader binding table. Let's try to make images from this.
+
+## main
+
+In the `main` function, we will define a local variable to switch between rasterization and ray tracing. Add the
+following right after the ray tracing initialization calls:
+
+~~~~ C
+bool useRaytracer = true;
+~~~~
+
+In the same function, we will add a UI checkbox to make that switch at runtime. Right after the line
+`ImGui::ColorEdit3(`, we add
+
+~~~~ C
+ImGui::Checkbox("Ray Tracer mode", &useRaytracer); // Switch between raster and ray tracing
+~~~~
+
+A few lines below, you can find a block containing the `helloVk.rasterize` call. Since our application will now have two
+render modes, we replace that block by
+
+~~~~ C
+// Rendering Scene
+if(useRaytracer)
+{
+  helloVk.raytrace(cmdBuf, clearColor);
+}
+else
+{
+  vkCmdBeginRenderPass(cmdBuf, &offscreenRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+  helloVk.rasterize(cmdBuf);
+  vkCmdEndRenderPass(cmdBuf);
+}
+~~~~
+
+Note that the ray tracing behaves more like a compute shader than a graphics task, and is then outside of a render pass.
+
+We should now be able to alternate between rasterization and ray tracing. However, the ray tracing result only renders a
+flat gray image: the simplistic ray generation shader does not trace any ray yet, and simply returns a fixed color.
+
+Raster                         |     | Ray Trace 
+:-----------------------------:|:---:|:--------------------------------:
+![](Images/resultRasterCube.png width="350px")   | <-> |   ![](Images/resultRaytraceEmptyCube.png width="350px")
+
+# Camera Matrices
+
+The matrices of the camera are stored in a uniform buffer and updated in the function `updateUniformBuffer`. 
+This matrices are also needed for ray tracing, therefore we need to change the usage stage flag to include 
+ray tracing. 
+
+~~~~ C
+auto     uboUsageStages = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR;
+~~~~
+
+## Ray generation (raytrace.rgen)
+
+We need to include new files. Since the `#include` directive is a GLSL extension, we will add:
+
+~~~~ C++
+#extension GL_GOOGLE_include_directive : enable
+~~~~
+
+It is now time to enrich the ray generation shader to allow it to trace rays. We will first add a new binding to allow
+the shader to access the camera matrices.
+
+~~~~ C
+#include "host_device.h"
+
+layout(set = 1, binding = eGlobals) uniform _GlobalUniforms { GlobalUniforms uni; };
+~~~~
+
+!!! Note: Binding 
+    The buffer of camera uses `binding = 0` as described in `host_device.h`. The 
+    `set = 1` comes from the fact that it is the second descriptor set passed to
+    `pipelineLayoutCreateInfo.pSetLayouts` in `HelloVulkan::createRtPipeline()`.
+
+When tracing a ray, the hit or miss shaders need to be able to return some information to the shader program that
+invoked the ray tracing. This is done through the use of a payload, identified by the `rayPayloadEXT` qualifier.
+
+Since the payload struct will be reused in several shaders, we create a new shader file `raycommon.glsl` and add it to
+the Visual Studio folder.
+
+This file contains only the payload definition:
+
+~~~~ C++
+struct hitPayload
+{
+  vec3 hitValue;
+};
+~~~~
+
+We now modify `raytrace.rgen` to include this new file.
+
+~~~~ C++
+#include "raycommon.glsl"
+~~~~
+
+The payload, identified with `rayPayloadEXT` is then our `hitPayload` structure.
+
+~~~~ C
+layout(location = 0) rayPayloadEXT hitPayload prd;
+~~~~
+
+
+The `main` function of the shader then starts by computing the floating-point pixel coordinates, normalized between 0
+and 1. The `gl_LaunchIDEXT` contains the integer coordinates of the pixel being rendered, while `gl_LaunchSizeEXT`
+corresponds to the image size provided when calling `vkCmdTraceRaysKHR`.
+
+~~~~ C
+void main()
+{
+    const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
+    const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
+    vec2 d = inUV * 2.0 - 1.0;
+~~~~
+
+From the pixel coordinates, we can apply the inverse transformation of the view and projection matrices of the camera to
+obtain the origin and direction of the ray.
+
+~~~~ C
+  vec4 origin    = uni.viewInverse * vec4(0, 0, 0, 1);
+  vec4 target    = uni.projInverse * vec4(d.x, d.y, 1, 1);
+  vec4 direction = uni.viewInverse * vec4(normalize(target.xyz), 0);
+~~~~
+
+In addition, we provide some flags for the ray: first. a flag indicating that all geometry will be considered opaque, as
+we also indicated when creating the acceleration structures. We also indicate the minimum and maximum distance of the
+potential intersections along the ray. Those distances can be useful to reduce the ray tracing costs if intersections
+before or after a given point do not matter. A typical use case is for computing ambient occlusion.
+
+~~~~ C
+  uint  rayFlags = gl_RayFlagsOpaqueEXT;
+  float tMin     = 0.001;
+  float tMax     = 10000.0;
+~~~~
+
+We now trace the ray itself by calling `traceRayEXT`. This takes as arguments
+
+* The top-level acceleration structure to search for hits in.
+
+* The flags controlling the ray trace.
+
+* An 8-bit "culling mask". Each instance used to build a TLAS includes an 8-bit mask. The instance mask is binary-AND-ed
+  with the given culling mask and the intersection skipped if the AND result is 0. We aren't taking advantage of this,
+  so we pass `0xFF` here, and the helper implicitly set each instance's mask to `0xFF` as well.
+
+* `sbtRecordOffset` and `sbtRecordStride`, which controls how the
+  `hitGroupId`
+  (`VkAccelerationStructureInstanceKHR::instanceShaderBindingTableRecordOffset`)
+  of each instance is used to look up a hit group in the SBT's hit
+  group array. Since we only have one hit group, both are set to 0. The details of this are rather complicated; you can read more in [Will Usher's article](https://www.willusher.io/graphics/2019/11/20/the-sbt-three-ways).
+<!-- Not sure why but Markdeep adds an extra bullet point if I split the above line -->
+
+* `missIndex`, the index, within the miss shader group array of the SBT, of the shader to call if no intersection is found.
+
+* The origin, min range, direction, and max range of the ray.
+
+* The location of the payload as declared in this shader, in this case, `location=0`. This compile-time constant establishes
+  the caller/callee relationship of `rayPayloadInEXT`, allowing you to choose where you want the called shader outputs to go.
+  For shaders (callees) invoked as a direct result of this `traceRayEXT`, their `rayPayloadInEXT` variable will
+  **alias** the `rayPayloadEXT` of the location specified by the caller of `traceRayEXT`. For this to work properly, both
+  variables should have the same structure. This allows us to determine at runtime where callee shader outputs are written to,
+  which can be particularly useful for recursive ray tracers.
+  
+
+~~~~ C  
+  traceRayEXT(topLevelAS, // acceleration structure
+          rayFlags,       // rayFlags
+          0xFF,           // cullMask
+          0,              // sbtRecordOffset
+          0,              // sbtRecordStride
+          0,              // missIndex
+          origin.xyz,     // ray origin
+          tMin,           // ray min range
+          direction.xyz,  // ray direction
+          tMax,           // ray max range
+          0               // payload (location = 0)
+  );
+~~~~
+
+Finally, we write the resulting payload into the output image.
+
+~~~~ C
+    imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(prd.hitValue, 1.0));
+}
+~~~~
+
+Raster                         |     | Ray Trace
+:-----------------------------:|:---:|:--------------------------------:
+![](Images/resultRasterCube.png width="350px")   | <-> |   ![](Images/resultRaytraceFlatCube.png width="350px")
+
+!!!NOTE `rayPayloadEXT` locations
+    The `location` qualifiers are used to give payloads a unique identifier
+    for `traceRayEXT`. For some reason, you cannot just pass payloads by-name to
+    `traceRayEXT` (this was deemed un-GLSL-y).
+    
+    The scope of the `location` is just within one invocation of one shader. Hence,
+    
+    * If two different shader modules linked into the same ray trace pipeline
+      declare a payload with the same `location` number, these payloads do not interfere
+      with each other.
+    
+    * If a shader is invoked recursively, each invocation's payloads are separate,
+      even though their `location` numbers are the same. This is the reason ray
+      trace shaders require a GPU stack, a rather novel concept for computer graphics.
+
+    Note how payload `location`s are different from things like descriptor `set`s
+    and `binding`s, or vertex attribute `location`s, whose scope is global to the
+    entire pipeline.
+
+!!!NOTE `rayPayloadInEXT` locations
+    The `rayPayloadInEXT` variable has a `location` as well because it can also be
+    passed as the payload for `traceRayEXT`. In this case, the calling shader's
+    incoming payload itself becomes the incoming payload for the callee shader.
+    
+    Note that there is no requirement that the `location` of the callee's incoming
+    payload match the `payload` argument the caller passed to `traceRayEXT`! This
+    is quite unlike the `in`/`out` variables used to connect vertex shaders and
+    fragment shaders.
+
+## Miss shader (raytrace.miss)
+
+To share the clear color of the rasterization with the ray tracer, we will change the return value of the miss shader to
+return the clear value passed as a push constant. While the `Constants` struct contains more members, here we use the
+fact that `clearColor` is the first member in the struct, and do not even declare the subsequent members.
+
+~~~~ C
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+
+#include "raycommon.glsl"
+#include "wavefront.glsl"
+
+layout(location = 0) rayPayloadInEXT hitPayload prd;
+
+layout(push_constant) uniform _PushConstantRay
+{
+  PushConstantRay pcRay;
+};
+
+void main()
+{
+  prd.hitValue = pcRay.clearColor.xyz * 0.8;
+}
+~~~~
+
+!!! Note:
+    The color of the background is slightly darker to differentiate the two renderers.
+
+
+
+# Simple Lighting
+
+The current closest hit shader only returns a flat color. To add some lighting, we will need to introduce the concept of
+surface normals. However, the ray tracing only provides the barycentric coordinates of the hit point. To obtain the
+normals and the other vertex attributes, we will need to find them in the vertex buffer and interpolate them using the
+barycentric coordinates. This is why we extended the usage of the vertex and index buffers when creating the ray tracing
+descriptor set.
+
+## Closest Hit (raytrace.rchit)
+
+When we created the ray tracing descriptor set, we already included the geometry definition. Therefore, we can reference
+the vertex and index buffers directly in the closest hit shader, via the scene description `binding = 2`
+
+We first include the payload definition and the OBJ-Wavefront structures
+
+~~~~ C
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_buffer_reference2 : require
+#include "raycommon.glsl"
+#include "wavefront.glsl"
+~~~~
+
+Then we describe the resources according to the descriptor set layout
+
+~~~~ C
+layout(location = 0) rayPayloadInEXT hitPayload prd;
+
+layout(buffer_reference, scalar) buffer Vertices {Vertex v[]; }; // Positions of an object
+layout(buffer_reference, scalar) buffer Indices {ivec3 i[]; }; // Triangle indices
+layout(buffer_reference, scalar) buffer Materials {WaveFrontMaterial m[]; }; // Array of all materials on an object
+layout(buffer_reference, scalar) buffer MatIndices {int i[]; }; // Material ID for each triangle
+layout(set = 1, binding = eObjDescs, scalar) buffer ObjDesc_ { ObjDesc i[]; } objDesc;
+
+layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
+~~~~
+
+In the `main` function, the `gl_InstanceCustomIndexEXT` tells which object was hit, and the `gl_PrimitiveID` allows us to find the vertices of the triangle hit by the ray:
+
+~~~~ C
+void main()
+{
+    // Object data
+    ObjDesc    objResource = objDesc.i[gl_InstanceCustomIndexEXT];
+    MatIndices matIndices  = MatIndices(objResource.materialIndexAddress);
+    Materials  materials   = Materials(objResource.materialAddress);
+    Indices    indices     = Indices(objResource.indexAddress);
+    Vertices   vertices    = Vertices(objResource.vertexAddress);
+  
+    // Indices of the triangle
+    ivec3 ind = indices.i[gl_PrimitiveID];
+  
+    // Vertex of the triangle
+    Vertex v0 = vertices.v[ind.x];
+    Vertex v1 = vertices.v[ind.y];
+    Vertex v2 = vertices.v[ind.z];
+~~~~
+
+Computing the barycentric coordinates is done the following way
+~~~~ C
+  const vec3 barycentrics = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
+~~~~
+
+The world-space position could be calculated in two ways, the first one being to use the information from the hit
+shader. But this could have precision issues if the hit point is very far.
+
+~~~~ C
+  vec3 worldPos = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+~~~~
+
+Another solution, more precise, consists in computing the position by interpolation. 
+We are using the state materices provided on the hit. Those matrices are compute 
+using the information provided we we set the TLAS and BLAS. Note that all our BLASes
+didn't apply any transformation, only the instances.
+
+~~~~ C
+// Computing the coordinates of the hit position
+const vec3 pos      = v0.pos * barycentrics.x + v1.pos * barycentrics.y + v2.pos * barycentrics.z;
+const vec3 worldPos = vec3(gl_ObjectToWorldEXT * vec4(pos, 1.0));  // Transforming the position to world space
+~~~~
+
+We can do the same thing for the normal
+
+~~~~C
+// Computing the normal at hit position
+const vec3 nrm      = v0.nrm * barycentrics.x + v1.nrm * barycentrics.y + v2.nrm * barycentrics.z;
+const vec3 worldNrm = normalize(vec3(nrm * gl_WorldToObjectEXT));  // Transforming the normal to world space
+~~~~
+
+The light source specified in the constants can then be used to compute the dot product of the normal with the lighting
+direction, giving a simple diffuse lighting effect:
+
+~~~~ C
+  // Vector toward the light
+  vec3  L;
+  float lightIntensity = pcRay.lightIntensity;
+  float lightDistance  = 100000.0;
+  // Point light
+  if(pcRay.lightType == 0)
+  {
+    vec3 lDir      = pcRay.lightPosition - worldPos;
+    lightDistance  = length(lDir);
+    lightIntensity = pcRay.lightIntensity / (lightDistance * lightDistance);
+    L              = normalize(lDir);
+  }
+  else  // Directional light
+  {
+    L = normalize(pcRay.lightPosition);
+  }
+~~~~
+
+![](Images/resultRaytraceLightGreyCube.png width="350px") 
+
+
+# Simple Materials
+
+The rendering above could be made more interesting by adding support for materials. The imported OBJ objects provide
+simplified Alias Wavefront material definitions.
+
+## raytrace.rchit
+
+These materials define their basic reflectance properties using simple color coefficients, and also support texturing.
+The buffer containing the materials has already been created for rasterization, and has also been added into the ray
+tracing descriptor set. Add the binding of the array of texture samplers:
+
+~~~~ C
+layout(set = 1, binding = eTextures) uniform sampler2D textureSamplers[];
+~~~~
+
+The declaration of the material is the same as that used for the rasterizer and is defined in
+`wavefront.glsl`.
+
+The `Vertex` structure contains a material index, which we will use to find the corresponding material in the buffer.
+
+We first remove these lines at the end of `main()`
+
+~~~~ C
+float dotNL = max(dot(normal, L), 0.2);
+prd.hitValue = vec3(dotNL);
+~~~~
+
+and fetch the material definition instead:
+
+~~~~ C
+  // Material of the object
+  int               matIdx = matIndices.i[gl_PrimitiveID];
+  WaveFrontMaterial mat    = materials.m[matIdx];
+~~~~
+
+!!! Note Note
+    There is one buffer of materials per object, and each material can be access via the index. 
+    And each triangle has an index of material.
+
+From that material definition, we use the diffuse and specular reflectances to compute diffuse lighting. This code also
+supports textures to modulate the surface albedo.
+
+~~~~ C
+  // Diffuse
+  vec3 diffuse = computeDiffuse(mat, L, normal);
+  if(mat.textureId >= 0)
+  {
+    uint txtId = mat.textureId + scnDesc.i[gl_InstanceCustomIndexEXT].txtOffset;
+    vec2 texCoord =
+        v0.texCoord * barycentrics.x + v1.texCoord * barycentrics.y + v2.texCoord * barycentrics.z;
+    diffuse *= texture(textureSamplers[nonuniformEXT(txtId)], texCoord).xyz;
+  }
+  
+  // Specular
+  vec3 specular = computeSpecular(mat, gl_WorldRayDirectionEXT, L, normal);
+~~~~
+
+The final lighting is then computed as
+
+~~~~ C
+  prd.hitValue = vec3(lightIntensity * (diffuse + specular));
+~~~~
+
+![](Images/resultRaytraceLightMatCube.png width="350px") 
+
+
+## main
+
+The OBJ model is loaded in `main.cpp` by calling `helloVk.loadModel`. Let's load something more interesting than a cube:
+
+~~~~ C
+  // Creation of the example
+  helloVk.loadModel(nvh::findFile("media/scenes/Medieval_building.obj", defaultSearchPaths, true));
+  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
+~~~~
+
+Since that model is larger, we can change the `CameraManip.setLookat` call to
+
+~~~~ C
+CameraManip.setLookat(nvmath::vec3f(4, 4, 4), nvmath::vec3f(0, 1, 0), nvmath::vec3f(0, 1, 0));
+~~~~
+
+![](Images/resultRaytraceLightMatMedieval.png)
+
+# Shadows
+
+The above allows us to ray trace a scene and apply some lighting, but it is still missing shadows. To this end, we will
+add a new ray type, and shoot rays from the closest hit shader. This new ray type will require adding a new miss shader.
+
+## `createRaytracingPipeline`
+
+For simple shadow rays we only need to compute whether some geometry was hit along the ray or not. This can be achieved
+using a Boolean payload initialized as if a hit were found, and ray trace using only an additional miss shader that will
+set the payload to no hit.
+
+!!! Warning: [Download Shadow Shader](files/shadowShaders.zip)
+    Download and add shader file
+
+This archive contains only one file, `raytraceShadow.rmiss`. Add this file to the `src/shaders` directory and rerun
+CMake. The shader file should compile, and the resulting SPIR-V file should be stored in the `shaders` folder alongside
+the GLSL file.
+
+In the body of `createRtPipeline`, we need to define the new miss shader right after the previous miss shader:
+
+~~~~ C
+enum StageIndices
+{
+  eRaygen,
+  eMiss,
+  eMiss2,
+  eClosestHit,
+  eShaderGroupCount 
+};
+~~~~ 
+
+And create the stage
+
+~~~~ C
+// The second miss shader is invoked when a shadow ray misses the geometry. It simply indicates that no occlusion has been found
+stage.module =
+    nvvk::createShaderModule(m_device, nvh::loadFile("spv/raytraceShadow.rmiss.spv", true, defaultSearchPaths, true));
+stage.stage   = VK_SHADER_STAGE_MISS_BIT_KHR;
+stages[eMiss2] = stage;
+~~~~
+
+After pushing the miss shader `missSM`, we also push the miss shader for the shadow rays:
+
+~~~~ C
+// Shadow Miss
+group.type          = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+group.generalShader = eMiss2;
+m_rtShaderGroups.push_back(group);
+~~~~
+
+The pipeline now has to allow shooting rays from the closest hit program, which requires increasing the recursion level to 2:
+
+~~~~ C
+  // The ray tracing process can shoot rays from the camera, and a shadow ray can be shot from the
+  // hit points of the camera rays, hence a recursion level of 2. This number should be kept as low
+  // as possible for performance reasons. Even recursive ray tracing should be flattened into a loop
+  // in the ray generation to avoid deep recursion.
+  rayPipelineInfo.maxPipelineRayRecursionDepth = 2;  // Ray depth
+~~~~
+
+
+!!! WARNING Recursion Limit
+    The spec does not guarantee a recursion check at runtime. If you exceed either
+    the recursion depth you reported in the raytrace pipeline create info, or the
+    physical device recursion limit, undefined behavior results.
+    
+    The KHR raytracing spec lowers the minimum guaranteed recursion limit from
+    31 (in the original NV spec) to the much more modest limit of 1 (i.e. no
+    recursion at all). Since we now need a recursion limit of 2, we should check
+    that the device supports the needed level of recursion:
+    
+    ~~~~ C
+      // Spec only guarantees 1 level of "recursion". Check for that sad possibility here.
+      if (m_rtProperties.maxRayRecursionDepth <= 1) {
+        throw std::runtime_error("Device fails to support ray recursion (m_rtProperties.maxRayRecursionDepth <= 1)");
+      }
+    ~~~~
+    
+    Recall that `m_rtProperties` was filled in in `HelloVulkan::initRayTracing`.
+
+## `createRtShaderBindingTable`
+
+The addition of the new miss shader group has modified our shader binding table, which now looks like:
+
+![](Images/sbt_1.png)
+
+Therefore, we have to change `HelloVulkan::createRtShaderBindingTable` to indicate that there are two miss shaders. 
+
+~~~~ C
+uint32_t missCount{2};
+~~~~
+
+## `createRtDescriptorSet`
+
+For each resource entry in the descriptor set, we indicated which shader stage would be able to use it. Since shadow
+rays will be traced from the closest hit shader, we add `VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR` to the acceleration structure binding:
+
+~~~~ C
+  // Top-level acceleration structure, usable by both the ray generation and the closest hit (to shoot shadow rays)
+  m_rtDescSetLayoutBind.addBinding(RtxBindings::eTlas, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1,
+                                   VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);  // TLAS
+~~~~
+
+## `raytrace.rchit`
+
+The closest hit shader now needs to be aware of the acceleration structure to be able to shoot rays:
+
+~~~~ C
+layout(set = 0, binding = eTlas) uniform accelerationStructureEXT topLevelAS;
+~~~~
+
+Those rays will also carry a payload, which will need to be defined at a different location from the payload of the
+current ray. In this case, the payload will be a simple Boolean value indicating whether an occluder has been found or
+not:
+
+~~~~ C
+layout(location = 1) rayPayloadEXT bool isShadowed;
+~~~~
+
+In the `main` function, instead of simply setting our payload to `prd.hitValue = c;`, we will initiate a new ray. 
+To select the shadow miss shader, we will pass `missIndex=1` instead of `0` to `traceRayEXT()`. The payload location
+is defined to match  the declaration `layout(location = 1)` above. Note, when invoking `traceRayEXT()`  we are setting 
+the flags with 
+
+* `gl_RayFlagsSkipClosestHitShaderKHR`: Will not invoke the hit shader, only the miss shader
+* `gl_RayFlagsOpaqueKHR` : Will not call the any hit shader, so all objects will be opaque
+* `gl_RayFlagsTerminateOnFirstHitKHR` : The first hit is always good.
+
+Since we skip the shadow hit group, no code will be invoked when hitting a surface. Therefore, we initialize the payload
+`isShadowed` to `true`, and will rely on the miss shader to set it to false if no surfaces have been encountered. We
+also set the ray flags to optimize the ray tracing: since these simple shadow rays only need to return whether the ray
+intersects any surface, we can instruct the ray tracing engine to stop the traversal after finding the first
+intersection, without trying to execute a closest hit shader.
+
+Shadow rays only need to be cast if the light is in front of the surface, and specular lighting should not be computed
+if we are in shadow (since the light source won't be visible from the shading point). The code that previously computed
+the specular term will then look like this:
+
+~~~~ C
+  vec3  specular    = vec3(0);
+  float attenuation = 1;
+
+  // Tracing shadow ray only if the light is visible from the surface
+  if(dot(normal, L) > 0)
+  {
+    float tMin   = 0.001;
+    float tMax   = lightDistance;
+    vec3  origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+    vec3  rayDir = L;
+    uint  flags =
+        gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
+    isShadowed = true;
+    traceRayEXT(topLevelAS,  // acceleration structure
+            flags,       // rayFlags
+            0xFF,        // cullMask
+            0,           // sbtRecordOffset
+            0,           // sbtRecordStride
+            1,           // missIndex
+            origin,      // ray origin
+            tMin,        // ray min range
+            rayDir,      // ray direction
+            tMax,        // ray max range
+            1            // payload (location = 1)
+    );
+
+    if(isShadowed)
+    {
+      attenuation = 0.3;
+    }
+    else
+    {
+      // Specular
+      specular = computeSpecular(mat, gl_WorldRayDirectionEXT, L, normal);
+    }
+  }
+~~~~
+
+The final payload value can then be adjusted depending on the result of the shadow ray:
+
+~~~~ C
+prd.hitValue = vec3(lightIntensity * attenuation * (diffuse + specular));
+~~~~
+
+![](Images/resultRaytraceShadowMedieval.png) 
+
+The final project can be found under the [ray_tracing__simple](https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/tree/master/ray_tracing__simple) directory.
+
+
+# Going Further
+
+From this point on, you can continue creating your own ray types and shaders, and experiment 
+with more advanced ray tracing based algorithms. 
+</script>
+
+
+----
+
+<!-- Markdeep: -->
+<script src="https://developer.nvidia.com/sites/default/files/akamai/gameworks/whitepapers/markdeep.min.js?" charset="utf-8"></script>
+<script>
+    window.alreadyProcessedMarkdeep || (document.body.style.visibility = "visible")
+</script>
