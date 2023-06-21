@@ -20,6 +20,7 @@
 #pragma once
 #include "nvmath/nvmath.h"
 #include "tiny_obj_loader.h"
+#include <stdint.h>
 #include <array>
 #include <iostream>
 #include <unordered_map>
