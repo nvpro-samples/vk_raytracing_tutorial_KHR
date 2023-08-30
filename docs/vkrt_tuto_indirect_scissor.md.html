@@ -604,7 +604,7 @@ triangles.indexType               = VK_INDEX_TYPE_UINT32;
 triangles.indexData.deviceAddress = indexAddress;
 // Indicate identity transform by setting transformData to null device pointer.
 //triangles.transformData = {};
-triangles.maxVertex = uint32_t(vertices.size());
+triangles.maxVertex = uint32_t(vertices.size()) - 1;
 
 // Identify the above data as containing opaque triangles.
 VkAccelerationStructureGeometryKHR asGeom{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};

@@ -229,7 +229,7 @@ auto HelloVulkan::primitiveToGeometry(const nvh::GltfPrimMesh& prim)
   triangles.indexData.deviceAddress = indexAddress;
   // Indicate identity transform by setting transformData to null device pointer.
   //triangles.transformData = {};
-  triangles.maxVertex = prim.vertexCount;
+  triangles.maxVertex = prim.vertexCount - 1;
 
   // Identify the above data as containing opaque triangles.
   VkAccelerationStructureGeometryKHR asGeom{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};

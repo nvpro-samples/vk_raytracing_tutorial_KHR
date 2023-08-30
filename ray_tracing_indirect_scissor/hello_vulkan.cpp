@@ -631,7 +631,7 @@ auto HelloVulkan::objectToVkGeometryKHR(const ObjModel& model)
   triangles.indexData.deviceAddress = indexAddress;
   // Indicate identity transform by setting transformData to null device pointer.
   //triangles.transformData = {};
-  triangles.maxVertex = model.nbVertices;
+  triangles.maxVertex = model.nbVertices - 1;
 
   // Identify the above data as containing opaque triangles.
   VkAccelerationStructureGeometryKHR asGeom{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
@@ -767,7 +767,7 @@ void HelloVulkan::createLanternModel()
   triangles.indexData.deviceAddress = indexAddress;
   // Indicate identity transform by setting transformData to null device pointer.
   //triangles.transformData = {};
-  triangles.maxVertex = uint32_t(vertices.size());
+  triangles.maxVertex = uint32_t(vertices.size()) - 1;
 
   // Identify the above data as containing opaque triangles.
   VkAccelerationStructureGeometryKHR asGeom{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};

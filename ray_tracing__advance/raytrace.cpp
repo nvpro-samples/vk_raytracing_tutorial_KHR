@@ -75,7 +75,7 @@ auto Raytracer::objectToVkGeometryKHR(const ObjModel& model)
   triangles.indexType                = VK_INDEX_TYPE_UINT32;
   triangles.indexData.deviceAddress  = indexAddress;
   triangles.transformData            = {};
-  triangles.maxVertex                = model.nbVertices;
+  triangles.maxVertex                = model.nbVertices - 1;
 
   // Setting up the build info of the acceleration
   VkAccelerationStructureGeometryKHR asGeom{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
