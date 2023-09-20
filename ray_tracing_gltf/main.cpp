@@ -26,7 +26,9 @@
 
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "backends/imgui_impl_glfw.h"
+#include "backends/imgui_impl_vulkan.h"
 #include "imgui.h"
+#include "imgui/imgui_helper.h"
 
 #include "hello_vulkan.h"
 #include "imgui/imgui_camera_widget.h"
