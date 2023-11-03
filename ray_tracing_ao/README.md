@@ -208,7 +208,7 @@ Next, we are adding a `VkImageMemoryBarrier` to be sure the G-Buffer image is re
                        VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 0, nullptr, 1, &imgMemBarrier);
 ~~~~
 
-Folowing is the call to dispatch the compute shader
+Following is the call to dispatch the compute shader
 
 ~~~~ C++
   // Preparing for the compute shader
@@ -410,7 +410,7 @@ Similar to the camera jitter example, the result is stored at frame 0 and accumu
     imageStore(outImage, ivec2(gl_GlobalInvocationID.xy), vec4(new_result));
   }
 }
-
+~~~~
 
 ## IMGUI addition
 
