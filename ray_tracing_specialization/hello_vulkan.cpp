@@ -62,12 +62,12 @@ void HelloVulkan::updateUniformBuffer(const VkCommandBuffer& cmdBuf)
   const float    aspectRatio = m_size.width / static_cast<float>(m_size.height);
   GlobalUniforms hostUBO     = {};
   const auto&    view        = CameraManip.getMatrix();
-  const auto&    proj        = nvmath::perspectiveVK(CameraManip.getFov(), aspectRatio, 0.1f, 1000.0f);
-  // proj[1][1] *= -1;  // Inverting Y for Vulkan (not needed with perspectiveVK).
+  glm::mat4      proj        = glm::perspectiveRH_ZO(glm::radians(CameraManip.getFov()), aspectRatio, 0.1f, 1000.0f);
+  proj[1][1] *= -1;  // Inverting Y for Vulkan (not needed with perspectiveVK).
 
   hostUBO.viewProj    = proj * view;
-  hostUBO.viewInverse = nvmath::invert(view);
-  hostUBO.projInverse = nvmath::invert(proj);
+  hostUBO.viewInverse = glm::inverse(view);
+  hostUBO.projInverse = glm::inverse(proj);
 
   // UBO on the device, and what stages access it.
   VkBuffer deviceUBO      = m_bGlobals.buffer;
@@ -186,7 +186,7 @@ void HelloVulkan::createGraphicsPipeline()
 //--------------------------------------------------------------------------------------------------
 // Loading the OBJ file and setting up all buffers
 //
-void HelloVulkan::loadModel(const std::string& filename, nvmath::mat4f transform)
+void HelloVulkan::loadModel(const std::string& filename, glm::mat4 transform)
 {
   LOGI("Loading File:  %s \n", filename.c_str());
   ObjLoader loader;
@@ -195,9 +195,9 @@ void HelloVulkan::loadModel(const std::string& filename, nvmath::mat4f transform
   // Converting from Srgb to linear
   for(auto& m : loader.m_materials)
   {
-    m.ambient  = nvmath::pow(m.ambient, 2.2f);
-    m.diffuse  = nvmath::pow(m.diffuse, 2.2f);
-    m.specular = nvmath::pow(m.specular, 2.2f);
+    m.ambient  = glm::pow(m.ambient, glm::vec3(2.2f));
+    m.diffuse  = glm::pow(m.diffuse, glm::vec3(2.2f));
+    m.specular = glm::pow(m.specular, glm::vec3(2.2f));
   }
 
   ObjModel model;
@@ -702,7 +702,7 @@ void HelloVulkan::createRtDescriptorSet()
   vkAllocateDescriptorSets(m_device, &allocateInfo, &m_rtDescSet);
 
 
-  VkAccelerationStructureKHR                   tlas = m_rtBuilder.getAccelerationStructure();
+  VkAccelerationStructureKHR tlas = m_rtBuilder.getAccelerationStructure();
   VkWriteDescriptorSetAccelerationStructureKHR descASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
   descASInfo.accelerationStructureCount = 1;
   descASInfo.pAccelerationStructures    = &tlas;
@@ -902,7 +902,7 @@ void HelloVulkan::createRtPipeline()
 //--------------------------------------------------------------------------------------------------
 // Ray Tracing the scene
 //
-void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor)
+void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const glm::vec4& clearColor)
 {
   m_debug.beginLabel(cmdBuf, "Ray trace");
   // Initializing push constant values

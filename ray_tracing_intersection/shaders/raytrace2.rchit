@@ -69,7 +69,8 @@ void main()
     vec3  absN = abs(worldNrm);
     float maxC = max(max(absN.x, absN.y), absN.z);
     worldNrm   = (maxC == absN.x) ? vec3(sign(worldNrm.x), 0, 0) :
-                                  (maxC == absN.y) ? vec3(0, sign(worldNrm.y), 0) : vec3(0, 0, sign(worldNrm.z));
+                 (maxC == absN.y) ? vec3(0, sign(worldNrm.y), 0) :
+                                    vec3(0, 0, sign(worldNrm.z));
   }
 
   // Vector toward the light

@@ -85,14 +85,14 @@ void renderUI(HelloVulkan& helloVk)
     }
     if(pc.lightType == 1)
     {
-      float dCutoff    = rad2deg(acos(pc.lightSpotCutoff));
-      float dOutCutoff = rad2deg(acos(pc.lightSpotOuterCutoff));
+      float dCutoff    = glm::degrees(acos(pc.lightSpotCutoff));
+      float dOutCutoff = glm::degrees(acos(pc.lightSpotOuterCutoff));
       changed |= ImGui::SliderFloat("Cutoff", &dCutoff, 0.f, 45.f);
       changed |= ImGui::SliderFloat("OutCutoff", &dOutCutoff, 0.f, 45.f);
       dCutoff = dCutoff > dOutCutoff ? dOutCutoff : dCutoff;
 
-      pc.lightSpotCutoff      = cos(deg2rad(dCutoff));
-      pc.lightSpotOuterCutoff = cos(deg2rad(dOutCutoff));
+      pc.lightSpotCutoff      = cos(glm::radians(dCutoff));
+      pc.lightSpotOuterCutoff = cos(glm::radians(dOutCutoff));
     }
   }
 
@@ -195,7 +195,7 @@ int main(int argc, char** argv)
   helloVk.loadModel(nvh::findFile("media/scenes/Medieval_building.obj", defaultSearchPaths, true));
   helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
   helloVk.loadModel(nvh::findFile("media/scenes/wuson.obj", defaultSearchPaths, true),
-                    nvmath::scale_mat4(nvmath::vec3f(0.5f)) * nvmath::translation_mat4(nvmath::vec3f(0.0f, 0.0f, 6.0f)));
+                    glm::scale(glm::mat4(1.f), glm::vec3(0.5f)) * glm::translate(glm::mat4(1.f), glm::vec3(0.0f, 0.0f, 6.0f)));
 
   std::random_device              rd;         // Will be used to obtain a seed for the random number engine
   std::mt19937                    gen(rd());  // Standard mersenne_twister_engine seeded with rd()
@@ -206,11 +206,11 @@ int main(int argc, char** argv)
   for(int n = 0; n < 50; ++n)
   {
     ObjInstance inst;
-    inst.objIndex       = wusonIndex;
-    float         scale = fabsf(disn(gen));
-    nvmath::mat4f mat   = nvmath::translation_mat4(nvmath::vec3f{dis(gen), 0.f, dis(gen) + 6});
-    //    mat              = mat * nvmath::rotation_mat4_x(dis(gen));
-    mat            = mat * nvmath::scale_mat4(nvmath::vec3f(scale));
+    inst.objIndex   = wusonIndex;
+    float     scale = fabsf(disn(gen));
+    glm::mat4 mat   = glm::translate(glm::mat4(1), glm::vec3{dis(gen), 0.f, dis(gen) + 6});
+    //    mat              = mat * glm::rotation_mat4_x(dis(gen));
+    mat            = glm::scale(mat, glm::vec3(scale));
     inst.transform = mat;
 
     helloVk.m_instances.push_back(inst);
@@ -219,13 +219,13 @@ int main(int argc, char** argv)
   // Creation of implicit geometry
   MaterialObj mat;
   // Reflective
-  mat.diffuse   = nvmath::vec3f(0, 0, 0);
-  mat.specular  = nvmath::vec3f(1.f);
+  mat.diffuse   = glm::vec3(0, 0, 0);
+  mat.specular  = glm::vec3(1.f);
   mat.shininess = 0.0;
   mat.illum     = 3;
   helloVk.addImplMaterial(mat);
   // Transparent
-  mat.diffuse  = nvmath::vec3f(0.4, 0.4, 1);
+  mat.diffuse  = glm::vec3(0.4, 0.4, 1);
   mat.illum    = 4;
   mat.dissolve = 0.5;
   helloVk.addImplMaterial(mat);
@@ -249,8 +249,8 @@ int main(int argc, char** argv)
   helloVk.initRayTracing();
 
 
-  nvmath::vec4f clearColor   = nvmath::vec4f(1, 1, 1, 1.00f);
-  bool          useRaytracer = true;
+  glm::vec4 clearColor   = glm::vec4(1, 1, 1, 1.00f);
+  bool      useRaytracer = true;
 
 
   helloVk.setupGlfwCallbacks(window);

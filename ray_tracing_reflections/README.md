@@ -13,14 +13,14 @@ First, we will create a scene with two reflective planes and a multicolored cube
 ~~~~ C++
   // Creation of the example
   helloVk.loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true),
-                    nvmath::translation_mat4(nvmath::vec3f(-2, 0, 0))
-                        * nvmath::scale_mat4(nvmath::vec3f(.1f, 5.f, 5.f)));
+                    glm::translate(glm::mat4(1),glm::vec3(-2, 0, 0))
+                        * glm::scale(glm::mat4(1.f),glm::vec3(.1f, 5.f, 5.f)));
   helloVk.loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true),
-                    nvmath::translation_mat4(nvmath::vec3f(2, 0, 0))
-                        * nvmath::scale_mat4(nvmath::vec3f(.1f, 5.f, 5.f)));
+                    glm::translate(glm::mat4(1),glm::vec3(2, 0, 0))
+                        * glm::scale(glm::mat4(1.f),glm::vec3(.1f, 5.f, 5.f)));
   helloVk.loadModel(nvh::findFile("media/scenes/cube_multi.obj", defaultSearchPaths, true));
   helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true),
-                    nvmath::translation_mat4(nvmath::vec3f(0, -1, 0)));
+                    glm::translate(glm::mat4(1),glm::vec3(0, -1, 0)));
 ~~~~
 
 Then find `cube.mtl` in `media/scenes` and modify the material to be 95% reflective, without any diffuse

@@ -18,7 +18,7 @@
  */
 
 
-#include "nvmath/nvmath.h"
+#include <glm/glm.hpp>
 #include "nvvk/descriptorsets_vk.hpp"
 #include "nvvk/raytraceKHR_vk.hpp"
 #include "nvvk/sbtwrapper_vk.hpp"
@@ -39,11 +39,7 @@ public:
   void createRtDescriptorSet(const VkImageView& outputImage);
   void updateRtDescriptorSet(const VkImageView& outputImage);
   void createRtPipeline(VkDescriptorSetLayout& sceneDescLayout);
-  void raytrace(const VkCommandBuffer& cmdBuf,
-                const nvmath::vec4f&   clearColor,
-                VkDescriptorSet&       sceneDescSet,
-                VkExtent2D&            size,
-                PushConstantRaster&    sceneConstants);
+  void raytrace(const VkCommandBuffer& cmdBuf, const glm::vec4& clearColor, VkDescriptorSet& sceneDescSet, VkExtent2D& size, PushConstantRaster& sceneConstants);
 
 private:
   nvvk::ResourceAllocator* m_alloc{nullptr};  // Allocator for buffer, images, acceleration structures
@@ -54,11 +50,11 @@ private:
   nvvk::SBTWrapper         m_sbtWrapper;
 
   VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
-  nvvk::RaytracingBuilderKHR                      m_rtBuilder;
-  nvvk::DescriptorSetBindings                     m_rtDescSetLayoutBind;
-  VkDescriptorPool                                m_rtDescPool;
-  VkDescriptorSetLayout                           m_rtDescSetLayout;
-  VkDescriptorSet                                 m_rtDescSet;
+  nvvk::RaytracingBuilderKHR                        m_rtBuilder;
+  nvvk::DescriptorSetBindings                       m_rtDescSetLayoutBind;
+  VkDescriptorPool                                  m_rtDescPool;
+  VkDescriptorSetLayout                             m_rtDescSetLayout;
+  VkDescriptorSet                                   m_rtDescSet;
   std::vector<VkRayTracingShaderGroupCreateInfoKHR> m_rtShaderGroups;
   VkPipelineLayout                                  m_rtPipelineLayout;
   VkPipeline                                        m_rtPipeline;

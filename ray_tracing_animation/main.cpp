@@ -94,7 +94,7 @@ int main(int argc, char** argv)
 
   // Setup camera
   CameraManip.setWindowSize(SAMPLE_WIDTH, SAMPLE_HEIGHT);
-  CameraManip.setLookat(nvmath::vec3f(5, 4, -4), nvmath::vec3f(0, 1, 0), nvmath::vec3f(0, 1, 0));
+  CameraManip.setLookat(glm::vec3(5, 4, -4), glm::vec3(0, 1, 0), glm::vec3(0, 1, 0));
 
   // Setup Vulkan
   if(!glfwVulkanSupported())
@@ -161,10 +161,10 @@ int main(int argc, char** argv)
 
   // Creation of the example
   helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true),
-                    nvmath::scale_mat4(nvmath::vec3f(2.f, 1.f, 2.f)));
+                    glm::scale(glm::mat4(1.f), glm::vec3(2.f, 1.f, 2.f)));
   helloVk.loadModel(nvh::findFile("media/scenes/wuson.obj", defaultSearchPaths, true));
-  uint32_t      wusonId = 1;
-  nvmath::mat4f identity{1};
+  uint32_t  wusonId = 1;
+  glm::mat4 identity{1};
   for(int i = 0; i < 5; i++)
   {
     helloVk.m_instances.push_back({identity, wusonId});
@@ -194,9 +194,9 @@ int main(int argc, char** argv)
   helloVk.createCompPipelines();
 
 
-  nvmath::vec4f clearColor   = nvmath::vec4f(1, 1, 1, 1.00f);
-  bool          useRaytracer = true;
-  auto          start        = std::chrono::system_clock::now();
+  glm::vec4 clearColor   = glm::vec4(1, 1, 1, 1.00f);
+  bool      useRaytracer = true;
+  auto      start        = std::chrono::system_clock::now();
 
 
   helloVk.setupGlfwCallbacks(window);

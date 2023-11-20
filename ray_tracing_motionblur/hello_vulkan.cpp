@@ -20,6 +20,7 @@
 
 #include <sstream>
 
+#include <glm/gtc/quaternion.hpp>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "obj_loader.h"
@@ -60,12 +61,12 @@ void HelloVulkan::updateUniformBuffer(const VkCommandBuffer& cmdBuf)
   const float    aspectRatio = m_size.width / static_cast<float>(m_size.height);
   GlobalUniforms hostUBO     = {};
   const auto&    view        = CameraManip.getMatrix();
-  const auto&    proj        = nvmath::perspectiveVK(CameraManip.getFov(), aspectRatio, 0.1f, 1000.0f);
-  // proj[1][1] *= -1;  // Inverting Y for Vulkan (not needed with perspectiveVK).
+  glm::mat4      proj        = glm::perspectiveRH_ZO(glm::radians(CameraManip.getFov()), aspectRatio, 0.1f, 1000.0f);
+  proj[1][1] *= -1;  // Inverting Y for Vulkan (not needed with perspectiveVK).
 
   hostUBO.viewProj    = proj * view;
-  hostUBO.viewInverse = nvmath::invert(view);
-  hostUBO.projInverse = nvmath::invert(proj);
+  hostUBO.viewInverse = glm::inverse(view);
+  hostUBO.projInverse = glm::inverse(proj);
 
   // UBO on the device, and what stages access it.
   VkBuffer deviceUBO      = m_bGlobals.buffer;
@@ -184,7 +185,7 @@ void HelloVulkan::createGraphicsPipeline()
 //--------------------------------------------------------------------------------------------------
 // Loading the OBJ file and setting up all buffers
 //
-void HelloVulkan::loadModel(const std::string& filename, nvmath::mat4f transform)
+void HelloVulkan::loadModel(const std::string& filename, glm::mat4 transform)
 {
   LOGI("Loading File:  %s \n", filename.c_str());
   ObjLoader loader;
@@ -193,9 +194,9 @@ void HelloVulkan::loadModel(const std::string& filename, nvmath::mat4f transform
   // Converting from Srgb to linear
   for(auto& m : loader.m_materials)
   {
-    m.ambient  = nvmath::pow(m.ambient, 2.2f);
-    m.diffuse  = nvmath::pow(m.diffuse, 2.2f);
-    m.specular = nvmath::pow(m.specular, 2.2f);
+    m.ambient  = glm::pow(m.ambient, glm::vec3(2.2f));
+    m.diffuse  = glm::pow(m.diffuse, glm::vec3(2.2f));
+    m.specular = glm::pow(m.specular, glm::vec3(2.2f));
   }
 
   ObjModel model;
@@ -684,8 +685,8 @@ void HelloVulkan::createTopLevelAS()
   objId = 0;
   {
     // Position of the instance at T0 and T1
-    nvmath::mat4f matT0 = m_instances[0].transform;
-    nvmath::mat4f matT1 = nvmath::translation_mat4(nvmath::vec3f(0.30f, 0.0f, 0.0f)) * matT0;
+    glm::mat4 matT0 = m_instances[0].transform;
+    glm::mat4 matT1 = glm::translate(glm::mat4(1), glm::vec3(0.30f, 0.0f, 0.0f)) * matT0;
 
     VkAccelerationStructureMatrixMotionInstanceNV data;
     data.transformT0                            = nvvk::toTransformMatrixKHR(matT0);
@@ -705,24 +706,25 @@ void HelloVulkan::createTopLevelAS()
   objId = 0;
   {
     // m_instance[3].transform -> no matrix to SRT
-    nvmath::quatf rot;
-    rot.from_euler_xyz({0, 0, 0});
+    glm::quat rot = {};
+
     // Position of the instance at T0 and T1
     VkSRTDataNV matT0{};  // Translated to 0,0,2
-    matT0.sx          = 1.0f;
-    matT0.sy          = 1.0f;
-    matT0.sz          = 1.0f;
-    matT0.tz          = 2.0f;
-    matT0.qx          = rot.x;
-    matT0.qy          = rot.y;
-    matT0.qz          = rot.z;
-    matT0.qw          = rot.w;
+    matT0.sx = 1.0f;
+    matT0.sy = 1.0f;
+    matT0.sz = 1.0f;
+    matT0.tz = 2.0f;
+    matT0.qx = rot.x;
+    matT0.qy = rot.y;
+    matT0.qz = rot.z;
+    matT0.qw = rot.w;
+
     VkSRTDataNV matT1 = matT0;  // Setting a rotation
-    rot.from_euler_xyz({deg2rad(10.0f), deg2rad(30.0f), 0.0f});
-    matT1.qx = rot.x;
-    matT1.qy = rot.y;
-    matT1.qz = rot.z;
-    matT1.qw = rot.w;
+    rot               = glm::quat(glm::vec3(glm::radians(10.0f), glm::radians(30.0f), 0.0f));
+    matT1.qx          = rot.x;
+    matT1.qy          = rot.y;
+    matT1.qz          = rot.z;
+    matT1.qw          = rot.w;
 
     VkAccelerationStructureSRTMotionInstanceNV data{};
     data.transformT0                            = matT0;
@@ -741,7 +743,7 @@ void HelloVulkan::createTopLevelAS()
   // Plane (static)
   objId = 1;
   {
-    nvmath::mat4f matT0 = m_instances[1].transform;
+    glm::mat4 matT0 = m_instances[1].transform;
 
     VkAccelerationStructureInstanceKHR data{};
     data.transform                              = nvvk::toTransformMatrixKHR(matT0);  // Position of the instance
@@ -760,7 +762,7 @@ void HelloVulkan::createTopLevelAS()
   // Cube+Cubemodif (static)
   objId = 2;
   {
-    nvmath::mat4f matT0 = m_instances[2].transform;
+    glm::mat4 matT0 = m_instances[2].transform;
 
     VkAccelerationStructureInstanceKHR data{};
     data.transform                              = nvvk::toTransformMatrixKHR(matT0);  // Position of the instance
@@ -800,7 +802,7 @@ void HelloVulkan::createRtDescriptorSet()
   vkAllocateDescriptorSets(m_device, &allocateInfo, &m_rtDescSet);
 
 
-  VkAccelerationStructureKHR                   tlas = m_rtBuilder.getAccelerationStructure();
+  VkAccelerationStructureKHR tlas = m_rtBuilder.getAccelerationStructure();
   VkWriteDescriptorSetAccelerationStructureKHR descASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
   descASInfo.accelerationStructureCount = 1;
   descASInfo.pAccelerationStructures    = &tlas;
@@ -958,7 +960,7 @@ void HelloVulkan::createRtShaderBindingTable()
   // Fetch all the shader handles used in the pipeline. This is opaque data,/ so we store it in a vector of bytes.
   // The order of handles follow the stage entry.
   std::vector<uint8_t> shaderHandleStorage(sbtSize);
-  auto                 result = vkGetRayTracingShaderGroupHandlesKHR(m_device, m_rtPipeline, 0, groupCount, sbtSize, shaderHandleStorage.data());
+  auto result = vkGetRayTracingShaderGroupHandlesKHR(m_device, m_rtPipeline, 0, groupCount, sbtSize, shaderHandleStorage.data());
 
   assert(result == VK_SUCCESS);
 
@@ -984,7 +986,7 @@ void HelloVulkan::createRtShaderBindingTable()
 //--------------------------------------------------------------------------------------------------
 // Ray Tracing the scene
 //
-void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor)
+void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const glm::vec4& clearColor)
 {
   updateFrame();
   if(m_pcRay.frame >= m_maxFrames)
@@ -1032,13 +1034,13 @@ void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& c
 //
 void HelloVulkan::updateFrame()
 {
-  static nvmath::mat4f refCamMatrix;
-  static float         refFov{CameraManip.getFov()};
+  static glm::mat4 refCamMatrix;
+  static float     refFov{CameraManip.getFov()};
 
   const auto& m   = CameraManip.getMatrix();
   const auto  fov = CameraManip.getFov();
 
-  if(memcmp(&refCamMatrix.a00, &m.a00, sizeof(nvmath::mat4f)) != 0 || refFov != fov)
+  if(refCamMatrix != m || refFov != fov)
   {
     resetFrame();
     refCamMatrix = m;

@@ -121,7 +121,7 @@ int main(int argc, char** argv)
 
   // Setup camera
   CameraManip.setWindowSize(SAMPLE_WIDTH, SAMPLE_HEIGHT);
-  CameraManip.setLookat(nvmath::vec3f(5, 4, -4), nvmath::vec3f(0, 1, 0), nvmath::vec3f(0, 1, 0));
+  CameraManip.setLookat(glm::vec3(5, 4, -4), glm::vec3(0, 1, 0), glm::vec3(0, 1, 0));
 
   // Setup Vulkan
   if(!glfwVulkanSupported())
@@ -195,10 +195,10 @@ int main(int argc, char** argv)
   std::normal_distribution<float> disn(0.05f, 0.05f);
   for(uint32_t n = 0; n < 2000; ++n)
   {
-    float         scale = fabsf(disn(gen));
-    nvmath::mat4f mat   = nvmath::translation_mat4(nvmath::vec3f{dis(gen), 2.0f + dis(gen), dis(gen)});
-    mat                 = mat * nvmath::rotation_mat4_x(dis(gen));
-    mat                 = mat * nvmath::scale_mat4(nvmath::vec3f(scale));
+    float     scale = fabsf(disn(gen));
+    glm::mat4 mat   = glm::translate(glm::mat4(1), glm::vec3{dis(gen), 2.0f + dis(gen), dis(gen)});
+    mat             = mat * glm::rotate(glm::mat4(1.f), dis(gen), glm::vec3(1.f, 0.f, 0.f));
+    mat             = mat * glm::scale(glm::mat4(1.f), glm::vec3(scale));
 
     helloVk.loadModel(nvh::findFile("media/scenes/cube_multi.obj", defaultSearchPaths, true), mat);
   }
@@ -227,8 +227,8 @@ int main(int argc, char** argv)
   helloVk.updatePostDescriptorSet();
 
 
-  nvmath::vec4f clearColor   = nvmath::vec4f(1, 1, 1, 1.00f);
-  bool          useRaytracer = true;
+  glm::vec4 clearColor   = glm::vec4(1, 1, 1, 1.00f);
+  bool      useRaytracer = true;
 
 
   helloVk.setupGlfwCallbacks(window);

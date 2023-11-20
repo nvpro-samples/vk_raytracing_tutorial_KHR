@@ -37,11 +37,11 @@ void ObjLoader::loadModel(const std::string& filename)
   for(const auto& material : reader.GetMaterials())
   {
     MaterialObj m;
-    m.ambient       = nvmath::vec3f(material.ambient[0], material.ambient[1], material.ambient[2]);
-    m.diffuse       = nvmath::vec3f(material.diffuse[0], material.diffuse[1], material.diffuse[2]);
-    m.specular      = nvmath::vec3f(material.specular[0], material.specular[1], material.specular[2]);
-    m.emission      = nvmath::vec3f(material.emission[0], material.emission[1], material.emission[2]);
-    m.transmittance = nvmath::vec3f(material.transmittance[0], material.transmittance[1], material.transmittance[2]);
+    m.ambient       = glm::vec3(material.ambient[0], material.ambient[1], material.ambient[2]);
+    m.diffuse       = glm::vec3(material.diffuse[0], material.diffuse[1], material.diffuse[2]);
+    m.specular      = glm::vec3(material.specular[0], material.specular[1], material.specular[2]);
+    m.emission      = glm::vec3(material.emission[0], material.emission[1], material.emission[2]);
+    m.transmittance = glm::vec3(material.transmittance[0], material.transmittance[1], material.transmittance[2]);
     m.dissolve      = material.dissolve;
     m.ior           = material.ior;
     m.shininess     = material.shininess;
@@ -113,10 +113,10 @@ void ObjLoader::loadModel(const std::string& filename)
       VertexObj& v1 = m_vertices[m_indices[i + 1]];
       VertexObj& v2 = m_vertices[m_indices[i + 2]];
 
-      nvmath::vec3f n = nvmath::normalize(nvmath::cross((v1.pos - v0.pos), (v2.pos - v0.pos)));
-      v0.nrm          = n;
-      v1.nrm          = n;
-      v2.nrm          = n;
+      glm::vec3 n = glm::normalize(glm::cross((v1.pos - v0.pos), (v2.pos - v0.pos)));
+      v0.nrm      = n;
+      v1.nrm      = n;
+      v2.nrm      = n;
     }
   }
 }

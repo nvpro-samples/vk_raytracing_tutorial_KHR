@@ -142,8 +142,8 @@ The motion matrix must fill the structure [`VkAccelerationStructureMatrixMotionI
   objId = 0;
   {
     // Position of the instance at T0 and T1
-    nvmath::mat4f matT0 = m_instances[0].transform;
-    nvmath::mat4f matT1 = nvmath::translation_mat4(nvmath::vec3f(0.30f, 0.0f, 0.0f)) * matT0;
+    glm::mat4 matT0 = m_instances[0].transform;
+    glm::mat4 matT1 = glm::translate(glm::mat4(1),glm::vec3(0.30f, 0.0f, 0.0f)) * matT0;
 
     VkAccelerationStructureMatrixMotionInstanceNV data;
     data.transformT0                            = nvvk::toTransformMatrixKHR(matT0);
@@ -169,7 +169,7 @@ where it interpolates between two structures [`VkSRTDataNV`](https://www.khronos
 // Cube (moving/SRT rotation)
   objId = 0;
   {
-    nvmath::quatf rot;
+    glm::quatf rot;
     rot.from_euler_xyz({0, 0, 0});
     // Position of the instance at T0 and T1
     VkSRTDataNV matT0{};  // Translated to 0,0,2
@@ -182,7 +182,7 @@ where it interpolates between two structures [`VkSRTDataNV`](https://www.khronos
     matT0.qz          = rot.z;
     matT0.qw          = rot.w;
     VkSRTDataNV matT1 = matT0;  // Setting a rotation
-    rot.from_euler_xyz({deg2rad(10.0f), deg2rad(30.0f), 0.0f});
+    rot.from_euler_xyz({glm::radians(10.0f), glm::radians(30.0f), 0.0f});
     matT1.qx = rot.x;
     matT1.qy = rot.y;
     matT1.qz = rot.z;
@@ -213,7 +213,7 @@ First the plane is not moving at all
   // Plane (static)
   objId = 1;
   {
-    nvmath::mat4f matT0 = m_instances[1].transform;
+    glm::mat4 matT0 = m_instances[1].transform;
 
     VkAccelerationStructureInstanceKHR data{};
     data.transform                              = nvvk::toTransformMatrixKHR(matT0);  // Position of the instance
@@ -235,7 +235,7 @@ Second the deformed cube is not moving, only its geometry. This was done when se
   // Cube+Cubemodif (static)
   objId = 2;
   {
-    nvmath::mat4f matT0 = m_instances[2].transform;
+    glm::mat4 matT0 = m_instances[2].transform;
 
     VkAccelerationStructureInstanceKHR data{};
     data.transform                              = nvvk::toTransformMatrixKHR(matT0);  // Position of the instance

@@ -64,12 +64,12 @@ void HelloVulkan::updateUniformBuffer(const VkCommandBuffer& cmdBuf)
   const float    aspectRatio = m_size.width / static_cast<float>(m_size.height);
   GlobalUniforms hostUBO     = {};
   const auto&    view        = CameraManip.getMatrix();
-  const auto&    proj        = nvmath::perspectiveVK(CameraManip.getFov(), aspectRatio, 0.1f, 1000.0f);
-  // proj[1][1] *= -1;  // Inverting Y for Vulkan (not needed with perspectiveVK).
+  glm::mat4      proj        = glm::perspectiveRH_ZO(glm::radians(CameraManip.getFov()), aspectRatio, 0.1f, 1000.0f);
+  proj[1][1] *= -1;  // Inverting Y for Vulkan (not needed with perspectiveVK).
 
   hostUBO.viewProj    = proj * view;
-  hostUBO.viewInverse = nvmath::invert(view);
-  hostUBO.projInverse = nvmath::invert(proj);
+  hostUBO.viewInverse = glm::inverse(view);
+  hostUBO.projInverse = glm::inverse(proj);
 
   // UBO on the device, and what stages access it.
   VkBuffer deviceUBO      = m_bGlobals.buffer;
@@ -171,7 +171,7 @@ void HelloVulkan::createGraphicsPipeline()
   gpb.depthStencilState.depthTestEnable = true;
   gpb.addShader(nvh::loadFile("spv/vert_shader.vert.spv", true, paths, true), VK_SHADER_STAGE_VERTEX_BIT);
   gpb.addShader(nvh::loadFile("spv/frag_shader.frag.spv", true, paths, true), VK_SHADER_STAGE_FRAGMENT_BIT);
-  gpb.addBindingDescriptions({{0, sizeof(nvmath::vec3f)}, {1, sizeof(nvmath::vec3f)}, {2, sizeof(nvmath::vec2f)}});
+  gpb.addBindingDescriptions({{0, sizeof(glm::vec3)}, {1, sizeof(glm::vec3)}, {2, sizeof(glm::vec2)}});
   gpb.addAttributeDescriptions({
       {0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0},  // Position
       {1, 1, VK_FORMAT_R32G32B32_SFLOAT, 0},  // Normal
@@ -211,14 +211,14 @@ void HelloVulkan::loadScene(const std::string& filename)
                                         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
                                             | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
   m_indexBuffer  = m_alloc.createBuffer(cmdBuf, m_gltfScene.m_indices,
-                                       VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
-                                           | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
+                                        VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+                                            | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
   m_normalBuffer = m_alloc.createBuffer(cmdBuf, m_gltfScene.m_normals,
                                         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
                                             | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
   m_uvBuffer     = m_alloc.createBuffer(cmdBuf, m_gltfScene.m_texcoords0,
-                                    VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
-                                        | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+                                        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+                                            | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 
   // Copying all materials, only the elements we need
   std::vector<GltfShadeMaterial> shadeMaterials;
@@ -246,7 +246,7 @@ void HelloVulkan::loadScene(const std::string& filename)
   sceneDesc.materialAddress = nvvk::getBufferDeviceAddress(m_device, m_materialBuffer.buffer);
   sceneDesc.primInfoAddress = nvvk::getBufferDeviceAddress(m_device, m_primInfo.buffer);
   m_sceneDesc               = m_alloc.createBuffer(cmdBuf, sizeof(SceneDesc), &sceneDesc,
-                                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+                                                   VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 
   // Creates all textures found
   createTextureImages(cmdBuf, tmodel);
@@ -600,7 +600,7 @@ auto HelloVulkan::primitiveToVkGeometry(const nvh::GltfPrimMesh& prim)
   VkAccelerationStructureGeometryTrianglesDataKHR triangles{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR};
   triangles.vertexFormat             = VK_FORMAT_R32G32B32_SFLOAT;  // vec3 vertex position data.
   triangles.vertexData.deviceAddress = vertexAddress;
-  triangles.vertexStride             = sizeof(nvmath::vec3f);
+  triangles.vertexStride             = sizeof(glm::vec3);
   // Describe index data (32-bit unsigned int)
   triangles.indexType               = VK_INDEX_TYPE_UINT32;
   triangles.indexData.deviceAddress = indexAddress;
@@ -688,7 +688,7 @@ void HelloVulkan::createRtDescriptorSet()
   vkAllocateDescriptorSets(m_device, &allocateInfo, &m_rtDescSet);
 
 
-  VkAccelerationStructureKHR                   tlas = m_rtBuilder.getAccelerationStructure();
+  VkAccelerationStructureKHR tlas = m_rtBuilder.getAccelerationStructure();
   VkWriteDescriptorSetAccelerationStructureKHR descASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
   descASInfo.accelerationStructureCount = 1;
   descASInfo.pAccelerationStructures    = &tlas;
@@ -830,7 +830,7 @@ void HelloVulkan::createRtPipeline()
 //--------------------------------------------------------------------------------------------------
 // Ray Tracing the scene
 //
-void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor)
+void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const glm::vec4& clearColor)
 {
   updateFrame();
 
@@ -864,13 +864,13 @@ void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& c
 //
 void HelloVulkan::updateFrame()
 {
-  static nvmath::mat4f refCamMatrix;
-  static float         refFov{CameraManip.getFov()};
+  static glm::mat4 refCamMatrix;
+  static float     refFov{CameraManip.getFov()};
 
   const auto& m   = CameraManip.getMatrix();
   const auto  fov = CameraManip.getFov();
 
-  if(memcmp(&refCamMatrix.a00, &m.a00, sizeof(nvmath::mat4f)) != 0 || refFov != fov)
+  if(refCamMatrix != m || refFov != fov)
   {
     resetFrame();
     refCamMatrix = m;

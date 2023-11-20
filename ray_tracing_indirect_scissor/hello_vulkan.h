@@ -42,20 +42,22 @@ public:
   void setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t queueFamily) override;
   void createDescriptorSetLayout();
   void createGraphicsPipeline();
-  void loadModel(const std::string& filename, nvmath::mat4f transform = nvmath::mat4f(1));
-  void addLantern(nvmath::vec3f pos, nvmath::vec3f color, float brightness, float radius);
+  void loadModel(const std::string& filename, glm::mat4 transform = glm::mat4(1));
+  void addLantern(glm::vec3 pos, glm::vec3 color, float brightness, float radius);
   void updateDescriptorSet();
   void createUniformBuffer();
   void createObjDescriptionBuffer();
   void createTextureImages(const VkCommandBuffer& cmdBuf, const std::vector<std::string>& textures);
 
-  nvmath::mat4f getViewMatrix() { return CameraManip.getMatrix(); }
+  glm::mat4 getViewMatrix() { return CameraManip.getMatrix(); }
 
   static constexpr float nearZ = 0.1f;
-  nvmath::mat4f          getProjMatrix()
+  glm::mat4              getProjMatrix()
   {
     const float aspectRatio = m_size.width / static_cast<float>(m_size.height);
-    return nvmath::perspectiveVK(CameraManip.getFov(), aspectRatio, nearZ, 1000.0f);
+    glm::mat4   proj        = glm::perspectiveRH_ZO(glm::radians(CameraManip.getFov()), aspectRatio, nearZ, 1000.0f);
+    proj[1][1] *= -1;
+    return proj;
   }
 
   void updateUniformBuffer(const VkCommandBuffer& cmdBuf);
@@ -76,27 +78,27 @@ public:
 
   struct ObjInstance
   {
-    nvmath::mat4f transform;    // Matrix of the instance
-    uint32_t      objIndex{0};  // Model index reference
+    glm::mat4 transform;    // Matrix of the instance
+    uint32_t  objIndex{0};  // Model index reference
   };
 
 
   // Information pushed at each draw call
   PushConstantRaster m_pcRaster{
-      {1},                // Identity matrix
-      {10.f, 15.f, 8.f},  // light position
-      0,                  // instance Id
-      100.f,              // light intensity
-      0                   // light type
+      {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1},  // Identity matrix
+      {10.f, 15.f, 8.f},                                 // light position
+      0,                                                 // instance Id
+      100.f,                                             // light intensity
+      0                                                  // light type
   };
 
   // Information on each colored lantern illuminating the scene.
   struct Lantern
   {
-    nvmath::vec3f position;
-    nvmath::vec3f color;
-    float         brightness{0};
-    float         radius{0};  // Max world-space distance that light illuminates.
+    glm::vec3 position;
+    glm::vec3 color;
+    float     brightness{0};
+    float     radius{0};  // Max world-space distance that light illuminates.
   };
 
   // Information on each colored lantern, plus the info needed for dispatching the
@@ -166,7 +168,7 @@ public:
   auto objectToVkGeometryKHR(const ObjModel& model);
 
 private:
-  void fillLanternVerts(std::vector<nvmath::vec3f>& vertices, std::vector<uint32_t>& indices);
+  void fillLanternVerts(std::vector<glm::vec3>& vertices, std::vector<uint32_t>& indices);
   void createLanternModel();
 
 public:
@@ -180,7 +182,7 @@ public:
   void createRtShaderBindingTable();
   void createLanternIndirectBuffer();
 
-  void raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor);
+  void raytrace(const VkCommandBuffer& cmdBuf, const glm::vec4& clearColor);
 
   // Used to store lantern model, generated at runtime.
   const float                           m_lanternModelRadius = 0.125;
@@ -192,11 +194,11 @@ public:
   size_t m_lanternBlasId;
 
   VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
-  nvvk::RaytracingBuilderKHR                      m_rtBuilder;
-  nvvk::DescriptorSetBindings                     m_rtDescSetLayoutBind;
-  VkDescriptorPool                                m_rtDescPool;
-  VkDescriptorSetLayout                           m_rtDescSetLayout;
-  VkDescriptorSet                                 m_rtDescSet;
+  nvvk::RaytracingBuilderKHR                        m_rtBuilder;
+  nvvk::DescriptorSetBindings                       m_rtDescSetLayoutBind;
+  VkDescriptorPool                                  m_rtDescPool;
+  VkDescriptorSetLayout                             m_rtDescSetLayout;
+  VkDescriptorSet                                   m_rtDescSet;
   std::vector<VkRayTracingShaderGroupCreateInfoKHR> m_rtShaderGroups;
   VkPipelineLayout                                  m_rtPipelineLayout;
   VkPipeline                                        m_rtPipeline;
@@ -233,12 +235,12 @@ public:
   // Barely fits in 128-byte push constant limit guaranteed by spec.
   struct LanternIndirectPushConstants
   {
-    nvmath::vec4f viewRowX;  // First 3 rows of view matrix.
-    nvmath::vec4f viewRowY;  // Set w=1 implicitly in shader.
-    nvmath::vec4f viewRowZ;
+    glm::vec4 viewRowX;  // First 3 rows of view matrix.
+    glm::vec4 viewRowY;  // Set w=1 implicitly in shader.
+    glm::vec4 viewRowZ;
 
-    nvmath::mat4f proj{};   // Perspective matrix
-    float         nearZ{};  // Near plane used to create projection matrix.
+    glm::mat4 proj{};   // Perspective matrix
+    float     nearZ{};  // Near plane used to create projection matrix.
 
     // Pixel dimensions of output image (needed to scale NDC to screen coordinates).
     int32_t screenX{};

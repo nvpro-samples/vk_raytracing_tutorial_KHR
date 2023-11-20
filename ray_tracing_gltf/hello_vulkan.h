@@ -66,12 +66,12 @@ public:
 
   // Information pushed at each draw call
   PushConstantRaster m_pcRaster{
-      {1},               // Identity matrix
-      {0.f, 4.5f, 0.f},  // light position
-      0,                 // instance Id
-      10.f,              // light intensity
-      0,                 // light type
-      0                  // material id
+      {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1},  // Identity matrix
+      {0.f, 4.5f, 0.f},                                  // light position
+      0,                                                 // instance Id
+      10.f,                                              // light intensity
+      0,                                                 // light type
+      0                                                  // material id
   };
 
   // Graphic pipeline
@@ -117,16 +117,16 @@ public:
   void createRtDescriptorSet();
   void updateRtDescriptorSet();
   void createRtPipeline();
-  void raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor);
+  void raytrace(const VkCommandBuffer& cmdBuf, const glm::vec4& clearColor);
   void updateFrame();
   void resetFrame();
 
   VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
-  nvvk::RaytracingBuilderKHR                      m_rtBuilder;
-  nvvk::DescriptorSetBindings                     m_rtDescSetLayoutBind;
-  VkDescriptorPool                                m_rtDescPool;
-  VkDescriptorSetLayout                           m_rtDescSetLayout;
-  VkDescriptorSet                                 m_rtDescSet;
+  nvvk::RaytracingBuilderKHR                        m_rtBuilder;
+  nvvk::DescriptorSetBindings                       m_rtDescSetLayoutBind;
+  VkDescriptorPool                                  m_rtDescPool;
+  VkDescriptorSetLayout                             m_rtDescSetLayout;
+  VkDescriptorSet                                   m_rtDescSet;
   std::vector<VkRayTracingShaderGroupCreateInfoKHR> m_rtShaderGroups;
   VkPipelineLayout                                  m_rtPipelineLayout;
   VkPipeline                                        m_rtPipeline;

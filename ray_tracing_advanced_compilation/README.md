@@ -123,8 +123,8 @@ In addition, the pipeline libraries need to have the same pipeline interface. Th
   // the built-in triangle intersector) and the maximum payload size (3 floating-point values in this sample).
   // Pipeline libraries can be linked into a final pipeline only if their interface matches
   VkRayTracingPipelineInterfaceCreateInfoKHR pipelineInterface{VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_INTERFACE_CREATE_INFO_KHR};
-  pipelineInterface.maxPipelineRayHitAttributeSize = sizeof(nvmath::vec2f);
-  pipelineInterface.maxPipelineRayPayloadSize      = sizeof(nvmath::vec3f);
+  pipelineInterface.maxPipelineRayHitAttributeSize = sizeof(glm::vec2);
+  pipelineInterface.maxPipelineRayPayloadSize      = sizeof(glm::vec3);
   pipelineLibraryInfo.pLibraryInterface            = &pipelineInterface;
 ~~~~
 

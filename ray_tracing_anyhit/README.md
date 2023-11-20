@@ -190,8 +190,8 @@ For a more interesting scene, you can replace the `helloVk.loadModel` calls in `
 ~~~~ C++
   helloVk.loadModel(nvh::findFile("media/scenes/wuson.obj", defaultSearchPaths, true));
   helloVk.loadModel(nvh::findFile("media/scenes/sphere.obj", defaultSearchPaths, true),
-                    nvmath::scale_mat4(nvmath::vec3f(1.5f))
-                        * nvmath::translation_mat4(nvmath::vec3f(0.0f, 1.0f, 0.0f)));
+                    glm::scale(glm::mat4(1.f),glm::vec3(1.5f))
+                        * glm::translate(glm::mat4(1),glm::vec3(0.0f, 1.0f, 0.0f)));
   helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
 ~~~~
 

@@ -92,7 +92,7 @@ void HelloVulkan::createSpheres(uint32_t nbSpheres)
   for(uint32_t i = 0; i < nbSpheres; i++)
   {
     Sphere s;
-    s.center     = nvmath::vec3f(xzd(gen), yd(gen), xzd(gen));
+    s.center     = glm::vec3(xzd(gen), yd(gen), xzd(gen));
     s.radius     = radd(gen);
     m_spheres[i] = std::move(s);
   }
@@ -103,18 +103,18 @@ void HelloVulkan::createSpheres(uint32_t nbSpheres)
   for(const auto& s : m_spheres)
   {
     Aabb aabb;
-    aabb.minimum = s.center - nvmath::vec3f(s.radius);
-    aabb.maximum = s.center + nvmath::vec3f(s.radius);
+    aabb.minimum = s.center - glm::vec3(s.radius);
+    aabb.maximum = s.center + glm::vec3(s.radius);
     aabbs.emplace_back(aabb);
   }
 
   // Creating two materials
   MaterialObj mat;
-  mat.diffuse = nvmath::vec3f(0, 1, 1);
+  mat.diffuse = glm::vec3(0, 1, 1);
   std::vector<MaterialObj> materials;
   std::vector<int>         matIdx(nbSpheres);
   materials.emplace_back(mat);
-  mat.diffuse = nvmath::vec3f(1, 1, 0);
+  mat.diffuse = glm::vec3(1, 1, 0);
   materials.emplace_back(mat);
 
   // Assign a material to each sphere
@@ -214,7 +214,7 @@ In `main.cpp`, where we are loading the OBJ model, we can replace it with
 The scene will be large, better to move the camera out
 
 ~~~~ C++
-  CameraManip.setLookat(nvmath::vec3f(20, 20, 20), nvmath::vec3f(0, 1, 0), nvmath::vec3f(0, 1, 0));
+  CameraManip.setLookat(glm::vec3(20, 20, 20), glm::vec3(0, 1, 0), glm::vec3(0, 1, 0));
 ~~~~
 
 ## Acceleration Structures
@@ -272,7 +272,7 @@ Just after the loop and before building the TLAS, we need to add the following.
   // Add the blas containing all implicit objects
   {
     VkAccelerationStructureInstanceKHR rayInst{};
-    rayInst.transform           = nvvk::toTransformMatrixKHR(nvmath::mat4f(1));  // Position of the instance (identity)
+    rayInst.transform           = nvvk::toTransformMatrixKHR(glm::mat4(1));  // Position of the instance (identity)
     rayInst.instanceCustomIndex = nbObj;                                         // nbObj == last object == implicit
     rayInst.accelerationStructureReference = m_rtBuilder.getBlasDeviceAddress(static_cast<uint32_t>(m_objModel.size()));
     rayInst.instanceShaderBindingTableRecordOffset = 1;  // We will use the same hit group for all objects

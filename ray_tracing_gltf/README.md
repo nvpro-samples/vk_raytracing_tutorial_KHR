@@ -223,7 +223,7 @@ auto HelloVulkan::primitiveToGeometry(const nvh::GltfPrimMesh& prim)
   VkAccelerationStructureGeometryTrianglesDataKHR triangles{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR};
   triangles.vertexFormat             = VK_FORMAT_R32G32B32_SFLOAT;  // vec3 vertex position data.
   triangles.vertexData.deviceAddress = vertexAddress;
-  triangles.vertexStride             = sizeof(nvmath::vec3f);
+  triangles.vertexStride             = sizeof(glm::vec3);
   // Describe index data (32-bit unsigned int)
   triangles.indexType               = VK_INDEX_TYPE_UINT32;
   triangles.indexData.deviceAddress = indexAddress;
@@ -337,7 +337,7 @@ Small other changes were done, a different scene, different camera and light pos
 
 Camera position
 ~~~~C
-  CameraManip.setLookat(nvmath::vec3f(0, 0, 15), nvmath::vec3f(0, 0, 0), nvmath::vec3f(0, 1, 0));
+  CameraManip.setLookat(glm::vec3(0, 0, 15), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
 ~~~~
 
 Scene
@@ -347,7 +347,7 @@ Scene
 
 Light Position
 ~~~~C
-    nvmath::vec3f lightPosition{0.f, 4.5f, 0.f};
+    glm::vec3 lightPosition{0.f, 4.5f, 0.f};
 ~~~~
 
 # Simple Path Tracing
@@ -368,13 +368,13 @@ Add the following two functions in `hello_vulkan.cpp`:
 //
 void HelloVulkan::updateFrame()
 {
-  static nvmath::mat4f refCamMatrix;
+  static glm::mat4 refCamMatrix;
   static float         refFov{CameraManip.getFov()};
 
   const auto& m   = CameraManip.getMatrix();
   const auto  fov = CameraManip.getFov();
 
-  if(memcmp(&refCamMatrix.a00, &m.a00, sizeof(nvmath::mat4f)) != 0 || refFov != fov)
+  if(refCamMatrix != m || refFov != fov)
   {
     resetFrame();
     refCamMatrix = m;

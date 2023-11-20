@@ -1633,7 +1633,7 @@ In the `main` function, we now add the construction of the Shader Binding Table:
 Let's create a function that will record commands to call the ray trace shaders. First, add the declaration to the header
 
 ~~~~ C
-void       raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor);
+void       raytrace(const VkCommandBuffer& cmdBuf, const glm::vec4& clearColor);
 ~~~~
 
 We first bind the pipeline and its layout, and set the push constants that will be available throughout the pipeline:
@@ -1642,7 +1642,7 @@ We first bind the pipeline and its layout, and set the push constants that will 
 //--------------------------------------------------------------------------------------------------
 // Ray Tracing the scene
 //
-void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor)
+void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const glm::vec4& clearColor)
 {
   m_debug.beginLabel(cmdBuf, "Ray trace");
   // Initializing push constant values
@@ -2132,7 +2132,7 @@ The OBJ model is loaded in `main.cpp` by calling `helloVk.loadModel`. Let's load
 Since that model is larger, we can change the `CameraManip.setLookat` call to
 
 ~~~~ C
-CameraManip.setLookat(nvmath::vec3f(4, 4, 4), nvmath::vec3f(0, 1, 0), nvmath::vec3f(0, 1, 0));
+CameraManip.setLookat(glm::vec3(4, 4, 4), glm::vec3(0, 1, 0), glm::vec3(0, 1, 0));
 ~~~~
 
 ![](Images/resultRaytraceLightMatMedieval.png)

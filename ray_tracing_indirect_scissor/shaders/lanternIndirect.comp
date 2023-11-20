@@ -16,7 +16,7 @@
  * SPDX-FileCopyrightText: Copyright (c) 2019-2021 NVIDIA CORPORATION
  * SPDX-License-Identifier: Apache-2.0
  */
- 
+
 #version 460
 #extension GL_GOOGLE_include_directive : enable
 
@@ -32,18 +32,22 @@ layout(local_size_x = LOCAL_SIZE, local_size_y = 1, local_size_z = 1) in;
 
 #include "LanternIndirectEntry.glsl"
 
-layout(binding = 0, set = 0) buffer LanternArray { LanternIndirectEntry lanterns[]; } lanterns;
+layout(binding = 0, set = 0) buffer LanternArray
+{
+  LanternIndirectEntry lanterns[];
+}
+lanterns;
 
 layout(push_constant) uniform Constants
 {
-  vec4 viewRowX;
-  vec4 viewRowY;
-  vec4 viewRowZ;
-  mat4 proj;
+  vec4  viewRowX;
+  vec4  viewRowY;
+  vec4  viewRowZ;
+  mat4  proj;
   float nearZ;
-  int screenX;
-  int screenY;
-  int lanternCount;
+  int   screenX;
+  int   screenY;
+  int   lanternCount;
 }
 pushC;
 
@@ -60,123 +64,118 @@ void getScreenCoordBox(in LanternIndirectEntry lantern, out ivec2 lower, out ive
 void fillIndirectEntry(int i)
 {
   LanternIndirectEntry lantern = lanterns.lanterns[i];
-  ivec2 lower, upper;
+  ivec2                lower, upper;
   getScreenCoordBox(lantern, lower, upper);
 
   lanterns.lanterns[i].indirectWidth  = max(0, upper.x - lower.x);
   lanterns.lanterns[i].indirectHeight = max(0, upper.y - lower.y);
   lanterns.lanterns[i].indirectDepth  = 1;
-  lanterns.lanterns[i].offsetX = lower.x;
-  lanterns.lanterns[i].offsetY = lower.y;
+  lanterns.lanterns[i].offsetX        = lower.x;
+  lanterns.lanterns[i].offsetY        = lower.y;
 }
 
 void main()
 {
-  for (int i = int(gl_LocalInvocationID.x); i < pushC.lanternCount; i += LOCAL_SIZE)
+  for(int i = int(gl_LocalInvocationID.x); i < pushC.lanternCount; i += LOCAL_SIZE)
   {
     fillIndirectEntry(i);
   }
 }
 
 // Functions below modified from the paper.
-float square(float a) { return a*a; }
+float square(float a)
+{
+  return a * a;
+}
 
-void getBoundsForAxis(
-  in bool xAxis,
-  in vec3 center,
-  in float radius,
-  in float nearZ,
-  in mat4 projMatrix,
-  out vec3 U,
-  out vec3 L) {
-    bool trivialAccept = (center.z + radius) < nearZ; // Entirely in back of nearPlane (Trivial Accept)
-    vec3 a = xAxis ? vec3(1, 0, 0) : vec3(0, 1, 0); 
+void getBoundsForAxis(in bool xAxis, in vec3 center, in float radius, in float nearZ, in mat4 projMatrix, out vec3 U, out vec3 L)
+{
+  bool trivialAccept = (center.z + radius) < nearZ;  // Entirely in back of nearPlane (Trivial Accept)
+  vec3 a             = xAxis ? vec3(1, 0, 0) : vec3(0, 1, 0);
 
-    // given in coordinates (a,z), where a is in the direction of the vector a, and z is in the standard z direction
-    vec2 projectedCenter = vec2(dot(a, center), center.z);  
-    vec2 bounds_az[2];
-    float tSquared = dot(projectedCenter, projectedCenter) - square(radius);
-    float t, cLength, costheta = 0, sintheta = 0;
+  // given in coordinates (a,z), where a is in the direction of the vector a, and z is in the standard z direction
+  vec2  projectedCenter = vec2(dot(a, center), center.z);
+  vec2  bounds_az[2];
+  float tSquared = dot(projectedCenter, projectedCenter) - square(radius);
+  float t, cLength, costheta = 0, sintheta = 0;
 
-    if(tSquared >  0) { // Camera is outside sphere
-        // Distance to the tangent points of the sphere (points where a vector from the camera are tangent to the sphere) (calculated a-z space)
-        t = sqrt(tSquared);
-        cLength = length(projectedCenter);
+  if(tSquared > 0)
+  {  // Camera is outside sphere
+    // Distance to the tangent points of the sphere (points where a vector from the camera are tangent to the sphere) (calculated a-z space)
+    t       = sqrt(tSquared);
+    cLength = length(projectedCenter);
 
-        // Theta is the angle between the vector from the camera to the center of the sphere and the vectors from the camera to the tangent points
-        costheta = t / cLength;
-        sintheta = radius / cLength;
+    // Theta is the angle between the vector from the camera to the center of the sphere and the vectors from the camera to the tangent points
+    costheta = t / cLength;
+    sintheta = radius / cLength;
+  }
+  float sqrtPart = 0.0f;
+  if(!trivialAccept)
+    sqrtPart = sqrt(square(radius) - square(nearZ - projectedCenter.y));
+
+  for(int i = 0; i < 2; ++i)
+  {
+    if(tSquared > 0)
+    {
+      float x      = costheta * projectedCenter.x + -sintheta * projectedCenter.y;
+      float y      = sintheta * projectedCenter.x + costheta * projectedCenter.y;
+      bounds_az[i] = costheta * vec2(x, y);
     }
-    float sqrtPart = 0.0f;
-    if(!trivialAccept) sqrtPart = sqrt(square(radius) - square(nearZ - projectedCenter.y));
 
-    for(int i = 0; i < 2; ++i){
-        if(tSquared >  0) {
-            float x = costheta * projectedCenter.x + -sintheta * projectedCenter.y;
-            float y = sintheta * projectedCenter.x +  costheta * projectedCenter.y;
-            bounds_az[i] = costheta * vec2(x, y);
-        } 
-
-        if(!trivialAccept && (tSquared <= 0 || bounds_az[i].y > nearZ)) {
-            bounds_az[i].x = projectedCenter.x + sqrtPart;
-            bounds_az[i].y = nearZ; 
-        }
-        sintheta *= -1; // negate theta for B
-        sqrtPart *= -1; // negate sqrtPart for B
+    if(!trivialAccept && (tSquared <= 0 || bounds_az[i].y > nearZ))
+    {
+      bounds_az[i].x = projectedCenter.x + sqrtPart;
+      bounds_az[i].y = nearZ;
     }
-    U   = bounds_az[0].x * a;
-    U.z = bounds_az[0].y;
-    L   = bounds_az[1].x * a;
-    L.z = bounds_az[1].y;
+    sintheta *= -1;  // negate theta for B
+    sqrtPart *= -1;  // negate sqrtPart for B
+  }
+  U   = bounds_az[0].x * a;
+  U.z = bounds_az[0].y;
+  L   = bounds_az[1].x * a;
+  L.z = bounds_az[1].y;
 }
 
 /** Center is in camera space */
-void getBoundingBox(
-  in vec3 center,
-  in float radius,
-  in float nearZ,
-  in mat4 projMatrix,
-  out vec2 ndc_low,
-  out vec2 ndc_high) {
-    vec3 maxXHomogenous, minXHomogenous, maxYHomogenous, minYHomogenous;
-    getBoundsForAxis(true,  center, radius, nearZ, projMatrix, maxXHomogenous, minXHomogenous);
-    getBoundsForAxis(false, center, radius, nearZ, projMatrix, maxYHomogenous, minYHomogenous);
+void getBoundingBox(in vec3 center, in float radius, in float nearZ, in mat4 projMatrix, out vec2 ndc_low, out vec2 ndc_high)
+{
+  vec3 maxXHomogenous, minXHomogenous, maxYHomogenous, minYHomogenous;
+  getBoundsForAxis(true, center, radius, nearZ, projMatrix, maxXHomogenous, minXHomogenous);
+  getBoundsForAxis(false, center, radius, nearZ, projMatrix, maxYHomogenous, minYHomogenous);
 
-    vec4 projRow0 = vec4(projMatrix[0][0], projMatrix[1][0], projMatrix[2][0], projMatrix[3][0]);
-    vec4 projRow1 = vec4(projMatrix[0][1], projMatrix[1][1], projMatrix[2][1], projMatrix[3][1]);
-    vec4 projRow3 = vec4(projMatrix[0][3], projMatrix[1][3], projMatrix[2][3], projMatrix[3][3]);
+  vec4 projRow0 = vec4(projMatrix[0][0], projMatrix[1][0], projMatrix[2][0], projMatrix[3][0]);
+  vec4 projRow1 = vec4(projMatrix[0][1], projMatrix[1][1], projMatrix[2][1], projMatrix[3][1]);
+  vec4 projRow3 = vec4(projMatrix[0][3], projMatrix[1][3], projMatrix[2][3], projMatrix[3][3]);
 
-    // We only need one coordinate for each point, so we save computation by only calculating x(or y) and w
-    float maxX_w = dot(vec4(maxXHomogenous, 1.0f), projRow3);
-    float minX_w = dot(vec4(minXHomogenous, 1.0f), projRow3);
-    float maxY_w = dot(vec4(maxYHomogenous, 1.0f), projRow3);
-    float minY_w = dot(vec4(minYHomogenous, 1.0f), projRow3);
+  // We only need one coordinate for each point, so we save computation by only calculating x(or y) and w
+  float maxX_w = dot(vec4(maxXHomogenous, 1.0f), projRow3);
+  float minX_w = dot(vec4(minXHomogenous, 1.0f), projRow3);
+  float maxY_w = dot(vec4(maxYHomogenous, 1.0f), projRow3);
+  float minY_w = dot(vec4(minYHomogenous, 1.0f), projRow3);
 
-    float maxX = dot(vec4(maxXHomogenous, 1.0f), projRow0) / maxX_w;
-    float minX = dot(vec4(minXHomogenous, 1.0f), projRow0) / minX_w;
-    float maxY = dot(vec4(maxYHomogenous, 1.0f), projRow1) / maxY_w;
-    float minY = dot(vec4(minYHomogenous, 1.0f), projRow1) / minY_w;
+  float maxX = dot(vec4(maxXHomogenous, 1.0f), projRow0) / maxX_w;
+  float minX = dot(vec4(minXHomogenous, 1.0f), projRow0) / minX_w;
+  float maxY = dot(vec4(maxYHomogenous, 1.0f), projRow1) / maxY_w;
+  float minY = dot(vec4(minYHomogenous, 1.0f), projRow1) / minY_w;
 
-    // Paper minX, etc. names are misleading, not necessarily min. Fix here.
-    ndc_low =  vec2(min(minX, maxX), min(minY, maxY));
-    ndc_high = vec2(max(minX, maxX), max(minY, maxY));
+  // Paper minX, etc. names are misleading, not necessarily min. Fix here.
+  ndc_low  = vec2(min(minX, maxX), min(minY, maxY));
+  ndc_high = vec2(max(minX, maxX), max(minY, maxY));
 }
 
 void getScreenCoordBox(in LanternIndirectEntry lantern, out ivec2 lower, out ivec2 upper)
 {
-  vec4 lanternWorldCenter = vec4(lantern.x, lantern.y, lantern.z, 1);
-  vec3 center = vec3(
-    dot(pushC.viewRowX, lanternWorldCenter),
-    dot(pushC.viewRowY, lanternWorldCenter),
-    dot(pushC.viewRowZ, lanternWorldCenter));
-  vec2 ndc_low, ndc_high;
-  float paperNearZ = -abs(pushC.nearZ); // Paper expected negative nearZ, took 2 days to figure out!
+  vec4  lanternWorldCenter = vec4(lantern.x, lantern.y, lantern.z, 1);
+  vec3  center             = vec3(dot(pushC.viewRowX, lanternWorldCenter), dot(pushC.viewRowY, lanternWorldCenter),
+                                  dot(pushC.viewRowZ, lanternWorldCenter));
+  vec2  ndc_low, ndc_high;
+  float paperNearZ = -abs(pushC.nearZ);  // Paper expected negative nearZ, took 2 days to figure out!
   getBoundingBox(center, lantern.radius, paperNearZ, pushC.proj, ndc_low, ndc_high);
 
   // Convert NDC [-1,+1]^2 coordinates to screen coordinates, and clamp to stay in bounds.
 
-  lower.x = clamp(int((ndc_low.x  * 0.5 + 0.5) * pushC.screenX), 0, pushC.screenX);
-  lower.y = clamp(int((ndc_low.y  * 0.5 + 0.5) * pushC.screenY), 0, pushC.screenY);
+  lower.x = clamp(int((ndc_low.x * 0.5 + 0.5) * pushC.screenX), 0, pushC.screenX);
+  lower.y = clamp(int((ndc_low.y * 0.5 + 0.5) * pushC.screenY), 0, pushC.screenY);
   upper.x = clamp(int((ndc_high.x * 0.5 + 0.5) * pushC.screenX), 0, pushC.screenX);
   upper.y = clamp(int((ndc_high.y * 0.5 + 0.5) * pushC.screenY), 0, pushC.screenY);
 }

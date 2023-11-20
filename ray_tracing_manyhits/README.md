@@ -19,9 +19,9 @@ Then you can change the `helloVk.loadModel` calls to the following:
 ~~~~ C++
   // Creation of the example
   helloVk.loadModel(nvh::findFile("media/scenes/wuson.obj", defaultSearchPaths, true),
-                    nvmath::translation_mat4(nvmath::vec3f(-1, 0, 0)));
+                    glm::translate(glm::mat4(1),glm::vec3(-1, 0, 0)));
 
-  helloVk.m_instances.push_back({nvmath::translation_mat4(nvmath::vec3f(1, 0, 0)), 0}); // Adding an instance of the Wuson
+  helloVk.m_instances.push_back({glm::translate(glm::mat4(1),glm::vec3(1, 0, 0)), 0}); // Adding an instance of the Wuson
 
   helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
 ~~~~
@@ -98,7 +98,7 @@ In the `ObjInstance` structure, we will add a new member `hitgroup` variable tha
 ~~~~ C++
   struct ObjInstance
   {
-    nvmath::mat4f transform;    // Matrix of the instance
+    glm::mat4 transform;    // Matrix of the instance
     uint32_t      objIndex{0};  // Model index reference
     int           hitgroup{0};  // Hit group of the instance
   };
@@ -145,7 +145,7 @@ In the HelloVulkan class, we will add a structure to hold the hit group data.
 ~~~~ C++
   struct HitRecordBuffer
   {
-    nvmath::vec4f color;
+    glm::vec4 color;
   };
   std::vector<HitRecordBuffer> m_hitShaderRecord;
 ~~~~
@@ -176,7 +176,7 @@ In `main`, after we set which hit group an instance will use, we can add the dat
 
 ~~~~ C++
   helloVk.m_hitShaderRecord.resize(1);
-  helloVk.m_hitShaderRecord[0].color = nvmath::vec4f(1, 1, 0, 0);  // Yellow
+  helloVk.m_hitShaderRecord[0].color = glm::vec4(1, 1, 0, 0);  // Yellow
 ~~~~
 
 ### `HelloVulkan::createRtShaderBindingTable`
@@ -244,8 +244,8 @@ In the description of the scene in `main`, we will tell the `wuson` models to us
 ~~~~ C++
   // Hit shader record info
   helloVk.m_hitShaderRecord.resize(2);
-  helloVk.m_hitShaderRecord[0].color = nvmath::vec4f(0, 1, 0, 0);  // Green
-  helloVk.m_hitShaderRecord[1].color = nvmath::vec4f(0, 1, 1, 0);  // Cyan
+  helloVk.m_hitShaderRecord[0].color = glm::vec4(0, 1, 0, 0);  // Green
+  helloVk.m_hitShaderRecord[1].color = glm::vec4(0, 1, 1, 0);  // Cyan
   helloVk.m_instances[0].hitgroup    = 1;                          // wuson 0
   helloVk.m_instances[1].hitgroup    = 2;                          // wuson 1
 ~~~~

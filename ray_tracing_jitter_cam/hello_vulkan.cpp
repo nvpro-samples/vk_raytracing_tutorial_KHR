@@ -61,12 +61,12 @@ void HelloVulkan::updateUniformBuffer(const VkCommandBuffer& cmdBuf)
   const float    aspectRatio = m_size.width / static_cast<float>(m_size.height);
   GlobalUniforms hostUBO     = {};
   const auto&    view        = CameraManip.getMatrix();
-  const auto&    proj        = nvmath::perspectiveVK(CameraManip.getFov(), aspectRatio, 0.1f, 1000.0f);
-  // proj[1][1] *= -1;  // Inverting Y for Vulkan (not needed with perspectiveVK).
+  glm::mat4      proj        = glm::perspectiveRH_ZO(glm::radians(CameraManip.getFov()), aspectRatio, 0.1f, 1000.0f);
+  proj[1][1] *= -1;  // Inverting Y for Vulkan (not needed with perspectiveVK).
 
   hostUBO.viewProj    = proj * view;
-  hostUBO.viewInverse = nvmath::invert(view);
-  hostUBO.projInverse = nvmath::invert(proj);
+  hostUBO.viewInverse = glm::inverse(view);
+  hostUBO.projInverse = glm::inverse(proj);
 
   // UBO on the device, and what stages access it.
   VkBuffer deviceUBO      = m_bGlobals.buffer;
@@ -185,7 +185,7 @@ void HelloVulkan::createGraphicsPipeline()
 //--------------------------------------------------------------------------------------------------
 // Loading the OBJ file and setting up all buffers
 //
-void HelloVulkan::loadModel(const std::string& filename, nvmath::mat4f transform)
+void HelloVulkan::loadModel(const std::string& filename, glm::mat4 transform)
 {
   LOGI("Loading File:  %s \n", filename.c_str());
   ObjLoader loader;
@@ -194,9 +194,9 @@ void HelloVulkan::loadModel(const std::string& filename, nvmath::mat4f transform
   // Converting from Srgb to linear
   for(auto& m : loader.m_materials)
   {
-    m.ambient  = nvmath::pow(m.ambient, 2.2f);
-    m.diffuse  = nvmath::pow(m.diffuse, 2.2f);
-    m.specular = nvmath::pow(m.specular, 2.2f);
+    m.ambient  = glm::pow(m.ambient, glm::vec3(2.2f));
+    m.diffuse  = glm::pow(m.diffuse, glm::vec3(2.2f));
+    m.specular = glm::pow(m.specular, glm::vec3(2.2f));
   }
 
   ObjModel model;
@@ -701,7 +701,7 @@ void HelloVulkan::createRtDescriptorSet()
   vkAllocateDescriptorSets(m_device, &allocateInfo, &m_rtDescSet);
 
 
-  VkAccelerationStructureKHR                   tlas = m_rtBuilder.getAccelerationStructure();
+  VkAccelerationStructureKHR tlas = m_rtBuilder.getAccelerationStructure();
   VkWriteDescriptorSetAccelerationStructureKHR descASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
   descASInfo.accelerationStructureCount = 1;
   descASInfo.pAccelerationStructures    = &tlas;
@@ -853,9 +853,9 @@ void HelloVulkan::createRtShaderBindingTable()
 
   // The SBT (buffer) need to have starting groups to be aligned and handles in the group to be aligned.
   uint32_t handleSizeAligned = nvh::align_up(handleSize, m_rtProperties.shaderGroupHandleAlignment);
-  
+
   m_rgenRegion.stride = nvh::align_up(handleSizeAligned, m_rtProperties.shaderGroupBaseAlignment);
-  m_rgenRegion.size   = m_rgenRegion.stride;  // The size member of pRayGenShaderBindingTable must be equal to its stride member
+  m_rgenRegion.size = m_rgenRegion.stride;  // The size member of pRayGenShaderBindingTable must be equal to its stride member
   m_missRegion.stride = handleSizeAligned;
   m_missRegion.size   = nvh::align_up(missCount * handleSizeAligned, m_rtProperties.shaderGroupBaseAlignment);
   m_hitRegion.stride  = handleSizeAligned;
@@ -870,9 +870,9 @@ void HelloVulkan::createRtShaderBindingTable()
   // Allocate a buffer for storing the SBT.
   VkDeviceSize sbtSize = m_rgenRegion.size + m_missRegion.size + m_hitRegion.size + m_callRegion.size;
   m_rtSBTBuffer        = m_alloc.createBuffer(sbtSize,
-                                       VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
-                                           | VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR,
-                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+                                              VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+                                                  | VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR,
+                                              VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
   m_debug.setObjectName(m_rtSBTBuffer.buffer, std::string("SBT"));  // Give it a debug name for NSight.
 
   // Find the SBT addresses of each group
@@ -914,7 +914,7 @@ void HelloVulkan::createRtShaderBindingTable()
 //--------------------------------------------------------------------------------------------------
 // Ray Tracing the scene
 //
-void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor)
+void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const glm::vec4& clearColor)
 {
   updateFrame();
   if(m_pcRay.frame >= m_maxFrames)
@@ -950,13 +950,13 @@ void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& c
 //
 void HelloVulkan::updateFrame()
 {
-  static nvmath::mat4f refCamMatrix;
-  static float         refFov{CameraManip.getFov()};
+  static glm::mat4 refCamMatrix;
+  static float     refFov{CameraManip.getFov()};
 
   const auto& m   = CameraManip.getMatrix();
   const auto  fov = CameraManip.getFov();
 
-  if(memcmp(&refCamMatrix.a00, &m.a00, sizeof(nvmath::mat4f)) != 0 || refFov != fov)
+  if(refCamMatrix != m || refFov != fov)
   {
     resetFrame();
     refCamMatrix = m;

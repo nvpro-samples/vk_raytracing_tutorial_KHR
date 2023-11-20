@@ -34,8 +34,8 @@ struct ObjModel
 
 struct ObjInstance
 {
-  nvmath::mat4f transform;    // Matrix of the instance
-  uint32_t      objIndex{0};  // Model index reference
+  glm::mat4 transform;    // Matrix of the instance
+  uint32_t  objIndex{0};  // Model index reference
 };
 
 
@@ -48,10 +48,10 @@ enum EObjType
 // One single implicit object
 struct ObjImplicit
 {
-  nvmath::vec3f minimum{0, 0, 0};  // Aabb
-  nvmath::vec3f maximum{0, 0, 0};  // Aabb
-  int           objType{0};        // 0: Sphere, 1: Cube
-  int           matId{0};
+  glm::vec3 minimum{0, 0, 0};  // Aabb
+  glm::vec3 maximum{0, 0, 0};  // Aabb
+  int       objType{0};        // 0: Sphere, 1: Cube
+  int       matId{0};
 };
 
 // All implicit objects
@@ -62,5 +62,5 @@ struct ImplInst
   nvvk::Buffer             implBuf;     // Buffer of objects
   nvvk::Buffer             implMatBuf;  // Buffer of material
   int                      blasId{0};
-  nvmath::mat4f            transform{1};
+  glm::mat4                transform{1};
 };

@@ -39,7 +39,7 @@ public:
   void setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t queueFamily) override;
   void createDescriptorSetLayout();
   void createGraphicsPipeline();
-  void loadModel(const std::string& filename, nvmath::mat4f transform = nvmath::mat4f(1));
+  void loadModel(const std::string& filename, glm::mat4 transform = glm::mat4(1));
   void updateDescriptorSet();
   void createUniformBuffer();
   void createObjDescriptionBuffer();
@@ -62,18 +62,18 @@ public:
 
   struct ObjInstance
   {
-    nvmath::mat4f transform;    // Matrix of the instance
-    uint32_t      objIndex{0};  // Model index reference
+    glm::mat4 transform;    // Matrix of the instance
+    uint32_t  objIndex{0};  // Model index reference
   };
 
 
   // Information pushed at each draw call
   PushConstantRaster m_pcRaster{
-      {1},                // Identity matrix
-      {10.f, 15.f, 8.f},  // light position
-      0,                  // instance Id
-      100.f,              // light intensity
-      0                   // light type
+      {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1},  // Identity matrix
+      {10.f, 15.f, 8.f},                                 // light position
+      0,                                                 // instance Id
+      100.f,                                             // light intensity
+      0                                                  // light type
   };
 
   // Array of objects and instances in the scene

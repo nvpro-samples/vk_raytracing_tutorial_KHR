@@ -78,7 +78,7 @@ void Offscreen::createFramebuffer(const VkExtent2D& size)
   // Creating the depth buffer
   {
     auto depthCreateInfo = nvvk::makeImage2DCreateInfo(size, m_depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
-    nvvk::Image image    = m_alloc->createImage(depthCreateInfo);
+    nvvk::Image image = m_alloc->createImage(depthCreateInfo);
 
     VkImageViewCreateInfo depthStencilView{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
     depthStencilView.viewType         = VK_IMAGE_VIEW_TYPE_2D;

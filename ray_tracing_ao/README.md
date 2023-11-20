@@ -251,12 +251,12 @@ after modifying the GUI related to the AO.
 //
 void HelloVulkan::updateFrame()
 {
-  static nvmath::mat4f refCamMatrix;
+  static glm::mat4 refCamMatrix;
   static float         fov = 0;
 
   auto& m = CameraManip.getMatrix();
   auto  f = CameraManip.getFov();
-  if(memcmp(&refCamMatrix.a00, &m.a00, sizeof(nvmath::mat4f)) != 0 || f != fov)
+  if(refCamMatrix != m || f != fov)
   {
     resetFrame();
     refCamMatrix = m;

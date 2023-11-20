@@ -48,7 +48,7 @@ public:
   void setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t queueFamily) override;
   void createDescriptorSetLayout();
   void createGraphicsPipeline();
-  void loadModel(const std::string& filename, nvmath::mat4f transform = nvmath::mat4f(1));
+  void loadModel(const std::string& filename, glm::mat4 transform = glm::mat4(1));
   void updateDescriptorSet();
   void createUniformBuffer();
   void createObjDescriptionBuffer();
@@ -71,19 +71,19 @@ public:
 
   struct ObjInstance
   {
-    nvmath::mat4f transform;    // Matrix of the instance
-    uint32_t      objIndex{0};  // Model index reference
-    int           hitgroup{0};  // Hit group of the instance
+    glm::mat4 transform;    // Matrix of the instance
+    uint32_t  objIndex{0};  // Model index reference
+    int       hitgroup{0};  // Hit group of the instance
   };
 
 
   // Information pushed at each draw call
   PushConstantRaster m_pcRaster{
-      {1},                // Identity matrix
-      {10.f, 15.f, 8.f},  // light position
-      0,                  // instance Id
-      100.f,              // light intensity
-      0                   // light type
+      {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1},  // Identity matrix
+      {10.f, 15.f, 8.f},                                 // light position
+      0,                                                 // instance Id
+      100.f,                                             // light intensity
+      0                                                  // light type
   };
 
   // Array of objects and instances in the scene
@@ -139,15 +139,15 @@ public:
   void updateRtDescriptorSet();
   void createRtPipeline();
   void createRtShaderBindingTable();
-  void raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor);
+  void raytrace(const VkCommandBuffer& cmdBuf, const glm::vec4& clearColor);
 
 
   VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
-  nvvk::RaytracingBuilderKHR                      m_rtBuilder;
-  nvvk::DescriptorSetBindings                     m_rtDescSetLayoutBind;
-  VkDescriptorPool                                m_rtDescPool;
-  VkDescriptorSetLayout                           m_rtDescSetLayout;
-  VkDescriptorSet                                 m_rtDescSet;
+  nvvk::RaytracingBuilderKHR                        m_rtBuilder;
+  nvvk::DescriptorSetBindings                       m_rtDescSetLayoutBind;
+  VkDescriptorPool                                  m_rtDescPool;
+  VkDescriptorSetLayout                             m_rtDescSetLayout;
+  VkDescriptorSet                                   m_rtDescSet;
   std::vector<VkRayTracingShaderGroupCreateInfoKHR> m_rtShaderGroups;
   VkPipelineLayout                                  m_rtPipelineLayout;
   VkPipeline                                        m_rtPipeline;
@@ -167,7 +167,7 @@ public:
 
   struct HitRecordBuffer
   {
-    nvmath::vec4f color;
+    glm::vec4 color;
   };
   std::vector<HitRecordBuffer> m_hitShaderRecord;
 };

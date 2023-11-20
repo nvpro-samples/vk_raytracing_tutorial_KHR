@@ -180,8 +180,8 @@ void Raytracer::createTopLevelAS(std::vector<ObjInstance>& instances, ImplInst& 
     rayInst.transform           = nvvk::toTransformMatrixKHR(implicitObj.transform);  // Position of the instance
     rayInst.instanceCustomIndex = instances[nbObj].objIndex;
     rayInst.accelerationStructureReference = m_rtBuilder.getBlasDeviceAddress(static_cast<uint32_t>(implicitObj.blasId));
-    rayInst.flags                          = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-    rayInst.mask                           = 0xFF;       // Only be hit if rayMask & instance.mask != 0
+    rayInst.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+    rayInst.mask  = 0xFF;                                // Only be hit if rayMask & instance.mask != 0
     rayInst.instanceShaderBindingTableRecordOffset = 1;  // We will use the same hit group for all objects (the second one)
     tlas.emplace_back(rayInst);
   }
@@ -209,7 +209,7 @@ void Raytracer::createRtDescriptorSet(const VkImageView& outputImage)
   allocateInfo.pSetLayouts        = &m_rtDescSetLayout;
   vkAllocateDescriptorSets(m_device, &allocateInfo, &m_rtDescSet);
 
-  VkAccelerationStructureKHR                   tlas = m_rtBuilder.getAccelerationStructure();
+  VkAccelerationStructureKHR tlas = m_rtBuilder.getAccelerationStructure();
   VkWriteDescriptorSetAccelerationStructureKHR descASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
   descASInfo.accelerationStructureCount = 1;
   descASInfo.pAccelerationStructures    = &tlas;
@@ -405,7 +405,7 @@ void Raytracer::createRtPipeline(VkDescriptorSetLayout& sceneDescLayout)
 // Ray Tracing the scene
 //
 void Raytracer::raytrace(const VkCommandBuffer& cmdBuf,
-                         const nvmath::vec4f&   clearColor,
+                         const glm::vec4&       clearColor,
                          VkDescriptorSet&       sceneDescSet,
                          VkExtent2D&            size,
                          PushConstantRaster&    sceneConstants)

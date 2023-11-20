@@ -18,7 +18,7 @@
  */
 
 #pragma once
-#include "nvmath/nvmath.h"
+#include <glm/glm.hpp>
 #include "tiny_obj_loader.h"
 #include <array>
 #include <iostream>
@@ -29,15 +29,15 @@
 // Structure holding the material
 struct MaterialObj
 {
-  nvmath::vec3f ambient       = nvmath::vec3f(0.1f, 0.1f, 0.1f);
-  nvmath::vec3f diffuse       = nvmath::vec3f(0.7f, 0.7f, 0.7f);
-  nvmath::vec3f specular      = nvmath::vec3f(1.0f, 1.0f, 1.0f);
-  nvmath::vec3f transmittance = nvmath::vec3f(0.0f, 0.0f, 0.0f);
-  nvmath::vec3f emission      = nvmath::vec3f(0.0f, 0.0f, 0.10);
-  float         shininess     = 0.f;
-  float         ior           = 1.0f;  // index of refraction
-  float         dissolve      = 1.f;   // 1 == opaque; 0 == fully transparent
-                                       // illumination model (see http://www.fileformat.info/format/material/)
+  glm::vec3 ambient       = glm::vec3(0.1f, 0.1f, 0.1f);
+  glm::vec3 diffuse       = glm::vec3(0.7f, 0.7f, 0.7f);
+  glm::vec3 specular      = glm::vec3(1.0f, 1.0f, 1.0f);
+  glm::vec3 transmittance = glm::vec3(0.0f, 0.0f, 0.0f);
+  glm::vec3 emission      = glm::vec3(0.0f, 0.0f, 0.10);
+  float     shininess     = 0.f;
+  float     ior           = 1.0f;  // index of refraction
+  float     dissolve      = 1.f;   // 1 == opaque; 0 == fully transparent
+                                   // illumination model (see http://www.fileformat.info/format/material/)
   int illum     = 0;
   int textureID = -1;
 };
@@ -45,10 +45,10 @@ struct MaterialObj
 // NOTE: BLAS builder depends on pos being the first member
 struct VertexObj
 {
-  nvmath::vec3f pos;
-  nvmath::vec3f nrm;
-  nvmath::vec3f color;
-  nvmath::vec2f texCoord;
+  glm::vec3 pos;
+  glm::vec3 nrm;
+  glm::vec3 color;
+  glm::vec2 texCoord;
 };
 
 

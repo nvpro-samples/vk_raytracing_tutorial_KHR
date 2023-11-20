@@ -74,14 +74,14 @@ void renderUI(HelloVulkan& helloVk)
       ImGui::SliderFloat("Light Intensity", &helloVk.m_pcRaster.lightIntensity, 0.f, 500.f);
     if(helloVk.m_pcRaster.lightType == 1)
     {
-      float dCutoff    = rad2deg(acos(helloVk.m_pcRaster.lightSpotCutoff));
-      float dOutCutoff = rad2deg(acos(helloVk.m_pcRaster.lightSpotOuterCutoff));
+      float dCutoff    = glm::degrees(acos(helloVk.m_pcRaster.lightSpotCutoff));
+      float dOutCutoff = glm::degrees(acos(helloVk.m_pcRaster.lightSpotOuterCutoff));
       ImGui::SliderFloat("Cutoff", &dCutoff, 0.f, 45.f);
       ImGui::SliderFloat("OutCutoff", &dOutCutoff, 0.f, 45.f);
       dCutoff = dCutoff > dOutCutoff ? dOutCutoff : dCutoff;
 
-      helloVk.m_pcRaster.lightSpotCutoff      = cos(deg2rad(dCutoff));
-      helloVk.m_pcRaster.lightSpotOuterCutoff = cos(deg2rad(dOutCutoff));
+      helloVk.m_pcRaster.lightSpotCutoff      = cos(glm::radians(dCutoff));
+      helloVk.m_pcRaster.lightSpotOuterCutoff = cos(glm::radians(dOutCutoff));
     }
   }
 }
@@ -112,7 +112,7 @@ int main(int argc, char** argv)
 
   // Setup camera
   CameraManip.setWindowSize(SAMPLE_WIDTH, SAMPLE_HEIGHT);
-  CameraManip.setLookat(nvmath::vec3f(5, 4, -4), nvmath::vec3f(0, 1, 0), nvmath::vec3f(0, 1, 0));
+  CameraManip.setLookat(glm::vec3(5, 4, -4), glm::vec3(0, 1, 0), glm::vec3(0, 1, 0));
 
   // Setup Vulkan
   if(!glfwVulkanSupported())
@@ -200,8 +200,8 @@ int main(int argc, char** argv)
   helloVk.updatePostDescriptorSet();
 
 
-  nvmath::vec4f clearColor   = nvmath::vec4f(1, 1, 1, 1.00f);
-  bool          useRaytracer = true;
+  glm::vec4 clearColor   = glm::vec4(1, 1, 1, 1.00f);
+  bool      useRaytracer = true;
 
 
   helloVk.setupGlfwCallbacks(window);

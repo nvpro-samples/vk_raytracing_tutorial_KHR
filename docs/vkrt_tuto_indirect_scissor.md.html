@@ -73,8 +73,8 @@ the lanterns on the host.
   // Information on each colored lantern illuminating the scene.
   struct Lantern
   {
-    nvmath::vec3f position;
-    nvmath::vec3f color;
+    glm::vec3 position;
+    glm::vec3 color;
     float         brightness;
     float         radius;     // Max world-space distance that light illuminates.
   };
@@ -86,14 +86,14 @@ a new function for configuring a new lantern in the scene.
 ```` C
   // Array of lanterns in scene. Not modifiable after acceleration structure build.
   std::vector<Lantern> m_lanterns;
-  void addLantern(nvmath::vec3f pos, nvmath::vec3f color, float brightness, float radius);
+  void addLantern(glm::vec3 pos, glm::vec3 color, float brightness, float radius);
 ````
 
 The `addLantern` function is implemented as
 
 ```` C
 // Add a light-emitting colored lantern to the scene. May only be called before TLAS build.
-void HelloVulkan::addLantern(nvmath::vec3f pos, nvmath::vec3f color, float brightness, float radius)
+void HelloVulkan::addLantern(glm::vec3 pos, glm::vec3 color, float brightness, float radius)
 {
   assert(m_lanternCount == 0); // Indicates TLAS build has not happened yet.
 
@@ -240,11 +240,11 @@ in `hello_vulkan.h`
   // Barely fits in 128-byte push constant limit guaranteed by spec.
   struct LanternIndirectPushConstants
   {
-    nvmath::vec4 viewRowX; // First 3 rows of view matrix.
-    nvmath::vec4 viewRowY; // Set w=1 implicitly in shader.
-    nvmath::vec4 viewRowZ;
+    glm::vec4 viewRowX; // First 3 rows of view matrix.
+    glm::vec4 viewRowY; // Set w=1 implicitly in shader.
+    glm::vec4 viewRowZ;
 
-    nvmath::mat4 proj;     // Perspective matrix
+    glm::mat4 proj;     // Perspective matrix
     float nearZ;           // Near plane used to create projection matrix.
 
     // Pixel dimensions of output image (needed to scale NDC to screen coordinates).
@@ -475,7 +475,7 @@ between the compute shader and indirect draw stages.
 // effect. This is stored in m_lanternIndirectBuffer. Then an indirect trace rays command
 // is run for every lantern within its scissor rectangle. The lanterns' light
 // contribution is additively blended into the output image.
-void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor)
+void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const glm::vec4& clearColor)
 {
   // Before tracing rays, we need to dispatch the compute shaders that
   // fill in the ray trace indirect parameters for each lantern pass.
@@ -497,7 +497,7 @@ void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& c
 
   // Bind compute shader, update push constant and descriptors, dispatch compute.
   vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_lanternIndirectCompPipeline);
-  nvmath::mat4 view                           = getViewMatrix();
+  glm::mat4 view                           = getViewMatrix();
   m_lanternIndirectPushConstants.viewRowX     = view.row(0);
   m_lanternIndirectPushConstants.viewRowY     = view.row(1);
   m_lanternIndirectPushConstants.viewRowZ     = view.row(2);
@@ -535,16 +535,18 @@ Since the near plane and view/projection matrices are used in multiple places no
 they were factored out to common code in `hello_vulkan.h`.
 
 ```` C
-  nvmath::mat4 getViewMatrix()
+  glm::mat4 getViewMatrix()
   {
     return CameraManip.getMatrix();
   }
 
   static constexpr float nearZ = 0.1f;
-  nvmath::mat4 getProjMatrix()
+  glm::mat4 getProjMatrix()
   {
     const float aspectRatio = m_size.width / static_cast<float>(m_size.height);
-    return nvmath::perspectiveVK(CameraManip.getFov(), aspectRatio, nearZ, 1000.0f);
+    glm::mat4 proj = glm::perspectiveRH_ZO(glm::radians(CameraManip.getFov()), aspectRatio, nearZ, 1000.0f);
+    proj[1][1] *= -1;
+    return proj;
   }
 ````
 
@@ -571,7 +573,7 @@ for delivering this sphere mesh to the BLAS builder.
 
 ```` C
 private:
-  void fillLanternVerts(std::vector<nvmath::vec3f>& vertices, std::vector<uint32_t>& indices);
+  void fillLanternVerts(std::vector<glm::vec3>& vertices, std::vector<uint32_t>& indices);
   void                                  createLanternModel();
   
   // Used to store lantern model, generated at runtime.
@@ -598,7 +600,7 @@ auto maxPrimitiveCount = uint32_t(indices.size() / 3);
 VkAccelerationStructureGeometryTrianglesDataKHR triangles{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR};
 triangles.vertexFormat             = VK_FORMAT_R32G32B32_SFLOAT;  // vec3 vertex position data.
 triangles.vertexData.deviceAddress = vertexAddress;
-triangles.vertexStride             = sizeof(nvmath::vec3f);
+triangles.vertexStride             = sizeof(glm::vec3);
 // Describe index data (32-bit unsigned int)
 triangles.indexType               = VK_INDEX_TYPE_UINT32;
 triangles.indexData.deviceAddress = indexAddress;
@@ -625,7 +627,7 @@ m_lanternBlasInput.asBuildOffsetInfo.emplace_back(offset);
 ````
 
 The principle difference from before is that the vertex array is now a packed array of
-float 3-vectors, hence, we call `triangles.setVertexStride(sizeof(nvmath::vec3f));`.
+float 3-vectors, hence, we call `triangles.setVertexStride(sizeof(glm::vec3));`.
 
 Then, we add a call to create a lantern model and add the lantern model to the list of
 BLAS to build in `HelloVulkan::createBottomLevelAS`. Since we'll need the index of
@@ -701,7 +703,7 @@ void HelloVulkan::createTopLevelAS()
     for(int i = 0; i < static_cast<int>(m_lanterns.size()); ++i)
     {
       VkAccelerationStructureInstanceKHR lanternInstance;
-      lanternInstance.transform           = nvvk::toTransformMatrixKHR(nvmath::translation_mat4(m_lanterns[i].position));
+      lanternInstance.transform           = nvvk::toTransformMatrixKHR(glm::translate(glm::mat4(1),m_lanterns[i].position));
       lanternInstance.instanceCustomIndex = i;
       lanternInstance.accelerationStructureReference = m_rtBuilder.getBlasDeviceAddress(uint32_t(m_lanternBlasId));
       lanternInstance.instanceShaderBindingTableRecordOffset = 1;  // Next hit group is for lanterns.
@@ -870,10 +872,10 @@ Modify `m_pcRay` in `hello_vulkan.h`.
   struct RtPushConstant
   {
     // Background color
-    nvmath::vec4f clearColor;
+    glm::vec4 clearColor;
 
     // Information on the light in the sky used when lanternPassNumber = -1.
-    nvmath::vec3f lightPosition;
+    glm::vec3 lightPosition;
     float         lightIntensity;
     int32_t       lightType;
 

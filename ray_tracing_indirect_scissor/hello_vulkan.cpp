@@ -37,6 +37,8 @@
 #include "nvvk/shaders_vk.hpp"
 #include "nvvk/buffers_vk.hpp"
 
+#include <glm/gtc/matrix_access.hpp>
+
 extern std::vector<std::string> defaultSearchPaths;
 
 
@@ -61,12 +63,12 @@ void HelloVulkan::updateUniformBuffer(const VkCommandBuffer& cmdBuf)
   const float    aspectRatio = m_size.width / static_cast<float>(m_size.height);
   GlobalUniforms hostUBO     = {};
   const auto&    view        = CameraManip.getMatrix();
-  const auto&    proj        = nvmath::perspectiveVK(CameraManip.getFov(), aspectRatio, 0.1f, 1000.0f);
-  // proj[1][1] *= -1;  // Inverting Y for Vulkan (not needed with perspectiveVK).
+  glm::mat4      proj        = glm::perspectiveRH_ZO(glm::radians(CameraManip.getFov()), aspectRatio, 0.1f, 1000.0f);
+  proj[1][1] *= -1;  // Inverting Y for Vulkan (not needed with perspectiveVK).
 
   hostUBO.viewProj    = proj * view;
-  hostUBO.viewInverse = nvmath::invert(view);
-  hostUBO.projInverse = nvmath::invert(proj);
+  hostUBO.viewInverse = glm::inverse(view);
+  hostUBO.projInverse = glm::inverse(proj);
 
   // UBO on the device, and what stages access it.
   VkBuffer deviceUBO      = m_bGlobals.buffer;
@@ -185,7 +187,7 @@ void HelloVulkan::createGraphicsPipeline()
 //--------------------------------------------------------------------------------------------------
 // Loading the OBJ file and setting up all buffers
 //
-void HelloVulkan::loadModel(const std::string& filename, nvmath::mat4f transform)
+void HelloVulkan::loadModel(const std::string& filename, glm::mat4 transform)
 {
   LOGI("Loading File:  %s \n", filename.c_str());
   ObjLoader loader;
@@ -194,9 +196,9 @@ void HelloVulkan::loadModel(const std::string& filename, nvmath::mat4f transform
   // Converting from Srgb to linear
   for(auto& m : loader.m_materials)
   {
-    m.ambient  = nvmath::pow(m.ambient, 2.2f);
-    m.diffuse  = nvmath::pow(m.diffuse, 2.2f);
-    m.specular = nvmath::pow(m.specular, 2.2f);
+    m.ambient  = glm::pow(m.ambient, glm::vec3(2.2f));
+    m.diffuse  = glm::pow(m.diffuse, glm::vec3(2.2f));
+    m.specular = glm::pow(m.specular, glm::vec3(2.2f));
   }
 
   ObjModel model;
@@ -245,7 +247,7 @@ void HelloVulkan::loadModel(const std::string& filename, nvmath::mat4f transform
 }
 
 // Add a light-emitting colored lantern to the scene. May only be called before TLAS build.
-void HelloVulkan::addLantern(nvmath::vec3f pos, nvmath::vec3f color, float brightness, float radius)
+void HelloVulkan::addLantern(glm::vec3 pos, glm::vec3 color, float brightness, float radius)
 {
   assert(m_lanternCount == 0);  // Indicates TLAS build has not happened yet.
 
@@ -656,13 +658,13 @@ auto HelloVulkan::objectToVkGeometryKHR(const ObjModel& model)
 
 // Tesselate a sphere as a list of triangles; return its
 // vertices and indices as reference arguments.
-void HelloVulkan::fillLanternVerts(std::vector<nvmath::vec3f>& vertices, std::vector<uint32_t>& indices)
+void HelloVulkan::fillLanternVerts(std::vector<glm::vec3>& vertices, std::vector<uint32_t>& indices)
 {
   // Create a spherical lantern model by recursively tesselating an octahedron.
   struct VertexIndex
   {
-    nvmath::vec3f vertex;
-    uint32_t      index;  // Keep track of this vert's _eventual_ index in vertices.
+    glm::vec3 vertex;
+    uint32_t  index;  // Keep track of this vert's _eventual_ index in vertices.
   };
   struct Triangle
   {
@@ -691,9 +693,9 @@ void HelloVulkan::fillLanternVerts(std::vector<nvmath::vec3f>& vertices, std::ve
       // Split each of three edges in half, then fixup the
       // length of the midpoint to match m_lanternModelRadius.
       // Record the index the new vertices will eventually have in vertices.
-      VertexIndex v01{m_lanternModelRadius * nvmath::normalize(t.vert0.vertex + t.vert1.vertex), vertexCount++};
-      VertexIndex v12{m_lanternModelRadius * nvmath::normalize(t.vert1.vertex + t.vert2.vertex), vertexCount++};
-      VertexIndex v02{m_lanternModelRadius * nvmath::normalize(t.vert0.vertex + t.vert2.vertex), vertexCount++};
+      VertexIndex v01{m_lanternModelRadius * glm::normalize(t.vert0.vertex + t.vert1.vertex), vertexCount++};
+      VertexIndex v12{m_lanternModelRadius * glm::normalize(t.vert1.vertex + t.vert2.vertex), vertexCount++};
+      VertexIndex v02{m_lanternModelRadius * glm::normalize(t.vert0.vertex + t.vert2.vertex), vertexCount++};
 
       // Old triangle becomes 4 new triangles.
       new_triangles.push_back({t.vert0, v01, v02});
@@ -731,8 +733,8 @@ void HelloVulkan::fillLanternVerts(std::vector<nvmath::vec3f>& vertices, std::ve
 // concept of intersection shaders here.
 void HelloVulkan::createLanternModel()
 {
-  std::vector<nvmath::vec3f> vertices;
-  std::vector<uint32_t>      indices;
+  std::vector<glm::vec3> vertices;
+  std::vector<uint32_t>  indices;
   fillLanternVerts(vertices, indices);
 
   // Upload vertex and index data to buffers.
@@ -761,7 +763,7 @@ void HelloVulkan::createLanternModel()
   VkAccelerationStructureGeometryTrianglesDataKHR triangles{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR};
   triangles.vertexFormat             = VK_FORMAT_R32G32B32_SFLOAT;  // vec3 vertex position data.
   triangles.vertexData.deviceAddress = vertexAddress;
-  triangles.vertexStride             = sizeof(nvmath::vec3f);
+  triangles.vertexStride             = sizeof(glm::vec3);
   // Describe index data (32-bit unsigned int)
   triangles.indexType               = VK_INDEX_TYPE_UINT32;
   triangles.indexData.deviceAddress = indexAddress;
@@ -849,8 +851,8 @@ void HelloVulkan::createTopLevelAS()
   for(int i = 0; i < static_cast<int>(m_lanterns.size()); ++i)
   {
     VkAccelerationStructureInstanceKHR lanternInstance;
-    lanternInstance.transform           = nvvk::toTransformMatrixKHR(nvmath::translation_mat4(m_lanterns[i].position));
-    lanternInstance.instanceCustomIndex = i;
+    lanternInstance.transform = nvvk::toTransformMatrixKHR(glm::translate(glm::mat4(1), m_lanterns[i].position));
+    lanternInstance.instanceCustomIndex            = i;
     lanternInstance.accelerationStructureReference = m_rtBuilder.getBlasDeviceAddress(uint32_t(m_lanternBlasId));
     lanternInstance.instanceShaderBindingTableRecordOffset = 1;  // Next hit group is for lanterns.
     lanternInstance.flags                                  = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
@@ -887,7 +889,7 @@ void HelloVulkan::createRtDescriptorSet()
   vkAllocateDescriptorSets(m_device, &allocateInfo, &m_rtDescSet);
 
 
-  VkAccelerationStructureKHR                   tlas = m_rtBuilder.getAccelerationStructure();
+  VkAccelerationStructureKHR tlas = m_rtBuilder.getAccelerationStructure();
   VkWriteDescriptorSetAccelerationStructureKHR descASInfo{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
   descASInfo.accelerationStructureCount = 1;
   descASInfo.pAccelerationStructures    = &tlas;
@@ -1126,9 +1128,9 @@ void HelloVulkan::createRtShaderBindingTable()
 
   // The SBT (buffer) need to have starting groups to be aligned and handles in the group to be aligned.
   uint32_t handleSizeAligned = nvh::align_up(handleSize, m_rtProperties.shaderGroupHandleAlignment);
-  
+
   m_rgenRegion.stride = nvh::align_up(handleSizeAligned, m_rtProperties.shaderGroupBaseAlignment);
-  m_rgenRegion.size   = m_rgenRegion.stride;  // The size member of pRayGenShaderBindingTable must be equal to its stride member
+  m_rgenRegion.size = m_rgenRegion.stride;  // The size member of pRayGenShaderBindingTable must be equal to its stride member
   m_missRegion.stride = handleSizeAligned;
   m_missRegion.size   = nvh::align_up(missCount * handleSizeAligned, m_rtProperties.shaderGroupBaseAlignment);
   m_hitRegion.stride  = handleSizeAligned;
@@ -1143,9 +1145,9 @@ void HelloVulkan::createRtShaderBindingTable()
   // Allocate a buffer for storing the SBT.
   VkDeviceSize sbtSize = m_rgenRegion.size + m_missRegion.size + m_hitRegion.size + m_callRegion.size;
   m_rtSBTBuffer        = m_alloc.createBuffer(sbtSize,
-                                       VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
-                                           | VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR,
-                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+                                              VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+                                                  | VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR,
+                                              VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
   m_debug.setObjectName(m_rtSBTBuffer.buffer, std::string("SBT"));  // Give it a debug name for NSight.
 
   // Find the SBT addresses of each group
@@ -1284,7 +1286,7 @@ void HelloVulkan::createLanternIndirectBuffer()
 // effect. This is stored in m_lanternIndirectBuffer. Then an indirect trace rays command
 // is run for every lantern within its scissor rectangle. The lanterns' light
 // contribution is additively blended into the output image.
-void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& clearColor)
+void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const glm::vec4& clearColor)
 {
   // Before tracing rays, we need to dispatch the compute shaders that
   // fill in the ray trace indirect parameters for each lantern pass.
@@ -1306,10 +1308,10 @@ void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& c
 
   // Bind compute shader, update push constant and descriptors, dispatch compute.
   vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_lanternIndirectCompPipeline);
-  nvmath::mat4f view                          = getViewMatrix();
-  m_lanternIndirectPushConstants.viewRowX     = view.row(0);
-  m_lanternIndirectPushConstants.viewRowY     = view.row(1);
-  m_lanternIndirectPushConstants.viewRowZ     = view.row(2);
+  glm::mat4 view                              = getViewMatrix();
+  m_lanternIndirectPushConstants.viewRowX     = glm::row(view, 0);
+  m_lanternIndirectPushConstants.viewRowY     = glm::row(view, 1);
+  m_lanternIndirectPushConstants.viewRowZ     = glm::row(view, 2);
   m_lanternIndirectPushConstants.proj         = getProjMatrix();
   m_lanternIndirectPushConstants.nearZ        = nearZ;
   m_lanternIndirectPushConstants.screenX      = m_size.width;
@@ -1360,7 +1362,7 @@ void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const nvmath::vec4f& c
   for(int i = 0; i < static_cast<int>(m_lanternCount); ++i)
   {
     // Barrier to ensure previous pass finished.
-    VkImage                 offscreenImage{m_offscreenColor.image};
+    VkImage offscreenImage{m_offscreenColor.image};
     VkImageSubresourceRange colorRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS};
     VkImageMemoryBarrier imageBarrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
     imageBarrier.oldLayout           = VK_IMAGE_LAYOUT_GENERAL;

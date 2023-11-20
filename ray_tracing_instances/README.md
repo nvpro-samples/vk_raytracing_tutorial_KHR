@@ -42,10 +42,10 @@ Then replace the calls to `helloVk.loadModel` in `main()` by following, which wi
   for(uint32_t n = 0; n < 2000; ++n)
   {
     float         scale = fabsf(disn(gen));
-    nvmath::mat4f mat =
-        nvmath::translation_mat4(nvmath::vec3f{dis(gen), 2.0f + dis(gen), dis(gen)});
-    mat              = mat * nvmath::rotation_mat4_x(dis(gen));
-    mat              = mat * nvmath::scale_mat4(nvmath::vec3f(scale));
+    glm::mat4 mat =
+        glm::translate(glm::mat4(1),glm::vec3{dis(gen), 2.0f + dis(gen), dis(gen)});
+    mat              = mat * glm::rotation_mat4_x(dis(gen));
+    mat              = mat * glm::scale(glm::mat4(1.f),glm::vec3(scale));
     helloVk.m_instances.push_back({mat, n % 2});
   }
 ~~~~
@@ -69,9 +69,9 @@ Remove the previous code and replace it with the following
   for(int n = 0; n < 2000; ++n)
   {
     float         scale = fabsf(disn(gen));
-    nvmath::mat4f mat   = nvmath::translation_mat4(nvmath::vec3f{dis(gen), 2.0f + dis(gen), dis(gen)});
-    mat                 = mat * nvmath::rotation_mat4_x(dis(gen));
-    mat                 = mat * nvmath::scale_mat4(nvmath::vec3f(scale));
+    glm::mat4 mat   = glm::translate(glm::mat4(1),glm::vec3{dis(gen), 2.0f + dis(gen), dis(gen)});
+    mat                 = mat * glm::rotation_mat4_x(dis(gen));
+    mat                 = mat * glm::scale(glm::mat4(1.f),glm::vec3(scale));
 
     helloVk.loadModel(nvh::findFile("media/scenes/cube_multi.obj", defaultSearchPaths, true), mat);
   }

@@ -160,20 +160,20 @@ int main(int argc, char** argv)
 
   // Creation of the example
   helloVk.loadModel(nvh::findFile("media/scenes/wuson.obj", defaultSearchPaths, true),
-                    nvmath::translation_mat4(nvmath::vec3f(-1, 0, 0)));
+                    glm::translate(glm::mat4(1), glm::vec3(-1, 0, 0)));
 
-  helloVk.m_instances.push_back({nvmath::translation_mat4(nvmath::vec3f(1, 0, 0)), 0});  // Adding an instance of the Wuson
+  helloVk.m_instances.push_back({glm::translate(glm::mat4(1), glm::vec3(1, 0, 0)), 0});  // Adding an instance of the Wuson
 
 
   helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
 
   // Hit shader record info
   helloVk.m_hitShaderRecord.resize(2);
-  helloVk.m_hitShaderRecord[0].color = nvmath::vec4f(0, 1, 0, 0);  // Green
-  helloVk.m_hitShaderRecord[1].color = nvmath::vec4f(0, 1, 1, 0);  // Cyan
-  helloVk.m_instances[0].hitgroup    = 1;                          // Wuson 0
-  helloVk.m_instances[1].hitgroup    = 2;                          // Wuson 1
-  helloVk.m_instances[2].hitgroup    = 0;                          // Plane
+  helloVk.m_hitShaderRecord[0].color = glm::vec4(0, 1, 0, 0);  // Green
+  helloVk.m_hitShaderRecord[1].color = glm::vec4(0, 1, 1, 0);  // Cyan
+  helloVk.m_instances[0].hitgroup    = 1;                      // Wuson 0
+  helloVk.m_instances[1].hitgroup    = 2;                      // Wuson 1
+  helloVk.m_instances[2].hitgroup    = 0;                      // Plane
 
   helloVk.createOffscreenRender();
   helloVk.createDescriptorSetLayout();
@@ -195,8 +195,8 @@ int main(int argc, char** argv)
   helloVk.updatePostDescriptorSet();
 
 
-  nvmath::vec4f clearColor   = nvmath::vec4f(1, 1, 1, 1.00f);
-  bool          useRaytracer = true;
+  glm::vec4 clearColor   = glm::vec4(1, 1, 1, 1.00f);
+  bool      useRaytracer = true;
 
 
   helloVk.setupGlfwCallbacks(window);
