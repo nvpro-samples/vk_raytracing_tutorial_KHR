@@ -4,7 +4,7 @@
 
 ## Tutorial ([Setup](../docs/setup.md))
 
-This is an extension of the Vulkan ray tracing [tutorial](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR).
+This is an extension of the Vulkan ray tracing [tutorial](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/vkrt_tutorial.md.html).
 
 The ray tracing tutorial only uses one closest hit shader, but it is also possible to have multiple closest hit shaders.
 For example, this could be used to give different models different shaders, or to use a less complex shader when tracing

@@ -1,5 +1,5 @@
 # NVIDIA Vulkan Trace Rays Indirect Tutorial
-This is an extension of the [Vulkan ray tracing tutorial](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/).
+This is an extension of the [Vulkan ray tracing tutorial](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/vkrt_tutorial.md.html).
 
 We will discuss the `vkCmdTraceRaysIndirectKHR` command, which allows the
 `width`, `height`, and `depth` of a trace ray command to be specifed by a

@@ -5,7 +5,7 @@
 
 ## Tutorial ([Setup](../docs/setup.md))
 
-This is an extension of the Vulkan ray tracing [tutorial](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR).
+This is an extension of the Vulkan ray tracing [tutorial](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/vkrt_tutorial.md.html).
 
 
 Ray tracing can easily handle having many object instances at once. For instance, a top level acceleration structure can

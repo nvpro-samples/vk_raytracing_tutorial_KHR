@@ -4,7 +4,7 @@
 
 ## Tutorial ([Setup](../docs/setup.md))
 
-This is an extension of the Vulkan ray tracing [tutorial](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR).
+This is an extension of the Vulkan ray tracing [tutorial](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/vkrt_tutorial.md.html).
 
 
 In this extension, we will implement antialiasing by jittering the offset of each ray for each pixel over time, instead of always shooting each ray from the middle of its pixel.

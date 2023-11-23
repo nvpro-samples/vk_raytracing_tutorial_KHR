@@ -4,7 +4,7 @@
 
 ## Tutorial ([Setup](../docs/setup.md))
 
-This is an extension of the Vulkan ray tracing [tutorial](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR).
+This is an extension of the Vulkan ray tracing [tutorial](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/vkrt_tutorial.md.html).
 
 This extension is allowing to execute ray intersection queries in any shader stages. In this example, we will add
 ray queries [(GLSL_EXT_ray_query)](https://github.com/KhronosGroup/GLSL/blob/master/extensions/ext/GLSL_EXT_ray_query.txt) to the fragment shader to cast shadow rays.

@@ -7,7 +7,7 @@
 ## Tutorial ([Setup](../docs/setup.md))
 
 
-This is an extension of the Vulkan ray tracing [tutorial](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR).
+This is an extension of the Vulkan ray tracing [tutorial](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/vkrt_tutorial.md.html).
 
 Like closest hit shaders, any hit shaders operate on intersections between rays and geometry. However, the any hit
 shader will be executed for all hits along the ray. The closest hit shader will then be invoked on the closest accepted

@@ -15,10 +15,10 @@ To be able to compile and run those examples, please follow the [setup](docs/set
 
 ## Tutorials 
 
-The [first tutorial](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/) starts from a very simple Vulkan application. It loads a OBJ file and uses the rasterizer to render it. The tutorial then adds, **step-by-step**, all that is needed to be able to ray trace the scene.
+The [first tutorial](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/vkrt_tutorial.md.html) starts from a very simple Vulkan application. It loads a OBJ file and uses the rasterizer to render it. The tutorial then adds, **step-by-step**, all that is needed to be able to ray trace the scene.
 
 -------
-### Ray Tracing Tutorial: :arrow_forward: **[Start Here](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/)** :arrow_backward:
+### Ray Tracing Tutorial: :arrow_forward: **[Start Here](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/vkrt_tutorial.md.html)** :arrow_backward:
 
 -------
 

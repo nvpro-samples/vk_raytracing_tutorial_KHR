@@ -5,7 +5,7 @@
 
 ## Tutorial ([Setup](../docs/setup.md))
 
-This is an extension of the Vulkan ray tracing [tutorial](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR).
+This is an extension of the Vulkan ray tracing [tutorial](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/vkrt_tutorial.md.html).
 
 
 Ray tracing allow to use [callable shaders](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/html/chap8.html#shaders-callable)

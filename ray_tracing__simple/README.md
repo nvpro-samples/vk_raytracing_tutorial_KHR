@@ -3,7 +3,7 @@
 This example is the result of the ray tracing tutorial.
 The tutorial is adding ray tracing capability to an OBJ rasterizer in Vulkan
 
-If you haven't done it, [**Start Ray Tracing Tutorial**](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/).
+If you haven't done it, [**Start Ray Tracing Tutorial**](https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/vkrt_tutorial.md.html).
 
 ![resultRaytraceShadowMedieval](../docs/Images/resultRaytraceShadowMedieval.png)
 
