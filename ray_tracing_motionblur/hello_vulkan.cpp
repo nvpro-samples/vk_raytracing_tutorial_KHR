@@ -675,7 +675,7 @@ void HelloVulkan::createTopLevelAS()
   {
     uint64_t _pad{0};
   };
-  static_assert((sizeof(VkAccelerationStructureMotionInstanceNVPad) == 160));
+  static_assert(sizeof(VkAccelerationStructureMotionInstanceNVPad) == 160);
 
   // #NV_Motion_blur
   uint32_t                                                objId;
@@ -706,7 +706,7 @@ void HelloVulkan::createTopLevelAS()
   objId = 0;
   {
     // m_instance[3].transform -> no matrix to SRT
-    glm::quat rot = {};
+    glm::quat rot = {1,0,0,0};
 
     // Position of the instance at T0 and T1
     VkSRTDataNV matT0{};  // Translated to 0,0,2
