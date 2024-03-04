@@ -70,7 +70,7 @@ void HelloVulkan::updateUniformBuffer(const VkCommandBuffer& cmdBuf)
 
   // UBO on the device, and what stages access it.
   VkBuffer deviceUBO      = m_bGlobals.buffer;
-  auto     uboUsageStages = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR;
+  auto     uboUsageStages = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
 
   // Ensure that the modified UBO is not visible to previous frames.
   VkBufferMemoryBarrier beforeBarrier{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
