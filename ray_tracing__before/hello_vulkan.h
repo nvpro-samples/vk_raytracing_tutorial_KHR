@@ -26,6 +26,9 @@
 #include "nvvk/resourceallocator_vk.hpp"
 #include "shaders/host_device.h"
 
+//Include the helper that act as a container for one TLAS referrencing the array of BLAS
+#include "nvvk/raytraceKHR_vk.hpp"
+
 //--------------------------------------------------------------------------------------------------
 // Simple rasterizer of OBJ objects
 // - Each OBJ loaded are stored in an `ObjModel` and referenced by a `ObjInstance`
@@ -119,4 +122,53 @@ public:
   nvvk::Texture               m_offscreenDepth;
   VkFormat                    m_offscreenColorFormat{VK_FORMAT_R32G32B32A32_SFLOAT};
   VkFormat                    m_offscreenDepthFormat{VK_FORMAT_X8_D24_UNORM_PACK32};
+
+
+  // RTX code
+  void initRayTracing();
+  // This will store the RTX properties of the device
+  VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
+
+
+  nvvk::RaytracingBuilderKHR m_rtBuilder;  // AS builder. Helper which will manage the Acceleration Structure: TLAS and BLASes
+  nvvk::RaytracingBuilderKHR::BlasInput objectToVkGeometryKHR(const ObjModel& model);
+
+  void createBottomLevelAS();
+  void createTopLevelAS();
+
+  // Descriptors architechture
+  nvvk::DescriptorSetBindings m_rtDescSetLayoutBind;
+  VkDescriptorPool            m_rtDescPool;
+  VkDescriptorSetLayout       m_rtDescSetLayout;
+  VkDescriptorSet             m_rtDescSet;
+
+  void createRtDescriptorSet();
+  void updateRtDescriptorSet();
+
+  // Pipeline
+  std::vector<VkRayTracingShaderGroupCreateInfoKHR> m_rtShaderGroups;
+  VkPipelineLayout                                  m_rtPipelineLayout;
+  VkPipeline                                        m_rtPipeline;
+
+  void createRtPipeline();
+
+  // Push constant for ray tracer
+  PushConstantRay m_pcRay{};
+
+  // Shader Binding table SBT
+  void createRtShaderBindingTable();
+
+  nvvk::Buffer                    m_rtSBTBuffer;
+  VkStridedDeviceAddressRegionKHR m_rgenRegion{};
+  VkStridedDeviceAddressRegionKHR m_missRegion{};
+  VkStridedDeviceAddressRegionKHR m_hitRegion{};
+  VkStridedDeviceAddressRegionKHR m_callRegion{};
+
+  // A function that will record commands to call the ray trace shaders
+  void raytrace(const VkCommandBuffer& cmdBuf, const glm::vec4& clearColor);
+
+  // Anti-Aliasing
+  void resetFrame();
+  void updateFrame();
+  int  m_maxFrames{100};
 };

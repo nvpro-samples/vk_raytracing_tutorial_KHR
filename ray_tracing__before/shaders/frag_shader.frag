@@ -83,10 +83,10 @@ void main()
 
   // Diffuse
   vec3 diffuse = computeDiffuse(mat, L, N);
-  if(mat.textureId >= 0)
+  if(mat.textureID >= 0)
   {
     int  txtOffset  = objDesc.i[pcRaster.objIndex].txtOffset;
-    uint txtId      = txtOffset + mat.textureId;
+    uint txtId      = txtOffset + mat.textureID;
     vec3 diffuseTxt = texture(textureSamplers[nonuniformEXT(txtId)], i_texCoord).xyz;
     diffuse *= diffuseTxt;
   }

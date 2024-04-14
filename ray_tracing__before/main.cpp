@@ -23,6 +23,7 @@
 // at the top of imgui.cpp.
 
 #include <array>
+#include <random>
 
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "backends/imgui_impl_glfw.h"
@@ -56,16 +57,23 @@ static void onErrorCallback(int error, const char* description)
 // Extra UI
 void renderUI(HelloVulkan& helloVk)
 {
-  ImGuiH::CameraWidget();
+  bool changed = false;
+
+  changed |= ImGuiH::CameraWidget();
   if(ImGui::CollapsingHeader("Light"))
   {
-    ImGui::RadioButton("Point", &helloVk.m_pcRaster.lightType, 0);
+    auto& pc = helloVk.m_pcRaster;
+    changed |= ImGui::RadioButton("Point", &pc.lightType, 0);
     ImGui::SameLine();
-    ImGui::RadioButton("Infinite", &helloVk.m_pcRaster.lightType, 1);
+    changed |= ImGui::RadioButton("Infinite", &pc.lightType, 1);
 
-    ImGui::SliderFloat3("Position", &helloVk.m_pcRaster.lightPosition.x, -20.f, 20.f);
-    ImGui::SliderFloat("Intensity", &helloVk.m_pcRaster.lightIntensity, 0.f, 150.f);
+    changed |= ImGui::SliderFloat3("Position", &pc.lightPosition.x, -20.f, 20.f);
+    changed |= ImGui::SliderFloat("Intensity", &pc.lightIntensity, 0.f, 150.f);
+    changed |= ImGui::SliderInt("Max Frames", &helloVk.m_maxFrames, 1, 100);
   }
+
+  if(changed)
+    helloVk.resetFrame();
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -94,7 +102,7 @@ int main(int argc, char** argv)
 
   // Setup camera
   CameraManip.setWindowSize(SAMPLE_WIDTH, SAMPLE_HEIGHT);
-  CameraManip.setLookat(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
+  CameraManip.setLookat(glm::vec3(4, 4, 4), glm::vec3(0, 1, 0), glm::vec3(0, 1, 0));
 
   // Setup Vulkan
   if(!glfwVulkanSupported())
@@ -120,6 +128,15 @@ int main(int argc, char** argv)
 
   // Requesting Vulkan extensions and layers
   nvvk::ContextCreateInfo contextInfo;
+
+  // #VKRay: Activate the ray tracing extension
+  VkPhysicalDeviceAccelerationStructureFeaturesKHR accelFeature{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR};
+  contextInfo.addDeviceExtension(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, false, &accelFeature);  // To build acceleration structures
+  VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR};
+  contextInfo.addDeviceExtension(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, false, &rtPipelineFeature);  // To use vkCmdTraceRaysKHR
+  contextInfo.addDeviceExtension(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);  // Required by ray tracing pipeline
+
+  // Vulkan version
   contextInfo.setVersion(1, 2);                       // Using Vulkan 1.2
   for(uint32_t ext_id = 0; ext_id < count; ext_id++)  // Adding required extensions (surface, win32, linux, ..)
     contextInfo.addInstanceExtension(reqExtensions[ext_id]);
@@ -153,7 +170,42 @@ int main(int argc, char** argv)
   helloVk.initGUI(0);  // Using sub-pass 0
 
   // Creation of the example
+  //helloVk.loadModel(nvh::findFile("media/scenes/cube_multi.obj", defaultSearchPaths, true));
+  //-------House model-------
+  //helloVk.loadModel(nvh::findFile("media/scenes/Medieval_building.obj", defaultSearchPaths, true));
+  //helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
+  //-------Bull model-------
+  //helloVk.loadModel(nvh::findFile("media/scenes/wuson.obj", defaultSearchPaths, true));
+  //helloVk.loadModel(nvh::findFile("media/scenes/sphere.obj", defaultSearchPaths, true),
+  //                  glm::scale(glm::mat4(1.f), glm::vec3(1.5f)) * glm::translate(glm::mat4(1), glm::vec3(0.0f, 1.0f, 0.0f)));
+  //helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
+  //-------Many instances-------
+  //helloVk.loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true));
+  //helloVk.loadModel(nvh::findFile("media/scenes/cube_multi.obj", defaultSearchPaths, true));
+  //helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
+  //
+  //std::random_device              rd;         // Will be used to obtain a seed for the random number engine
+  //std::mt19937                    gen(rd());  // Standard mersenne_twister_engine seeded with rd()
+  //std::normal_distribution<float> dis(1.0f, 1.0f);
+  //std::normal_distribution<float> disn(0.05f, 0.05f);
+  //
+  //for(uint32_t n = 0; n < 40000; ++n)
+  //{
+  //  float     scale = fabsf(disn(gen));
+  //  glm::mat4 mat   = glm::translate(glm::mat4(1), glm::vec3{dis(gen), 2.0f + dis(gen), dis(gen)});
+  //  mat             = mat * glm::rotate(glm::mat4(1.f), dis(gen), glm::vec3(1.f, 0.f, 0.f));
+  //  mat             = mat * glm::scale(glm::mat4(1.f), glm::vec3(scale));
+  //  helloVk.m_instances.push_back({mat, n % 2});
+  //}
+  // Mirrors
+  // Creation of the example
+  helloVk.loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true),
+                    glm::translate(glm::mat4(1), glm::vec3(-2, 0, 0)) * glm::scale(glm::mat4(1.f), glm::vec3(.1f, 5.f, 5.f)));
+  helloVk.loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true),
+                    glm::translate(glm::mat4(1), glm::vec3(2, 0, 0)) * glm::scale(glm::mat4(1.f), glm::vec3(.1f, 5.f, 5.f)));
   helloVk.loadModel(nvh::findFile("media/scenes/cube_multi.obj", defaultSearchPaths, true));
+  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true),
+                    glm::translate(glm::mat4(1), glm::vec3(0, -1, 0)));
 
   helloVk.createOffscreenRender();
   helloVk.createDescriptorSetLayout();
@@ -161,6 +213,16 @@ int main(int argc, char** argv)
   helloVk.createUniformBuffer();
   helloVk.createObjDescriptionBuffer();
   helloVk.updateDescriptorSet();
+
+  //INITIALIZE RAY TRACING AND ACCELERATION STRUCTURES
+  helloVk.initRayTracing();
+  helloVk.createBottomLevelAS();         // Create BLASes
+  helloVk.createTopLevelAS();            // Create TLAS
+  helloVk.createRtDescriptorSet();       // Create Descriptor Set
+  helloVk.createRtPipeline();            // Create the pipeline
+  helloVk.createRtShaderBindingTable();  // Create the Shader Bindng Table
+
+  bool useRaytracer = true;
 
   helloVk.createPostDescriptor();
   helloVk.createPostPipeline();
@@ -186,7 +248,15 @@ int main(int argc, char** argv)
     if(helloVk.showGui())
     {
       ImGuiH::Panel::Begin();
-      ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
+
+      bool changed = false;
+      // Edit 3 floats representing a color
+      changed |= ImGui::ColorEdit3("Clear color", reinterpret_cast<float*>(&clearColor));
+      // Switch between raster and ray tracing
+      changed |= ImGui::Checkbox("Ray Tracer mode", &useRaytracer);
+      if(changed)
+        helloVk.resetFrame();
+
       renderUI(helloVk);
       ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
       ImGuiH::Control::Info("", "", "(F10) Toggle Pane", ImGuiH::Control::Flags::Disabled);
@@ -222,9 +292,16 @@ int main(int argc, char** argv)
       offscreenRenderPassBeginInfo.renderArea      = {{0, 0}, helloVk.getSize()};
 
       // Rendering Scene
-      vkCmdBeginRenderPass(cmdBuf, &offscreenRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-      helloVk.rasterize(cmdBuf);
-      vkCmdEndRenderPass(cmdBuf);
+      if(useRaytracer)
+      {
+        helloVk.raytrace(cmdBuf, clearColor);
+      }
+      else
+      {
+        vkCmdBeginRenderPass(cmdBuf, &offscreenRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+        helloVk.rasterize(cmdBuf);
+        vkCmdEndRenderPass(cmdBuf);
+      }
     }
 
 
