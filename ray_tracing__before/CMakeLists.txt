@@ -23,7 +23,7 @@ _add_project_definitions(${PROJNAME})
 #--------------------------------------------------------------------------------------------------
 # Source files for this project
 #
-file(GLOB SOURCE_FILES *.cpp *.hpp *.inl *.h *.c)
+file(GLOB SOURCE_FILES *.cpp *.hpp *.inl *.h *.c *.cu *.cuh)
 file(GLOB EXTRA_COMMON ${TUTO_KHR_DIR}/common/*.*)
 list(APPEND COMMON_SOURCE_FILES ${EXTRA_COMMON})
 include_directories(${TUTO_KHR_DIR}/common)

@@ -1,5 +1,19 @@
-cmake_minimum_required(VERSION 3.9.6 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 project(vk_raytracing_tutorial)
+
+include(CheckLanguage)
+enable_language(CXX)
+check_language(CUDA)
+# if(CMAKE_CUDA_COMPILER)
+
+# CMake 3.18 added CMAKE_CUDA_ARCHITECTURES. This must be set before enabling
+# CUDA. Otherwise it will throw a warning. On versions < 3.18, setting this has
+# no effect.
+if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+  message(STATUS "CMAKE_CUDA_ARCHITECTURES is not defined, so nvcc's default will be used.")
+  set(CMAKE_CUDA_ARCHITECTURES OFF) # Non-empty; passes no architecture flags, so chooses default.
+endif()
+enable_language(CUDA)
 
 #--------------------------------------------------------------------------------------------------
 # look for nvpro_core 1) as a sub-folder 2) at some other locations
@@ -34,6 +48,7 @@ endif()
 _add_package_VulkanSDK()
 _add_package_ImGUI()
 _add_nvpro_core_lib()
+_add_package_Cuda()
 
 message(STATUS "COPY ${CMAKE_CURRENT_SOURCE_DIR}/media  to  ${OUTPUT_PATH}")
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/media DESTINATION ${OUTPUT_PATH})
