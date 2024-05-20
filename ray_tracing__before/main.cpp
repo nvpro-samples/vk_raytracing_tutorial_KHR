@@ -22,6 +22,8 @@
 // pipeline If you are new to ImGui, see examples/README.txt and documentation
 // at the top of imgui.cpp.
 
+#pragma once
+
 #include <array>
 #include <random>
 
@@ -38,14 +40,17 @@
 #include "nvpsystem.hpp"
 #include "nvvk/commands_vk.hpp"
 #include "nvvk/context_vk.hpp"
-
+#include "SPHFluid.h"
 
 //////////////////////////////////////////////////////////////////////////
 #define UNUSED(x) (void)(x)
 //////////////////////////////////////////////////////////////////////////
 
+using nlohmann::json;
+
 // Default search path for shaders
 std::vector<std::string> defaultSearchPaths;
+bool                     resumeSimulation;
 
 
 // GLFW Callback functions
@@ -72,8 +77,29 @@ void renderUI(HelloVulkan& helloVk)
     changed |= ImGui::SliderInt("Max Frames", &helloVk.m_maxFrames, 1, 100);
   }
 
+  if(ImGui::Button("[R]"))
+    resumeSimulation = true;
+  ImGui::SameLine();
+  ImGui::Text("to resume");
+
+  if(ImGui::Button("[P]"))
+    resumeSimulation = false;
+  ImGui::SameLine();
+  ImGui::Text("to pause");
+
   if(changed)
     helloVk.resetFrame();
+}
+
+template <typename T>
+void getJsonValue(const json& j, const std::string& name, T& value)
+{
+  auto fieldIt = j.find(name);
+  if(fieldIt != j.end())
+  {
+    value = (*fieldIt);
+  }
+  LOGE("Could not find JSON field %s", name.c_str());
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -169,43 +195,92 @@ int main(int argc, char** argv)
   // Setup Imgui
   helloVk.initGUI(0);  // Using sub-pass 0
 
-  // Creation of the example
-  //helloVk.loadModel(nvh::findFile("media/scenes/cube_multi.obj", defaultSearchPaths, true));
-  //-------House model-------
-  //helloVk.loadModel(nvh::findFile("media/scenes/Medieval_building.obj", defaultSearchPaths, true));
-  //helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
-  //-------Bull model-------
-  //helloVk.loadModel(nvh::findFile("media/scenes/wuson.obj", defaultSearchPaths, true));
-  //helloVk.loadModel(nvh::findFile("media/scenes/sphere.obj", defaultSearchPaths, true),
-  //                  glm::scale(glm::mat4(1.f), glm::vec3(1.5f)) * glm::translate(glm::mat4(1), glm::vec3(0.0f, 1.0f, 0.0f)));
-  //helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
-  //-------Many instances-------
-  helloVk.loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true));
-  helloVk.loadModel(nvh::findFile("media/scenes/cube_multi.obj", defaultSearchPaths, true));
-  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true));
-  
-  std::random_device              rd;         // Will be used to obtain a seed for the random number engine
-  std::mt19937                    gen(rd());  // Standard mersenne_twister_engine seeded with rd()
-  std::normal_distribution<float> dis(1.0f, 1.0f);
-  std::normal_distribution<float> disn(0.05f, 0.05f);
-  
-  for(uint32_t n = 0; n < 40000; ++n)
+
+  // --------------------------------------SPH Initialization--------------------------------------
+  int numParticles = NULL;
+
+  double minx;
+  double maxx;
+  double miny;
+  double maxy;
+  double minz;
+  double maxz;
+
+  try
   {
-    float     scale = fabsf(disn(gen));
-    glm::mat4 mat   = glm::translate(glm::mat4(1), glm::vec3{dis(gen), 2.0f + dis(gen), dis(gen)});
-    //mat             = mat * glm::rotate(glm::mat4(1.f), dis(gen), glm::vec3(1.f, 0.f, 0.f));
-    //mat             = mat * glm::scale(glm::mat4(1.f), glm::vec3(scale));
-    helloVk.m_instances.push_back({mat, n % 2});
+    nlohmann::json sceneConfig = getJSONPartitionFromFile("C:\\Users\\Alejandro\\Documents\\TFG\\SPH_Fluid-Vulkan_RTX\\RTX_SPH_Fluid\\ray_tracing__before\\simConfig.json"
+                                                    ,"scene-config");
+    
+    numParticles = sceneConfig["num-particles"].get<int>();
+    minx         = sceneConfig["spawn-volume"]["min-x"].get<double>();
+    maxx         = sceneConfig["spawn-volume"]["max-x"].get<double>();
+    miny         = sceneConfig["spawn-volume"]["min-y"].get<double>();
+    maxy         = sceneConfig["spawn-volume"]["max-y"].get<double>();
+    minz         = sceneConfig["spawn-volume"]["min-z"].get<double>();
+    maxz         = sceneConfig["spawn-volume"]["max-z"].get<double>();
   }
-  // Mirrors
-  // Creation of the example
-  //helloVk.loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true),
-  //                  glm::translate(glm::mat4(1), glm::vec3(-2, 0, 0)) * glm::scale(glm::mat4(1.f), glm::vec3(.1f, 5.f, 5.f)));
-  //helloVk.loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true),
-  //                  glm::translate(glm::mat4(1), glm::vec3(2, 0, 0)) * glm::scale(glm::mat4(1.f), glm::vec3(.1f, 5.f, 5.f)));
-  //helloVk.loadModel(nvh::findFile("media/scenes/cube_multi.obj", defaultSearchPaths, true));
-  //helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true),
-  //                  glm::translate(glm::mat4(1), glm::vec3(0, -1, 0)));
+  catch(const std::exception& e)
+  {
+    std::cout << "Error: " << e.what() << std::endl;
+  }
+
+  // SPHFluid Class
+  auto                   fluidSim = SPHFluid();
+  std::vector<glm::vec3> points;
+  auto const             particles = new Particle;
+
+  double rx = 0.2;
+  double ry = 0.2;
+  double rz = 0.2;
+
+  for(int i = 0; i < numParticles; i++)
+  {
+    float x = ((float)rand() / RAND_MAX) * (maxx - minx);
+    float y = ((float)rand() / RAND_MAX) * (maxy - miny);
+    float z = ((float)rand() / RAND_MAX) * (maxz - minz);
+
+    auto p = glm::vec3(x, y, z);
+    points.push_back(p);
+  }
+
+  fluidSim.addFluidParticles(points);
+  fluidSim.configurationShow();
+
+  Particle*               fluidParticles    = fluidSim.getFluidParticles();
+  std::vector<glm::vec3>* particlesPos      = &fluidParticles->pos_list;
+  std::vector<double>*    particlePressures = &fluidParticles->pressure_list;
+  std::vector<glm::vec3>* particleSpeeds    = &fluidParticles->vel_list;
+  float                   particlescale     = 0.01f;
+
+  // Variables to control SPH simulation
+  bool       simulationThreadRunning = false;
+  std::mutex fluidSimMutex;  //Mutex to guarantee simulation
+  int        stepsWithOutSimulation = 0;
+
+  // Timing
+  double deltaTime;
+  double lastTimeSim = glfwGetTime();  // first time for deltaTime calculation
+  double lastTimeFPS = lastTimeSim;
+  double accumTime   = 0;
+
+  // -------Create the particle instances in the TLAS-------
+  helloVk.loadModel(nvh::findFile("media/scenes/sphere.obj", defaultSearchPaths, true),
+                    glm::scale(glm::mat4(1.f), glm::vec3(particlescale)) * glm::translate(glm::mat4(1), points[0]));
+  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true), 
+                    glm::translate(glm::mat4(1), glm::vec3(0.0f, (float)fluidSim.getYLimitMin(), 0.0f)));
+  
+  for(uint32_t n = 1; n < points.size(); n++)
+  {
+    glm::mat4 mat = glm::translate(glm::mat4(1), points[n]);
+    mat = mat * glm::scale(glm::mat4(1.f), glm::vec3(particlescale));
+    helloVk.m_instances.push_back({mat, 0});
+  }
+
+  if(fluidSim.cudaMode_ == "physics" || fluidSim.cudaMode_ == "full")
+  {
+    fluidSim.gpuCudaMalloc();
+    fluidSim.gpuCudaCpyFromHost();
+  }
 
   helloVk.createOffscreenRender();
   helloVk.createDescriptorSetLayout();
@@ -239,6 +314,14 @@ int main(int argc, char** argv)
     glfwPollEvents();
     if(helloVk.isMinimized())
       continue;
+
+    // Calcular deltaTime
+    double currentTime = glfwGetTime();
+    deltaTime          = currentTime - lastTimeSim;
+    lastTimeSim        = currentTime;
+    accumTime += deltaTime;
+
+    stepsWithOutSimulation++;
 
     // Start the Dear ImGui frame
     ImGui_ImplGlfw_NewFrame();
@@ -282,6 +365,24 @@ int main(int argc, char** argv)
     clearValues[0].color        = {{clearColor[0], clearColor[1], clearColor[2], clearColor[3]}};
     clearValues[1].depthStencil = {1.0f, 0};
 
+    //Exec SPH simulation
+    if(resumeSimulation && !simulationThreadRunning)
+    {
+      simulationThreadRunning = true;
+
+
+      std::cout << "---------------------[BUCLE_EXEC_COUNT]--: " << stepsWithOutSimulation << std::endl;
+      stepsWithOutSimulation = 0;
+
+      std::thread simThread([&]() {
+        fluidSimMutex.lock();  // Bloquear el mutex antes de acceder a fluidSim
+        fluidSim.update(deltaTime);
+        fluidSimMutex.unlock();           // Desbloquear el mutex despues de la actualizacion
+        simulationThreadRunning = false;  // Indicar que el hilo de simulacion ha terminado
+      });
+      simThread.detach();  // Desconectar el hilo para que se ejecute de forma independiente
+    }
+
     // Offscreen render pass
     {
       VkRenderPassBeginInfo offscreenRenderPassBeginInfo{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
@@ -294,7 +395,7 @@ int main(int argc, char** argv)
       // Rendering Scene
       if(useRaytracer)
       {
-        helloVk.raytrace(cmdBuf, clearColor);
+        helloVk.raytrace(cmdBuf, clearColor, &fluidSimMutex);
       }
       else
       {
@@ -330,6 +431,11 @@ int main(int argc, char** argv)
 
   // Cleanup
   vkDeviceWaitIdle(helloVk.getDevice());
+
+  if(fluidSim.cudaMode_ == "physics" || fluidSim.cudaMode_ == "full")
+  {
+    fluidSim.gpuCudaFreeMem();
+  }
 
   helloVk.destroyResources();
   helloVk.destroy();

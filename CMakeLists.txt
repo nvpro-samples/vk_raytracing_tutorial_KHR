@@ -48,7 +48,7 @@ endif()
 _add_package_VulkanSDK()
 _add_package_ImGUI()
 _add_nvpro_core_lib()
-_add_package_Cuda()
+#_add_package_Cuda()
 
 message(STATUS "COPY ${CMAKE_CURRENT_SOURCE_DIR}/media  to  ${OUTPUT_PATH}")
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/media DESTINATION ${OUTPUT_PATH})

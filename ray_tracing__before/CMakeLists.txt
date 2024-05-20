@@ -50,8 +50,21 @@ target_sources(${PROJNAME} PUBLIC ${GLSL_SOURCES} ${GLSL_HEADERS})
 #--------------------------------------------------------------------------------------------------
 # Sub-folders in Visual Studio
 #
+
+# Divide SOURCE_FILES into two groups
+foreach(file ${SOURCE_FILES})
+    get_filename_component(file_ext "${file}" EXT)
+    if(file_ext STREQUAL ".h")
+        list(APPEND SOURCES_HEADER_FILES ${file})
+    elseif(file_ext STREQUAL ".cpp" OR file_ext STREQUAL ".cu")
+        list(APPEND SOURCES_SOURCE_FILES ${file})
+    endif()
+endforeach()
+
+source_group("Sources\\Headers" FILES ${SOURCES_HEADER_FILES})
+source_group("Sources\\Source Files" FILES ${SOURCES_SOURCE_FILES})
 source_group("Common"       FILES ${COMMON_SOURCE_FILES} ${PACKAGE_SOURCE_FILES})
-source_group("Sources"      FILES ${SOURCE_FILES})
+#source_group("Sources"      FILES ${SOURCE_FILES})
 source_group("Headers"      FILES ${HEADER_FILES})
 source_group("Shader Sources"  FILES ${GLSL_SOURCES})
 source_group("Shader Headers"  FILES ${GLSL_HEADERS})

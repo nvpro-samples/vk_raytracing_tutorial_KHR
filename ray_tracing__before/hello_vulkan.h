@@ -39,6 +39,7 @@
 class HelloVulkan : public nvvkhl::AppBaseVk
 {
 public:
+
   void setup(const VkInstance& instance, const VkDevice& device, const VkPhysicalDevice& physicalDevice, uint32_t queueFamily) override;
   void createDescriptorSetLayout();
   void createGraphicsPipeline();
@@ -165,7 +166,7 @@ public:
   VkStridedDeviceAddressRegionKHR m_callRegion{};
 
   // A function that will record commands to call the ray trace shaders
-  void raytrace(const VkCommandBuffer& cmdBuf, const glm::vec4& clearColor);
+  void raytrace(const VkCommandBuffer& cmdBuf, const glm::vec4& clearColor, std::mutex* fluidSimMutex);
 
   // Anti-Aliasing
   void resetFrame();

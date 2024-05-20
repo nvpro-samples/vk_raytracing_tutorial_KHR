@@ -1,4 +1,6 @@
-#include "SPHCuda.cuh"
+#pragma once
+
+#include "SPHCuda.h"
 #include <stdio.h>
 
 __device__ int3 calculate_cell_idx(float3 pos_float3, float3 min_box_bound, float3 cell_dims, float h_inv, size_t tid) {
@@ -399,7 +401,7 @@ void updateParticlesDensityAndPressureCUDA(
     int numBlocks = (numParticles + 255) / 256;
     int numThreads = 256;
 
-    updateParticlesDensityAndPressureKernel<<<numBlocks, numThreads>>>(
+    updateParticlesDensityAndPressureKernel <<< numBlocks, numThreads >>> (
         numParticles,
         hsq,
         partMass,

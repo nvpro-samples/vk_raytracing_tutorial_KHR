@@ -1,9 +1,9 @@
 #pragma once
 
-#include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "CudaMathOperators.h"
 #include "glm/glm.hpp"
+#include <glm/gtc/matrix_transform.hpp>
 
 void updateParticlesDensityAndPressureCUDA(
     int numParticles,
@@ -16,7 +16,7 @@ void updateParticlesDensityAndPressureCUDA(
     double* density_list,
     double* pressure_list,
     int* neighboursListData,
-    int* neighboursOffsets,
+    int* neighboursOffsets
 );
 
 void densityAndPressureCUDA(

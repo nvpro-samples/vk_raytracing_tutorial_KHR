@@ -1,0 +1,33 @@
+{
+    "particles-constants": {
+        "smoothing-radius": 0.15,
+        "initial-density": 1000,
+        "particle-mass": 1.0,
+        "pressure": 1.0,
+        "max-velocity": 80.0,
+        "max-acceleration": 80.0,
+        "gravity-acceleration": -9.8,
+        "viscosity": 1.04,
+        "cudaMode": "none"
+    },
+    "scene-config": {
+        "num-particles": 40000,
+        "spawn-volume": {
+            "min-x": 0.0,
+            "max-x": 1.0,
+            "min-y": 0.0,
+            "max-y": 0.5,
+            "min-z": 0.0,
+            "max-z": 1.0
+        },
+        "boundaries-volume": {
+            "min-x": -3.5,
+            "max-x": 1.0,
+            "min-y": -1.0,
+            "max-y": 2.0,
+            "min-z": -0.5,
+            "max-z": 1.0
+        },
+        "boundary-plane-y": -5.0
+    }
+}
