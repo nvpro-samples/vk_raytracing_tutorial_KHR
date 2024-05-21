@@ -291,4 +291,5 @@ void Grid::update()
             }
         }
     }
+    //std::cout << "-----FINISHED UPDATING GRID-----" << std::endl;
 }

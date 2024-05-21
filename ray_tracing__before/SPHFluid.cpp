@@ -1,5 +1,6 @@
 #include "SPHFluid.h"
 #include "CudaCheck.h"
+#include "hello_vulkan.h"
 
 SPHFluid::SPHFluid()
 {
@@ -91,13 +92,20 @@ void SPHFluid::updateGrid()
 
 void SPHFluid::updateNeighbours()
 {
+	// Timing
+	//double deltaTime;
+	//double lastTimeSim = glfwGetTime();  // first time for deltaTime calculation
+	
 	for (auto id : parts_.gridID_list) {
 		parts_.neighbours_list[id].clear();
 		std::vector<int> refs = sphGrid_.getIDsInRadiusOfPoint(id, h_);
 		for (auto n : refs) {
 			parts_.neighbours_list[id].push_back(n);
 		}
+    //std::cout << "----UPDATED NEIGHBOURS FOR PARTICLE " << id << std::endl;
 	}
+	//double lastTimeFPS = glfwGetTime();
+	//std::cout << "-----FINISHED UPDATING NEIGHBOURS IN: " << lastTimeFPS - lastTimeSim << " seconds-----" << std::endl;
 }
 
 void SPHFluid::updateParticlesDensityAndPressure()
@@ -289,6 +297,7 @@ void SPHFluid::updateParticlesPosition(double deltaTime) {
 
 void SPHFluid::gpuPhysics(double deltaTime)
 {
+	//double lastTimeSim = glfwGetTime();  // first time for deltaTime calculation
 	// Flatten the neighbours list to push to GPU
 	std::vector<int> flattenedNeighbours;
 	std::vector<int> offsets;
@@ -362,6 +371,8 @@ void SPHFluid::gpuPhysics(double deltaTime)
 	cudaCheck(cudaDeviceSynchronize());
 
 	gpuCudaCpyFromDevice();
+    //double lastTimeFPS = glfwGetTime();
+    //std::cout << "-----FINISHED CALCULATING PHYSICS IN: " << lastTimeFPS - lastTimeSim << " seconds-----" << std::endl;
 }
 
 void SPHFluid::gpuCalculation(double deltaTime)

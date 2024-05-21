@@ -670,8 +670,7 @@ void HelloVulkan::createBottomLevelAS()  // Creates an array of BLASes
 
 void HelloVulkan::createTopLevelAS()
 {
-  std::vector<VkAccelerationStructureInstanceKHR> tlas;
-  tlas.reserve(m_instances.size());
+  m_tlas.reserve(m_instances.size());
   for(const HelloVulkan::ObjInstance& inst : m_instances)
   {
     VkAccelerationStructureInstanceKHR rayInst{};
@@ -681,10 +680,12 @@ void HelloVulkan::createTopLevelAS()
     rayInst.flags                          = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
     rayInst.mask                           = 0xFF;       //  Only be hit if rayMask & instance.mask != 0
     rayInst.instanceShaderBindingTableRecordOffset = 0;  // We will use the same hit group for all objects
-    tlas.emplace_back(rayInst);
+    m_tlas.emplace_back(rayInst);
   }
 
-  m_rtBuilder.buildTlas(tlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
+  // With VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR flag we allow the update of the TLAS
+  m_rtFlags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
+  m_rtBuilder.buildTlas(m_tlas, m_rtFlags);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -943,7 +944,7 @@ void HelloVulkan::createRtShaderBindingTable()
 //--------------------------------------------------------------------------------------------------
 // Ray Tracing the scene
 //
-void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const glm::vec4& clearColor, std::mutex* fluidSimMutex)
+void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const glm::vec4& clearColor /*, std::mutex* fluidSimMutex*/)
 {
   updateFrame();  // Start counting frames
   if(m_pcRay.frame >= m_maxFrames)
@@ -964,14 +965,35 @@ void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const glm::vec4& clear
                      VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
                      0, sizeof(PushConstantRay), &m_pcRay);
  
-  if (fluidSimMutex->try_lock())
-  {
+  //if (fluidSimMutex->try_lock())
+  //{
     vkCmdTraceRaysKHR(cmdBuf, &m_rgenRegion, &m_missRegion, &m_hitRegion, &m_callRegion, m_size.width, m_size.height, 1);
-
-    fluidSimMutex->unlock();
-  }
+  //
+  //  fluidSimMutex->unlock();
+  //}
   
   m_debug.endLabel(cmdBuf);
+}
+
+void HelloVulkan::updateParticlesInstances(std::vector <glm::vec3> partPos)
+{
+  const auto nParts = static_cast<int32_t>(m_instances.size() - 1);  // All except plane
+
+  for(int i = 0; i < nParts; i++)
+  {
+    int       partIdx  = i + 1;
+    //glm::mat4 transform = m_instances[partIdx].transform;
+    //transform           = glm::translate(transform, partPos[i]);
+
+    glm::mat4 transform = glm::translate(glm::mat4(1), partPos[i]);
+    transform           = transform * glm::scale(glm::mat4(1.f), glm::vec3(0.03f));
+
+    VkAccelerationStructureInstanceKHR& tinst = m_tlas[partIdx];
+    tinst.transform                           = nvvk::toTransformMatrixKHR(transform);
+  }
+
+  // Updating the top level acceleration structure
+  m_rtBuilder.buildTlas(m_tlas, m_rtFlags, true);
 }
 
 //--------------------------------------------------------------------------------------------------

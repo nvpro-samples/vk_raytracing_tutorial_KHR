@@ -250,10 +250,11 @@ int main(int argc, char** argv)
   std::vector<glm::vec3>* particlesPos      = &fluidParticles->pos_list;
   std::vector<double>*    particlePressures = &fluidParticles->pressure_list;
   std::vector<glm::vec3>* particleSpeeds    = &fluidParticles->vel_list;
-  float                   particlescale     = 0.01f;
+  float                   particlescale     = 0.03f;
 
   // Variables to control SPH simulation
   bool       simulationThreadRunning = false;
+  bool       isCalculatingPhysics    = false;
   std::mutex fluidSimMutex;  //Mutex to guarantee simulation
   int        stepsWithOutSimulation = 0;
 
@@ -264,16 +265,16 @@ int main(int argc, char** argv)
   double accumTime   = 0;
 
   // -------Create the particle instances in the TLAS-------
+  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true),
+                    glm::translate(glm::mat4(1), glm::vec3(0.0f, (float)fluidSim.getYLimitMin(), 0.0f)));
   helloVk.loadModel(nvh::findFile("media/scenes/sphere.obj", defaultSearchPaths, true),
                     glm::scale(glm::mat4(1.f), glm::vec3(particlescale)) * glm::translate(glm::mat4(1), points[0]));
-  helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true), 
-                    glm::translate(glm::mat4(1), glm::vec3(0.0f, (float)fluidSim.getYLimitMin(), 0.0f)));
   
   for(uint32_t n = 1; n < points.size(); n++)
   {
     glm::mat4 mat = glm::translate(glm::mat4(1), points[n]);
     mat = mat * glm::scale(glm::mat4(1.f), glm::vec3(particlescale));
-    helloVk.m_instances.push_back({mat, 0});
+    helloVk.m_instances.push_back({mat, 1});
   }
 
   if(fluidSim.cudaMode_ == "physics" || fluidSim.cudaMode_ == "full")
@@ -307,10 +308,11 @@ int main(int argc, char** argv)
 
   helloVk.setupGlfwCallbacks(window);
   ImGui_ImplGlfw_InitForVulkan(window, true);
-
+  int bucleCount = 0;
   // Main loop
   while(!glfwWindowShouldClose(window))
   {
+    
     glfwPollEvents();
     if(helloVk.isMinimized())
       continue;
@@ -364,14 +366,13 @@ int main(int argc, char** argv)
     std::array<VkClearValue, 2> clearValues{};
     clearValues[0].color        = {{clearColor[0], clearColor[1], clearColor[2], clearColor[3]}};
     clearValues[1].depthStencil = {1.0f, 0};
-
     //Exec SPH simulation
     if(resumeSimulation && !simulationThreadRunning)
     {
       simulationThreadRunning = true;
 
 
-      std::cout << "---------------------[BUCLE_EXEC_COUNT]--: " << stepsWithOutSimulation << std::endl;
+      std::cout << "---------------------[BUCLE_EXEC_COUNT " << bucleCount << " ]--: " << stepsWithOutSimulation << std::endl;
       stepsWithOutSimulation = 0;
 
       std::thread simThread([&]() {
@@ -381,6 +382,19 @@ int main(int argc, char** argv)
         simulationThreadRunning = false;  // Indicar que el hilo de simulacion ha terminado
       });
       simThread.detach();  // Desconectar el hilo para que se ejecute de forma independiente
+
+      bucleCount++;
+    }
+
+    if(fluidSimMutex.try_lock())
+    {
+      //double lastTimeSim = glfwGetTime();
+      helloVk.updateParticlesInstances(*particlesPos);
+      //double lastTimeFPS = glfwGetTime();
+      //std::cout << "-----FINISHED UPDATING PARTICLES POSITIONS IN: " << lastTimeFPS - lastTimeSim << " seconds-----" << std::endl;
+      if(resumeSimulation) helloVk.resetFrame();
+      fluidSimMutex.unlock();
+      
     }
 
     // Offscreen render pass
@@ -392,17 +406,32 @@ int main(int argc, char** argv)
       offscreenRenderPassBeginInfo.framebuffer     = helloVk.m_offscreenFramebuffer;
       offscreenRenderPassBeginInfo.renderArea      = {{0, 0}, helloVk.getSize()};
 
-      // Rendering Scene
-      if(useRaytracer)
+      if(/* fluidSimMutex.try_lock() !isCalculatingPhysics*/ true)
       {
-        helloVk.raytrace(cmdBuf, clearColor, &fluidSimMutex);
+        //std::cout << "ENTERING RENDER BUCLE\n";
+        double lastTimeSimVk = glfwGetTime();  // first time for deltaTime calculation
+        // Rendering Scene
+        if(useRaytracer)
+        {
+          //std::thread raytraceThread([&] {
+          helloVk.raytrace(cmdBuf, clearColor /*, &fluidSimMutex*/);
+          //simulationThreadRunning = false;  // Indicar que el hilo de simulacion ha terminado
+          //});
+          //raytraceThread.detach();
+        }
+        else
+        {
+          vkCmdBeginRenderPass(cmdBuf, &offscreenRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+          helloVk.rasterize(cmdBuf);
+          vkCmdEndRenderPass(cmdBuf);
+        }
+
+        //fluidSimMutex.unlock();
+
+        double lastTimeFPSVk = glfwGetTime();
       }
       else
-      {
-        vkCmdBeginRenderPass(cmdBuf, &offscreenRenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-        helloVk.rasterize(cmdBuf);
-        vkCmdEndRenderPass(cmdBuf);
-      }
+        std::cout << "PHYSICS CALCULATING, NO RENDER...\n";
     }
 
 

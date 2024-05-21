@@ -28,6 +28,7 @@
 
 //Include the helper that act as a container for one TLAS referrencing the array of BLAS
 #include "nvvk/raytraceKHR_vk.hpp"
+#include "nvvk/sbtwrapper_vk.hpp"
 
 //--------------------------------------------------------------------------------------------------
 // Simple rasterizer of OBJ objects
@@ -166,10 +167,15 @@ public:
   VkStridedDeviceAddressRegionKHR m_callRegion{};
 
   // A function that will record commands to call the ray trace shaders
-  void raytrace(const VkCommandBuffer& cmdBuf, const glm::vec4& clearColor, std::mutex* fluidSimMutex);
+  void raytrace(const VkCommandBuffer& cmdBuf, const glm::vec4& clearColor /*, std::mutex* fluidSimMutex*/);
+  
+  VkBuildAccelerationStructureFlagsKHR m_rtFlags;         // Flags that we need to include in the TLAS
+  std::vector<VkAccelerationStructureInstanceKHR> m_tlas; // Reference to the TLAS so that we can update it
 
   // Anti-Aliasing
   void resetFrame();
   void updateFrame();
   int  m_maxFrames{100};
+
+  void updateParticlesInstances(std::vector<glm::vec3> partPos);
 };

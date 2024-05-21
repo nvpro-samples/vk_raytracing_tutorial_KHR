@@ -1,17 +1,17 @@
 {
-    "particles-constants": {
-        "smoothing-radius": 0.15,
-        "initial-density": 1000,
-        "particle-mass": 1.0,
-        "pressure": 1.0,
-        "max-velocity": 80.0,
-        "max-acceleration": 80.0,
-        "gravity-acceleration": -9.8,
-        "viscosity": 1.04,
-        "cudaMode": "none"
-    },
+  "particles-constants": {
+    "smoothing-radius": 0.15,
+    "initial-density": 1000,
+    "particle-mass": 1.0,
+    "pressure": 1.0,
+    "max-velocity": 80.0,
+    "max-acceleration": 80.0,
+    "gravity-acceleration": -9.8,
+    "viscosity": 1.04,
+    "cudaMode": "physics"
+  },
     "scene-config": {
-        "num-particles": 40000,
+        "num-particles": 20000,
         "spawn-volume": {
             "min-x": 0.0,
             "max-x": 1.0,
