@@ -1,8 +1,16 @@
 newmtl  default
-illum 4
-d 0.5 
+illum 5
+d 0.1
 Ns 16
 Ni 0 
 Ka 0 0 0
-Kd 0.1 0.1 0.982062
+#Kd 0.1 0.1 0.982062
+Kd 1 1 1
 Ks 1 1 1
+
+##    illum 3
+##    Ni 1.333
+##    Pr 0.1
+##    Kd 1.0 1.0 1.0
+##    Ks 1.0 1.0 1.0
+##    Kt 0.5 1.0 0.5

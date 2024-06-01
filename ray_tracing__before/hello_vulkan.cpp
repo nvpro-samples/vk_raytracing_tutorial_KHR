@@ -965,12 +965,7 @@ void HelloVulkan::raytrace(const VkCommandBuffer& cmdBuf, const glm::vec4& clear
                      VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
                      0, sizeof(PushConstantRay), &m_pcRay);
  
-  //if (fluidSimMutex->try_lock())
-  //{
-    vkCmdTraceRaysKHR(cmdBuf, &m_rgenRegion, &m_missRegion, &m_hitRegion, &m_callRegion, m_size.width, m_size.height, 1);
-  //
-  //  fluidSimMutex->unlock();
-  //}
+  vkCmdTraceRaysKHR(cmdBuf, &m_rgenRegion, &m_missRegion, &m_hitRegion, &m_callRegion, m_size.width, m_size.height, 1);
   
   m_debug.endLabel(cmdBuf);
 }
@@ -981,12 +976,12 @@ void HelloVulkan::updateParticlesInstances(std::vector <glm::vec3> partPos)
 
   for(int i = 0; i < nParts; i++)
   {
-    int       partIdx  = i + 1;
+    int       partIdx  = i + 2;
     //glm::mat4 transform = m_instances[partIdx].transform;
     //transform           = glm::translate(transform, partPos[i]);
 
     glm::mat4 transform = glm::translate(glm::mat4(1), partPos[i]);
-    transform           = transform * glm::scale(glm::mat4(1.f), glm::vec3(0.03f));
+    transform           = transform * glm::scale(glm::mat4(1.f), glm::vec3(0.01f));
 
     VkAccelerationStructureInstanceKHR& tinst = m_tlas[partIdx];
     tinst.transform                           = nvvk::toTransformMatrixKHR(transform);

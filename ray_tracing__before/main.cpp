@@ -250,7 +250,7 @@ int main(int argc, char** argv)
   std::vector<glm::vec3>* particlesPos      = &fluidParticles->pos_list;
   std::vector<double>*    particlePressures = &fluidParticles->pressure_list;
   std::vector<glm::vec3>* particleSpeeds    = &fluidParticles->vel_list;
-  float                   particlescale     = 0.03f;
+  float                   particlescale     = 0.01f;
 
   // Variables to control SPH simulation
   bool       simulationThreadRunning = false;
@@ -267,6 +267,8 @@ int main(int argc, char** argv)
   // -------Create the particle instances in the TLAS-------
   helloVk.loadModel(nvh::findFile("media/scenes/plane.obj", defaultSearchPaths, true),
                     glm::translate(glm::mat4(1), glm::vec3(0.0f, (float)fluidSim.getYLimitMin(), 0.0f)));
+  helloVk.loadModel(nvh::findFile("media/scenes/cube.obj", defaultSearchPaths, true),
+                    glm::scale(glm::mat4(1.f), glm::vec3(0.25f)) * glm::translate(glm::mat4(1), glm::vec3(0.5f, 0.25f, 0.5f)));
   helloVk.loadModel(nvh::findFile("media/scenes/sphere.obj", defaultSearchPaths, true),
                     glm::scale(glm::mat4(1.f), glm::vec3(particlescale)) * glm::translate(glm::mat4(1), points[0]));
   
@@ -274,7 +276,7 @@ int main(int argc, char** argv)
   {
     glm::mat4 mat = glm::translate(glm::mat4(1), points[n]);
     mat = mat * glm::scale(glm::mat4(1.f), glm::vec3(particlescale));
-    helloVk.m_instances.push_back({mat, 1});
+    helloVk.m_instances.push_back({mat,2});
   }
 
   if(fluidSim.cudaMode_ == "physics" || fluidSim.cudaMode_ == "full")
@@ -303,7 +305,7 @@ int main(int argc, char** argv)
   helloVk.createPostDescriptor();
   helloVk.createPostPipeline();
   helloVk.updatePostDescriptorSet();
-  glm::vec4 clearColor = glm::vec4(1, 1, 1, 1.00f);
+  glm::vec4 clearColor = glm::vec4(0.170, 0.346, 0.891, 1.00f);
 
 
   helloVk.setupGlfwCallbacks(window);
@@ -343,6 +345,11 @@ int main(int argc, char** argv)
         helloVk.resetFrame();
 
       renderUI(helloVk);
+
+      // Max rays taht can be shot by the RayGen shader to generate reflections
+      changed |= ImGui::SliderInt("Max Depth", &helloVk.m_pcRay.maxDepth, 1, 50);
+      if(changed)
+        helloVk.resetFrame();
       ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
       ImGuiH::Control::Info("", "", "(F10) Toggle Pane", ImGuiH::Control::Flags::Disabled);
       ImGuiH::Panel::End();

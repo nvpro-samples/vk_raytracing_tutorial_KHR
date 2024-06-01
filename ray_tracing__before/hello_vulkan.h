@@ -155,7 +155,7 @@ public:
   void createRtPipeline();
 
   // Push constant for ray tracer
-  PushConstantRay m_pcRay{};
+  PushConstantRay m_pcRay{{}, {}, 0, 0, 0, 10};
 
   // Shader Binding table SBT
   void createRtShaderBindingTable();

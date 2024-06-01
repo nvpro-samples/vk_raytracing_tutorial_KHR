@@ -39,25 +39,52 @@ void main()
         vec4 direction = uni.viewInverse * vec4(normalize(target.xyz), 0);
     
         // gl_RayFlagsOpaqueEXT: A flag indicating that all geometry will be considered opaque, as we also indicated when creating the acceleration structures
-        uint  rayFlags = gl_RayFlagsNoneEXT; // This flag will make that the any hit shader is called
+        uint  rayFlags = gl_RayFlagsCullBackFacingTrianglesEXT; // gl_RayFlagsNoneEXT : This flag will make that the any hit shader is called
         float tMin     = 0.001;
         float tMax     = 10000.0;
 
-        // Trace Ray
-        traceRayEXT(topLevelAS, // acceleration structure
-                rayFlags,       // rayFlags
-                0xFF,           // cullMask
-                0,              // sbtRecordOffset
-                0,              // sbtRecordStride
-                0,              // missIndex
-                origin.xyz,     // ray origin
-                tMin,           // ray min range
-                direction.xyz,  // ray direction
-                tMax,           // ray max range
-                0               // payload (location = 0)
-        );
+        // Initialize all values of the payload before tracing the ray
+        prd.depth       = 0;
+        prd.hitValue    = vec3(0);
+        prd.attenuation = vec3(1.f, 1.f, 1.f);
+        prd.done        = 1;
+        prd.rayOrigin   = origin.xyz;
+        prd.rayDir      = direction.xyz;
 
-        hitValues += prd.hitValue;
+        // Initialize refraction values
+        prd.isRefracted           = false;
+        prd.lastParticleCollision = origin.xyz;
+        prd.lastPartCollNormal    = vec3(0);
+        prd.particleCollisionCount    = 0;
+
+        // Trace Ray
+        vec3 hitValue = vec3(0);
+        for(;;)
+        {
+            traceRayEXT(topLevelAS, // acceleration structure
+                    rayFlags,       // rayFlags
+                    0xFF,           // cullMask
+                    0,              // sbtRecordOffset
+                    0,              // sbtRecordStride
+                    0,              // missIndex
+                    origin.xyz,     // ray origin
+                    tMin,           // ray min range
+                    direction.xyz,  // ray direction
+                    tMax,           // ray max range
+                    0               // payload (location = 0)
+            );
+            hitValue += prd.hitValue * prd.attenuation;
+
+            prd.depth++;
+            if(prd.done == 1 || prd.depth >= pcRay.maxDepth)
+              break;
+
+            origin.xyz    = prd.rayOrigin;
+            direction.xyz = prd.rayDir;
+            prd.done      = 1; // Will stop if a reflective or refractant material isn't hit
+        }
+
+        hitValues += hitValue;
     }
     prd.hitValue = hitValues / NBSAMPLES;
 

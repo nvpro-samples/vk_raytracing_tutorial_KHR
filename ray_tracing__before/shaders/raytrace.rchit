@@ -25,6 +25,31 @@ layout(set = 1, binding = eObjDescs, scalar) buffer ObjDesc_ { ObjDesc i[]; } ob
 
 layout(set = 1, binding = eTextures) uniform sampler2D textureSamplers[];           // Buffer containing the materials
 
+vec3 GetRefractedRayDir(vec3 enterRayDir, vec3 collisionNormal)
+{
+    float n1, n2;
+    float enterAngle = 0.0f, exitAngle  = 0.0f;
+    vec3 exitRayDir  = vec3(1);
+
+    if(!prd.isRefracted) // If the ray is not a refracted one: Surface ==> Water
+    {
+        n1 = 1;
+        n2 = 1.333;
+    }
+    else  // Else the ray is getting out of refracting surface: Water ==> surface
+    {
+        n1 = 1.333;
+        n2 = 1;
+    }
+
+    enterAngle = acos(dot(enterRayDir, -collisionNormal));
+    exitAngle  = enterAngle/n2;                             //  n1*enterAngle = n2*exitAngle
+
+    exitRayDir = normalize(cos(exitAngle)/(-collisionNormal));
+
+    return exitRayDir;
+}
+
 void main()
 {
     // Object data
@@ -89,8 +114,8 @@ void main()
     vec3  specular    = vec3(0);
     float attenuation = 1;
 
-    // Tracing shadow ray only if the light is visible from the surface
-    if(dot(worldNrm, L) > 0)
+    // Tracing shadow ray only if the light is visible from the surface and if it has not collided with a refractant surface
+    if(dot(worldNrm, L) > 0 && mat.illum != 5)
     {
         float tMin   = 0.001;
         float tMax   = lightDistance;
@@ -102,8 +127,11 @@ void main()
             //gl_RayFlagsTerminateOnFirstHitKHR : The first hit is always good.
             //gl_RayFlagsSkipClosestHitShaderEXT : This will enable transparent shadows.
 
-        prdShadow.isHit = true;
-        prdShadow.seed  = prd.seed;
+        prdShadow.isHit                  = true;
+        prdShadow.seed                   = prd.seed;
+        prdShadow.isRefracted            = false;
+        prdShadow.lastParticleCollision  = origin; // We set the last particle collision as this point
+        prdShadow.particleCollisionCount = 0;
 
         traceRayEXT(topLevelAS,  // acceleration structure
                 flags,       // rayFlags
@@ -130,5 +158,49 @@ void main()
       specular = computeSpecular(mat, gl_WorldRayDirectionEXT, L, worldNrm);
     }
 
-    prd.hitValue = vec3(lightIntensity * (diffuse + specular));
+    // Reflection
+    if(mat.illum == 3)
+    {
+        vec3 origin = worldPos;
+        vec3 rayDir = reflect(gl_WorldRayDirectionEXT, worldNrm);
+        prd.attenuation *= mat.specular;
+        prd.done      = 0;
+        prd.rayOrigin = origin;
+        prd.rayDir    = rayDir;
+    }
+
+    // Refraction
+    if(mat.illum == 5)
+    {
+        vec3 origin;
+        vec3 collisionNormal;
+        float eta;
+        vec3 rayDir;
+        if(!prd.isRefracted)
+        {
+            origin = worldPos;
+            collisionNormal = worldNrm;
+            eta = 1/1.33;
+            rayDir      = refract(prd.rayDir, collisionNormal, eta);//GetRefractedRayDir(prd.rayDir, collisionNormal);
+        }  
+        else
+        {
+            origin = prd.lastParticleCollision;
+            collisionNormal = prd.lastPartCollNormal;
+            eta = 1.33/1;
+            rayDir      = refract(prd.rayDir, collisionNormal, eta);//GetRefractedRayDir(prd.rayDir, collisionNormal);
+        }
+        
+        //rayDir      = refract(prd.rayDir, collisionNormal, eta);//GetRefractedRayDir(prd.rayDir, collisionNormal);
+        prd.attenuation *= mat.specular;
+        prd.done         = 0;
+        prd.rayOrigin    = origin;
+        prd.rayDir       = rayDir;
+
+        prd.isRefracted            = !prd.isRefracted;
+        prd.lastParticleCollision  = origin;
+        prd.particleCollisionCount = 0;
+    }
+
+    prd.hitValue = vec3(attenuation * lightIntensity * (diffuse + specular));
 }
