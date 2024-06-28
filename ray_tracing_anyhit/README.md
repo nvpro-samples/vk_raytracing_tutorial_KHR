@@ -1,5 +1,5 @@
 # Any Hit Shaders - Tutorial
-<small>Authors: [Martin-Karl Lefrançois](https://devblogs.nvidia.com/author/mlefrancois/), Neil Bickford </small>
+<small>Authors: [Martin-Karl Lefrançois](https://devblogs.nvidia.com/author/mlefrancois/), Nia Bickford </small>
 
 ![](../docs/Images/anyhit.png)
 

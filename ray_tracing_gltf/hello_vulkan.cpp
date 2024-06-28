@@ -21,10 +21,6 @@
 #include <sstream>
 
 
-#define TINYGLTF_IMPLEMENTATION
-#define STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-
 
 #include "hello_vulkan.h"
 #include "nvh/cameramanipulator.hpp"
@@ -40,6 +36,12 @@
 
 #include "nvh/alignment.hpp"
 #include "nvvk/buffers_vk.hpp"
+
+
+#define TINYGLTF_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "tiny_gltf.h"
 
 extern std::vector<std::string> defaultSearchPaths;
 
