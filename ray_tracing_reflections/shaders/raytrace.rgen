@@ -61,6 +61,8 @@ void main()
   vec3 hitValue = vec3(0);
   for(;;)
   {
+    vec3 attenuation = prd.attenuation; // Attenuation will be applied on bouncing rays.
+
     traceRayEXT(topLevelAS,     // acceleration structure
                 rayFlags,       // rayFlags
                 0xFF,           // cullMask
@@ -73,7 +75,7 @@ void main()
                 tMax,           // ray max range
                 0               // payload (location = 0)
     );
-    hitValue += prd.hitValue * prd.attenuation;
+    hitValue += prd.hitValue * attenuation;
 
     prd.depth++;
     if(prd.done == 1 || prd.depth >= pcRay.maxDepth)

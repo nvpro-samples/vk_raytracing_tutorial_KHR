@@ -145,11 +145,13 @@ Wrap the trace call in `raytrace.rgen` like this:
 
 ~~~~ C++
   vec3 hitValue = vec3(0);
+
   for(;;)
   {
+    vec3 attenuation = prd.attenuation; // Attenuation will be applied on bouncing rays.
     traceRayEXT( /*.. */);
 
-    hitValue += prd.hitValue * prd.attenuation;
+    hitValue += prd.hitValue * attenuation;
 
     prd.depth++;
     if(prd.done == 1 || prd.depth >= 10)

@@ -1193,7 +1193,7 @@ The `shaders` folder now contains 3 more files:
   shader program simply writes a constant color into the output buffer.
 
 * `raytrace.rmiss` defines the miss shader. This shader will be executed when no geometry is hit, and will write a
-  constant color into the ray payload `rayPayloadInEXT`. Since our current ray generation program does not trace any rays
+  constant color into the ray payload `rayPayloadInEXT`. Since our current ray generation program does not trace any rays 
   for now, this shader will not be called.
 
 * `raytrace.rchit` contains a very simple closest hit shader. It will be executed upon hitting the geometry (our
@@ -1338,7 +1338,7 @@ We first add the push constant range to allow the ray tracing shaders to access 
 ~~~~ C
 // Push constant: we want to be able to update constants used by the shaders
 VkPushConstantRange pushConstant{VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
-                                 0, sizeof(PushConstantRay)};
+                                0, sizeof(PushConstantRay)};
 
 
 VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
@@ -1762,6 +1762,13 @@ layout(set = 1, binding = eGlobals) uniform _GlobalUniforms { GlobalUniforms uni
     The buffer of camera uses `binding = 0` as described in `host_device.h`. The 
     `set = 1` comes from the fact that it is the second descriptor set passed to
     `pipelineLayoutCreateInfo.pSetLayouts` in `HelloVulkan::createRtPipeline()`.
+
+Since `host_device.h` is using `uint64_t` for the address type, we also need to include the `uint64_t` extension.
+
+~~~~ C++
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+~~~~	
+
 
 When tracing a ray, the hit or miss shaders need to be able to return some information to the shader program that
 invoked the ray tracing. This is done through the use of a payload, identified by the `rayPayloadEXT` qualifier.
