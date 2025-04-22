@@ -42,6 +42,15 @@ From the source code, remove the code for all functions that was previously remo
 
 You can safely remove all raytrace.* shaders
 
+## Enable Extension and Feature
+
+In `main()` adding the [VK_KHR_ray_query](https://docs.vulkan.org/spec/latest/appendices/extensions.html#VK_KHR_ray_query) device extension and feature.
+
+~~~~ C++
+VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR};
+contextInfo.addDeviceExtension(VK_KHR_RAY_QUERY_EXTENSION_NAME, false, &rayQueryFeatures);
+~~~~
+
 ## Support for Fragment shader
 
 In `HelloVulkan::createDescriptorSetLayout`, add the acceleration structure to the description layout to have access to the acceleration structure directly in the fragment shader.
