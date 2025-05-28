@@ -240,12 +240,12 @@ And we need to add the following to the ray tracing pipeline, a copy of the prev
 
 ### New shaders 
 
-Create two new files `raytrace_0.ahit` and `raytrace_1.ahit`, and rename `raytrace.ahit` to `raytrace_ahit.glsl`
+Create two new files `raytrace_0.rahit` and `raytrace_1.rahit`, and rename `raytrace.rahit` to `raytrace_rahit.glsl`
 
  **Note:** 
     Cmake need to be re-run to add the new files to the project.
 
-In `raytrace_0.ahit` add the following code 
+In `raytrace_0.rahit` add the following code 
 
 ~~~~ C 
 #version 460
@@ -255,15 +255,15 @@ In `raytrace_0.ahit` add the following code
 #include "raytrace_rahit.glsl"
 ~~~~ 
 
-and in `raytrace_1.ahit`, replace `PAYLOAD_0` by `PAYLOAD_1`
+and in `raytrace_1.rahit`, replace `PAYLOAD_0` by `PAYLOAD_1`
 
-Then in `raytrace_ahit.glsl` remove the `#version 460`  and add the following code, so that we have the right layout.
+Then in `raytrace_rahit.glsl` remove the `#version 460`  and add the following code, so that we have the right layout.
 
 ~~~~ C 
 #ifdef PAYLOAD_0
-layout(location = 0) rayPayloadInNV hitPayload prd;
+layout(location = 0) rayPayloadInEXT hitPayload prd;
 #elif defined(PAYLOAD_1)
-layout(location = 1) rayPayloadInNV shadowPayload prd;
+layout(location = 1) rayPayloadInEXT shadowPayload prd;
 #endif
 ~~~~ 
   
@@ -290,7 +290,7 @@ The usage of the shadow payload is done in the closest hit and shadow miss shade
 
 #include "raycommon.glsl"
 
-layout(location = 1) rayPayloadInNV shadowPayload prd;
+layout(location = 1) rayPayloadInEXT shadowPayload prd;
 
 void main()
 {
@@ -303,7 +303,7 @@ The the change in the closest hit shader `raytrace.rchit`, need to change the us
 Replace the payload to 
 
 ~~~~ C 
-layout(location = 1) rayPayloadNV shadowPayload prdShadow;
+layout(location = 1) rayPayloadEXT shadowPayload prdShadow;
 ~~~~ 
 
 Then just before the call to `traceRayEXT`, initialize the values to 
