@@ -1,6 +1,31 @@
-![logo](http://nvidianews.nvidia.com/_ir/219/20157/NV_Designworks_logo_horizontal_greenblack.png)
+# Version 2.0 Release
 
-# NVIDIA Vulkan Ray Tracing Tutorials
+We are pleased to announce the release of [Vulkan Ray Tracing Tutorial V2.0](https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/tree/v2). This major update is a complete rewrite, featuring significant improvements and adherence to modern Vulkan best practices. V2.0 is available in the `v2` branch of this repository.
+
+### Key Improvements in V2.0:
+- **Vulkan 1.4** support with latest extensions
+- **VMA (Vulkan Memory Allocator)** integration for improved memory management
+- **Slang** shader compilation system for enhanced shader development
+- **glTF 2.0** asset loading capabilities
+- **Cleaner, more maintainable codebase** with improved architecture
+- **Updated sample scenes and examples**
+
+<div align="center" style="font-size:2em; font-weight:bold; margin: 1em 0;">
+  <a href="https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/tree/v2">
+    ▶️ Get Started with V2.0 ◀️
+  </a>
+</div>
+
+### Migration Notice
+While V1 remains available for reference, **V2.0 is the recommended version** for all new projects and learning. The V2 branch contains the most up-to-date implementations and follows current Vulkan best practices.
+
+
+
+---
+---
+---
+## NVIDIA Vulkan Ray Tracing Tutorials (V1 - Legacy)
+
 
 ![resultRaytraceShadowMedieval](docs/Images/resultRaytraceShadowMedieval.png)
 
@@ -8,14 +33,6 @@
 The focus of this repository and the provided code is to showcase a basic integration of
 [`ray tracing`](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#ray-tracing) and [`ray traversal`](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#ray-traversal) within an existing Vulkan sample, using the
 [`VK_KHR_acceleration_structure`](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VK_KHR_acceleration_structure), [`VK_KHR_ray_tracing_pipeline`](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VK_KHR_ray_tracing_pipeline) and [`VK_KHR_ray_query`](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VK_KHR_ray_query) extensions.
-
-## vk_raytracing_tutorial_KHR V2 in Development
-
-A new **V2** of this tutorial is on the way, bringing **Vulkan 1.4**, **VMA**, **Slang**, **glTF asset loading**, cleaner code, and updated sample scenes.  
-
-**V1 will remain available**, while V2 is developed openly in a public branch.
-
-We are collecting community feedback now — share your ideas and see the full plan in the [GitHub Discussion](https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/discussions/81).
 
 
 ## Setup

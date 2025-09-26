@@ -1,4 +1,12 @@
+# Ignore all SPIR-V shader binaries in any spv directory
 **/spv/*.spv
+
+# Ignore build output directories
 /build/*
 /out/build/x64-Debug
+
+# Ignore Visual Studio files
 /.vs
+
+# Any additional files (wildcard for files starting with an underscore)
+_*
