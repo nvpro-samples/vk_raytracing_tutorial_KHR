@@ -1571,7 +1571,7 @@ This implementation demonstrates the core Vulkan functions needed for SBT creati
 
 - `vkGetRayTracingShaderGroupHandlesKHR()` retrieves the opaque handles for each shader group
 - These handles are used by the GPU to identify which shader to execute for each ray type
-- The values come back in the oreder of creation.
+- The values come back in the order of creation.
 
 ##### 2. **Alignment Requirements**
 
