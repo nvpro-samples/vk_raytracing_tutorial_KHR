@@ -1,3 +1,7 @@
+---
+render_with_liquid: false
+---
+
 # Vulkan Ray Tracing Tutorial (v2)
 
 > **Repository**: [github.com/nvpro-samples/vk_raytracing_tutorial_KHR](https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR)  
