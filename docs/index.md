@@ -1103,6 +1103,7 @@ void createRaytraceDescriptorLayout()
 
 Add this method to create the ray tracing pipeline (without shaders for now):
 
+{% raw %}
 ```cpp
 void createRayTracingPipeline()
 {
@@ -1177,6 +1178,7 @@ void createRayTracingPipeline()
     createShaderBindingTable(rtPipelineInfo);
 }
 ```
+{% endraw %}
 
 In this step, we've added the creation of the ray tracing pipeline layout. Because this function may be called multiple times (for example, when shaders are reloaded), we ensure that any previously created pipeline layout and related resources are properly destroyed before recreating them to avoid resource leaks.
 
@@ -1400,6 +1402,7 @@ At the top of your CPP file, alongside the other auto-generated includes, add th
 
 Update the `createRayTracingPipeline()` method to include actual shader compilation:
 
+{% raw %}
 ```cpp
 void createRayTracingPipeline()
 {
@@ -1489,6 +1492,7 @@ void createRayTracingPipeline()
     createShaderBindingTable(rtPipelineInfo);
 }
 ```
+{% endraw %}
 
 > **Note**: Two major changes were made in this phase. First, the Slang compiler is now invoked to generate SPIR-V code, and the resulting entry points are associated with each shader group (raygen, closest hit, miss). Second, the ray tracing pipeline is created by filling out the `VkRayTracingPipelineCreateInfoKHR` structure and calling `vkCreateRayTracingPipelinesKHR`. In the next section (5.3), we will create the shader binding table, which can be automatically generated using information from the `VkRayTracingPipelineCreateInfoKHR` structure.
 
