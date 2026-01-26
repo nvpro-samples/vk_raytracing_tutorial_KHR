@@ -54,11 +54,13 @@ defaults:
       type: "pages"
     values:
       layout: "default"
+      render_with_liquid: false  # Disable Liquid processing for code-heavy docs
   - scope:
       path: ""
       type: "docs"
     values:
       layout: "default"
+      render_with_liquid: false  # Disable Liquid processing for code-heavy docs
 
 # Permalink structure
 permalink: pretty
