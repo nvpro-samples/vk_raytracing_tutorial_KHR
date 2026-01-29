@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2025, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2023-2026, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * SPDX-FileCopyrightText: Copyright (c) 2023-2025, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2023-2026, NVIDIA CORPORATION.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -52,7 +52,15 @@
 // Common base class (see 02_basic)
 #include "common/rt_base.hpp"
 
-#define MAX_DEPTH 10U  // <-- this can be set to 2 with iterative mode
+// Reflection mode (must match shader define in rtreflection.slang)
+// 0 = Iterative (RECOMMENDED): Loop-based, only needs maxPipelineRayRecursionDepth = 2
+//     Can handle unlimited reflection depth! Not constrained by hardware recursion limits.
+// 1 = Recursive: Hardware recursion, requires maxPipelineRayRecursionDepth = MAX_DEPTH + 2
+//     Limited by GPU's maxRayRecursionDepth (typically 4-31, varies by vendor)
+//     +2 accounts for: primary ray + shadow ray at deepest reflection level
+#define USE_RECURSIVE_REFLECTION 0
+
+#define MAX_DEPTH 10U  // Maximum reflection depth for UI slider
 
 
 class RtReflection : public RtBase
@@ -70,8 +78,11 @@ public:
       ImGui::SeparatorText("Reflection");
       {
         PE::begin();
-        PE::SliderInt("Reflection Depth", &m_pushValues.depthMax, 1, MAX_DEPTH, "%d", ImGuiSliderFlags_AlwaysClamp,
-                      "Maximum reflection depth");
+        if(PE::SliderInt("Reflection Depth", &m_pushValues.depthMax, 1, MAX_DEPTH, "%d", ImGuiSliderFlags_AlwaysClamp,
+                         "Maximum reflection depth"))
+        {
+          LOGI("Reflection depth set to %d\n", m_pushValues.depthMax);
+        }
         PE::end();
       }
       ImGui::End();
@@ -191,8 +202,20 @@ public:
 
 
     // Create the ray tracing pipeline
-    VkRayTracingPipelineCreateInfoKHR rtPipelineInfo = createRayTracingPipelineCreateInfo(stages, shaderGroups);
-    rtPipelineInfo.maxPipelineRayRecursionDepth = std::max(MAX_DEPTH, m_rtProperties.maxRayRecursionDepth);  // Ray depth
+    // CRITICAL: The pipeline depth must match the shader mode!
+    // Iterative mode only needs depth=2 (primary + shadow) since reflections are handled in a loop.
+    // Recursive mode needs depth=MAX_DEPTH+2 because each reflection also traces a shadow ray:
+    //   - 1 level for primary ray from raygen
+    //   - MAX_DEPTH levels for N reflections
+    //   - +1 for shadow ray at the deepest reflection level
+    //
+    // Example: MAX_DEPTH=10 needs pipeline depth=12 (1 primary + 10 reflections + 1 final shadow)
+#if USE_RECURSIVE_REFLECTION
+    const uint32_t pipelineDepth = MAX_DEPTH + 2;  // Recursive: primary + reflections + shadow
+#else
+    const uint32_t pipelineDepth = 2;  // Iterative: only primary and shadow (RECOMMENDED)
+#endif
+    VkRayTracingPipelineCreateInfoKHR rtPipelineInfo = createRayTracingPipelineCreateInfo(stages, shaderGroups, pipelineDepth);
     vkCreateRayTracingPipelinesKHR(m_app->getDevice(), {}, {}, 1, &rtPipelineInfo, nullptr, &m_rtPipeline);
     NVVK_DBG_NAME(m_rtPipeline);
 
@@ -219,6 +242,11 @@ int main(int argc, char** argv)
   VkPhysicalDeviceAccelerationStructureFeaturesKHR accelFeature{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR};
   VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR};
 
+  // To enable ray tracing validation, set the NV_ALLOW_RAYTRACING_VALIDATION=1 environment variable
+  // https://developer.nvidia.com/blog/ray-tracing-validation-at-the-driver-level/
+  // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VK_NV_ray_tracing_validation.html
+  VkPhysicalDeviceRayTracingValidationFeaturesNV validationFeatures = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_VALIDATION_FEATURES_NV};
+
   nvvk::ContextInitInfo vkSetup{
       .instanceExtensions = {VK_EXT_DEBUG_UTILS_EXTENSION_NAME},
       .deviceExtensions =
@@ -228,6 +256,7 @@ int main(int argc, char** argv)
               {VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, &accelFeature},     // To build acceleration structures
               {VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, &rtPipelineFeature},  // To use vkCmdTraceRaysKHR
               {VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME},                  // Required by ray tracing pipeline
+              {VK_NV_RAY_TRACING_VALIDATION_EXTENSION_NAME, &validationFeatures, false},  // For validation (optional)
           },
   };
 

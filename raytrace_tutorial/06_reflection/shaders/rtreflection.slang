@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2025, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2023-2026, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * SPDX-FileCopyrightText: Copyright (c) 2023-2025, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2023-2026, NVIDIA CORPORATION.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -31,9 +31,16 @@
 
 #define MISS_DEPTH 1000
 
-// Define reflection modes
-// #define REFLECTION_RECURSIVE  // Uncomment for recursive reflection
-#define REFLECTION_ITERATIVE  // Uncomment for iterative reflection
+// Reflection mode (must match C++ define in 06_reflection.cpp)
+// IMPORTANT: Iterative mode (0) is RECOMMENDED for production use because:
+//   - Only needs maxPipelineRayRecursionDepth=2 (significantly fewer registers per ray!)
+//   - NOT LIMITED by hardware ray recursion depth - can trace 50, 100, or more bounces!
+//   - Recursive needs maxPipelineRayRecursionDepth=MAX_DEPTH+2 (each reflection traces a shadow ray!)
+//   - Recursive is limited by GPU's maxRayRecursionDepth (typically 4-31, varies by vendor)
+//
+// 0 = Iterative (RECOMMENDED): Loop-based, unlimited depth, better performance
+// 1 = Recursive: Hardware recursion, hardware-limited depth, uses more registers
+#define USE_RECURSIVE_REFLECTION 0
 
 // Raytracing Payload
 struct HitPayload
@@ -117,10 +124,14 @@ void rgenMain()
   payload.weight = 1;
   payload.depth  = 0;
 
-#ifdef REFLECTION_ITERATIVE
+#if USE_RECURSIVE_REFLECTION
+  // Recursive reflection (handled in closest hit shader)
+  TraceRay(topLevelAS, rayFlags, 0xff, 0, 0, 0, ray, payload);
+  float3 color = payload.color;
+#else
+  // Iterative reflection loop
   float3 accumulatedColor = float3(0, 0, 0);
 
-  // Iterative reflection loop
   while(payload.depth < pushConst.depthMax && payload.weight > 0.01)
   {
     float prevWeight = payload.weight;
@@ -134,10 +145,6 @@ void rgenMain()
   }
 
   float3 color = accumulatedColor;
-#else
-  // Recursive reflection (handled in closest hit shader)
-  TraceRay(topLevelAS, rayFlags, 0xff, 0, 0, 0, ray, payload);
-  float3 color = payload.color;
 #endif
 
   outImage[int2(launchID)] = float4(color, 1.0);
@@ -282,7 +289,7 @@ void rchitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttribute
   // Handle reflection based on material properties
   float3 reflectionColor = float3(0, 0, 0);
 
-#ifdef REFLECTION_RECURSIVE
+#if USE_RECURSIVE_REFLECTION
   // Recursive reflection
   if(payload.depth < pushConst.depthMax && metallic > 0.01)
   {

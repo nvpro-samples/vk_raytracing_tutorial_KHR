@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2025, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2023-2026, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * SPDX-FileCopyrightText: Copyright (c) 2023-2025, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2023-2026, NVIDIA CORPORATION.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -681,7 +681,7 @@ public:
         .pStages                      = stages.data(),
         .groupCount                   = static_cast<uint32_t>(shaderGroups.size()),
         .pGroups                      = shaderGroups.data(),
-        .maxPipelineRayRecursionDepth = std::max(2U, m_rtProperties.maxRayRecursionDepth),  // Ray depth
+        .maxPipelineRayRecursionDepth = std::min(depth, m_rtProperties.maxRayRecursionDepth),  // Ray depth
         .layout                       = m_rtPipelineLayout,
     };
     return rtPipelineInfo;
