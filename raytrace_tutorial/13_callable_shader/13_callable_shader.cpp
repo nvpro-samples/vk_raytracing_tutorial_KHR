@@ -296,7 +296,7 @@ public:
     shaderGroups.push_back(group);
 
     // Create the ray tracing pipeline
-    VkRayTracingPipelineCreateInfoKHR rtPipelineInfo = createRayTracingPipelineCreateInfo(stages, shaderGroups, 6);
+    VkRayTracingPipelineCreateInfoKHR rtPipelineInfo = createRayTracingPipelineCreateInfo(stages, shaderGroups, PIPELINE_DEPTH);
     vkCreateRayTracingPipelinesKHR(m_app->getDevice(), {}, {}, 1, &rtPipelineInfo, nullptr, &m_rtPipeline);
     NVVK_DBG_NAME(m_rtPipeline);
 

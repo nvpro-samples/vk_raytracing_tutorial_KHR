@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2025, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2023-2026, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * SPDX-FileCopyrightText: Copyright (c) 2023-2025, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2023-2026, NVIDIA CORPORATION.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -340,6 +340,13 @@ GltfPunctual processLight(GltfSceneInfo* sceneInfo, float3 worldPos)
 // MONTE CARLO PATH TRACING - Main rendering algorithm
 //-----------------------------------------------------------------------
 // Implements unbiased Monte Carlo path tracing with importance sampling
+// 
+// Lighting Strategy:
+// - Direct lighting: Next Event Estimation (NEE) with explicit light sampling
+// - Indirect lighting: BSDF importance sampling
+// - For delta lights (directional/sun): No MIS needed, NEE weight = 1.0
+// - For area lights: Would benefit from MIS combining both strategies (not implemented)
+//
 // Returns the radiance (color) along the given ray path
 float3 pathTrace(RayDesc ray, inout uint seed)
 {
@@ -418,7 +425,17 @@ float3 pathTrace(RayDesc ray, inout uint seed)
       bsdfEvaluateSimple(evalData, pbrMat);
 
       // Accumulate direct lighting contribution
-      const float3 w = 1.0f;                 // Light sampling weight (simplified)
+      // NOTE: Light sampling strategy and MIS
+      // This implementation uses a simplified approach:
+      // - NEE (Next Event Estimation) for direct lighting with weight = 1.0
+      // - BSDF sampling for indirect lighting only
+      // 
+      // For DELTA light sources (directional lights/sun), w=1.0 is mathematically correct
+      // because BSDF sampling has zero probability of hitting a delta light, so only NEE contributes.
+      //
+      // For AREA LIGHTS or ENVIRONMENT MAPS, proper MIS would combine both light and BSDF sampling.
+      // The evalData.pdf output (currently unused) would be needed for this calculation.
+      const float3 w = 1.0f;  // MIS weight (correct for delta lights, simplified for area lights)
       contrib += w * evalData.bsdf_diffuse;  // Diffuse reflection
       contrib += w * evalData.bsdf_glossy;   // Specular reflection
       contrib *= throughput;                 // Weight by path throughput

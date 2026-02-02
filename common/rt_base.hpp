@@ -656,7 +656,7 @@ public:
   // Create Ray Trace Pipeline
   VkRayTracingPipelineCreateInfoKHR createRayTracingPipelineCreateInfo(std::span<const VkPipelineShaderStageCreateInfo> stages,
                                                                        std::span<const VkRayTracingShaderGroupCreateInfoKHR> shaderGroups,
-                                                                       uint32_t depth = 2)
+                                                                       uint32_t depth)
   {
 
     // Push constant: we want to be able to update constants used by the shaders
