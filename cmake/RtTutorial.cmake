@@ -47,16 +47,15 @@ function(setup_rt_tutorial_sample)
 
     # Link libraries and include directories (consistent across all samples)
     target_link_libraries(${PROJECT_NAME} PRIVATE
-        nvpro2::nvapp
-        nvpro2::nvgui
-        nvpro2::nvslang
-        nvpro2::nvutils
-        nvpro2::nvvk
-        nvpro2::nvshaders_host
-        nvpro2::nvaftermath
-        nvpro2::nvvkgltf
-        nvpro2::nvvkglsl
-        vk_raytracing_tutorial_common
+        nvpro2::nvapp           # The application framework
+        nvpro2::nvgui           # The GUI framework
+        nvpro2::nvslang         # Slang functions
+        nvpro2::nvutils         # Utility functions
+        nvpro2::nvvk            # Vulkan functions
+        nvpro2::nvshaders_host  # Shader host functions
+        nvpro2::nvaftermath     # Aftermath functions
+        vk_raytracing_tutorial_common # Common functions
+        stb                     # Image loading
     )
 
     add_project_definitions(${PROJECT_NAME})
@@ -101,6 +100,8 @@ function(setup_rt_tutorial_sample)
         "${SHADER_SLANG_FILES}"
         "${SHADER_OUTPUT_DIR}"
         GENERATED_SHADER_HEADERS
+        OPTIMIZATION_LEVEL 1
+        DEBUG_LEVEL 1
         EXTRA_FLAGS ${SHADER_INCLUDE_FLAGS}
     )
 

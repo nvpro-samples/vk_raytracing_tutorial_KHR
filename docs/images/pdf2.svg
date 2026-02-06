@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160">
+  <defs>
+    <radialGradient id="pdfGradient" cx="169.22" cy="5.817" r="110" gradientUnits="userSpaceOnUse" spreadMethod="pad" gradientTransform="matrix(0.517166, 0.320164, -0.591114, 0.954835, 75.474627, -27.735145)">
+      <stop offset="0" stop-color="#e74c3c"/>
+      <stop offset="0.4" stop-color="#f5b041"/>
+      <stop offset="0.829" stop-color="#f7dc6f"/>
+      <stop offset="1" stop-color="#5dade2"/>
+    </radialGradient>
+    <clipPath id="hemiClip">
+      <path d="M20,120 A100,100 0 0 1 220,120 L220,120 L20,120 Z"/>
+    </clipPath>
+    <marker id="arrowTip" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#333"/>
+    </marker>
+  </defs>
+  <rect x="20" y="20" width="200" height="100" fill="url(#pdfGradient)" clip-path="url(#hemiClip)" style="transform-box: fill-box; transform-origin: 50% 50%;"/>
+  <path d="M20,120 A100,100 0 0 1 220,120" fill="none" stroke-width="2" stroke="#666"/>
+  <line x1="20" y1="120" x2="220" y2="120" stroke-width="2" stroke="#000"/>
+  <line x1="120" y1="120" x2="158.951" y2="34.195" stroke-width="2" marker-end="url(#arrowTip)" stroke="#333"/>
+  <line x1="39.051" y1="32.715" x2="119.151" y2="118.096" stroke-width="2" marker-end="" style="stroke-width: 2; fill: rgba(0, 0, 0, 0.537); paint-order: stroke; stroke: rgba(51, 51, 51, 0.545); stroke-opacity: 0.79; stroke-dasharray: 2;"/>
+</svg>

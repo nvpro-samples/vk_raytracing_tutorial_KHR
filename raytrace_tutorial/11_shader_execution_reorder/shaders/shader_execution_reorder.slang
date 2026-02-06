@@ -29,7 +29,7 @@
 // clang-format off
  [[vk::push_constant]] ConstantBuffer<TutoPushConstant> pushConst;
 
- [[vk::constant_id(0)]] int USE_SER;
+ [[vk::constant_id(0)]] int USE_SER = 1;
 
  [[vk::binding(BindingPoints::eTextures, 0)]]    Sampler2D textures[];
  [[vk::binding(BindingPoints::eTlas, 1)]]        RaytracingAccelerationStructure topLevelAS;

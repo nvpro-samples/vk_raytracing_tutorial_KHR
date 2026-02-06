@@ -59,6 +59,9 @@ This repository provides comprehensive documentation covering the core concepts 
 
 ### Core Documentation
 
+- **[Rendering Concepts](/docs/rendering_concepts.md)**  
+  Plain-language guide to rendering acronyms (BRDF, BSDF, PDF, NEE, MIS). New to these concepts? Start here before diving into the technical documentation.
+
 - **[Acceleration Structures](/docs/acceleration_structures.md)**  
   Comprehensive guide to building and managing acceleration structures (BLAS and TLAS) in Vulkan. Covers construction algorithms, memory management, update strategies, and performance optimization techniques. Includes detailed coverage of utilities like `nvvk::AccelerationStructureHelper` and `nvvk::AccelerationStructureBuilder`.
 

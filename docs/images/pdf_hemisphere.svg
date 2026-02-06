@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160">
+  <defs>
+    <radialGradient id="pdfGradient" cx="120" cy="30" r="110" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e74c3c"/>
+      <stop offset="0.35" stop-color="#f5b041"/>
+      <stop offset="0.7" stop-color="#f7dc6f"/>
+      <stop offset="1" stop-color="#5dade2"/>
+    </radialGradient>
+    <clipPath id="hemiClip">
+      <path d="M20,120 A100,100 0 0 1 220,120 L220,120 L20,120 Z"/>
+    </clipPath>
+    <marker id="arrowTip" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#333"/>
+    </marker>
+  </defs>
+
+  <!-- Hemisphere with PDF heatmap -->
+  <rect x="20" y="20" width="200" height="100" fill="url(#pdfGradient)" clip-path="url(#hemiClip)"/>
+  <path d="M20,120 A100,100 0 0 1 220,120" fill="none" stroke="#666" stroke-width="2"/>
+
+  <!-- Surface line -->
+  <line x1="20" y1="120" x2="220" y2="120" stroke="#000" stroke-width="2"/>
+
+  <!-- Example dominant direction -->
+  <line x1="120" y1="120" x2="120" y2="30" stroke="#333" stroke-width="2" marker-end="url(#arrowTip)"/>
+</svg>

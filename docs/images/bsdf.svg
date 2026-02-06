@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 252.809 239.7">
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0" stop-color="#999" stop-opacity="1"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <marker id="tipGray" style="overflow:visible" refX="-1" orient="auto">
+      <path style="fill:#999" d="M-6,3 L-6,-3 L1,0 z"/>
+    </marker>
+    <marker id="tipBlack" style="overflow:visible" refX="-1" orient="auto">
+      <path style="fill:#000" d="M-6,3 L-6,-3 L1,0 z"/>
+    </marker>
+  </defs>
+  <rect class="gradient" x="3.584" y="122.897" width="240" height="32" style="fill: url(&quot;#gradient&quot;); stroke-width: 1;"/>
+  <g class="stroke" style="fill: none; stroke-linecap: round; stroke-width: 2px;" transform="matrix(1, 0, 0, 1, -4.417461, -5.103981)">
+    <path class="gray thin dashed" d="M128,128 C192,-64 320,64 128,128" style="stroke: rgb(153, 153, 153); stroke-dasharray: 4px, 4px; stroke-width: 1px;"/>
+    <g class="arrowGray" style="fill: none; marker-end: url(&quot;#tipGray&quot;); stroke: rgb(153, 153, 153); stroke-linecap: round; stroke-width: 2px;">
+      <path d="M128,128 L171.132409,49.008891"/>
+      <path d="M128,128 L201.111875,30.333969"/>
+      <path d="M128,128 L221.338095,34.661905"/>
+      <path d="M128,128 L225.666031,54.888125"/>
+      <path d="M128,128 L206.991109,84.867591"/>
+    </g>
+    <path class="black" d="M8,128 L248,128" style="stroke: rgb(0, 0, 0);"/>
+    <path class="arrowBlack" d="M8,8 L125,125" style="fill: none; marker-end: url(&quot;#tipBlack&quot;); stroke: rgb(0, 0, 0); stroke-linecap: round; stroke-width: 2px;"/>
+  </g>
+  <g class="stroke" transform="matrix(1, 0, 0, -0.855339, -1.174342, 250.415558)" style="fill: none; stroke-linecap: round; stroke-width: 2px;">
+    <g transform="matrix(1, 0, 0, 1, 7.302838, -5.433238)">
+      <path class="gray thin dashed" d="M 126.672 125.671 C 190.672 -66.329 318.672 61.671 126.672 125.671" style="stroke: rgb(153, 153, 153); stroke-dasharray: 4px, 4px; stroke-width: 1px;"/>
+    </g>
+    <g class="arrowGray" transform="matrix(1, 0, 0, 1, 7.966733, -7.761769)" style="fill: none; marker-end: url(&quot;#tipGray&quot;); stroke: rgb(153, 153, 153); stroke-linecap: round; stroke-width: 2px;">
+      <g>
+        <path d="M128,128 L171.132409,49.008891"/>
+        <path d="M128,128 L201.111875,30.333969"/>
+        <path d="M128,128 L221.338095,34.661905"/>
+        <path d="M128,128 L225.666031,54.888125"/>
+        <path d="M128,128 L206.991109,84.867591"/>
+      </g>
+    </g>
+    <path class="black" d="M 5.534 122.95 L 245.534 122.95" style="stroke: rgb(0, 0, 0);"/>
+  </g>
+  <path style="fill: none; stroke: rgb(0, 0, 0); stroke-width: 2;" d="M 133.779 147.26 L 123.279 123.757"/>
+</svg>

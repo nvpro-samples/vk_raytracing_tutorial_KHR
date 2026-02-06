@@ -6,6 +6,13 @@ project(vk_raytracing_tutorial VERSION 2.0 LANGUAGES C CXX)
 
 # Add the cmake folder to the module path
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+# Configure NvproCore2 options
+set(NVPRO2_ENABLE_nvimageformats off)
+set(NVPRO2_ENABLE_nvsight off)
+set(NVPRO2_ENABLE_nvvkglsl off)
+set(NVPRO2_ENABLE_nvvkgltf off)
+# Adding NvproCore2
 find_package(NvproCore2 REQUIRED)
 
 # Include the RtTutorial common functions

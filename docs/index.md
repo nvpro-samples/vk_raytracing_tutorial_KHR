@@ -48,15 +48,16 @@ This tutorial is designed with **progressive compilation** in mind:
 1. **[Setup Instructions](#setup-instructions)** - Create working copy and verify build
 2. **[Understanding Acceleration Structures: BLAS vs TLAS](#understanding-acceleration-structures-blas-vs-tlas)** - Learn the fundamentals of ray tracing data structures
 3. **[Understanding the Shader Binding Table (SBT)](#understanding-the-shader-binding-table-sbt)** - Learn how ray tracing shaders are organized and executed
-4. **[Phase 1: Foundation Setup](#-phase-1-foundation-setup)** - Add ray tracing headers and enable extensions
-5. **[Phase 2: Acceleration Structure Infrastructure](#-phase-2-acceleration-structure-infrastructure)** - Set up BLAS/TLAS creation helpers
-6. **[Phase 3: Basic Acceleration Structures](#-phase-3-basic-acceleration-structures)** - Create and build acceleration structures
-7. **[Phase 4: Ray Tracing Pipeline Setup](#-phase-4-ray-tracing-pipeline-setup)** - Create pipeline and SBT infrastructure
-8. **[Phase 5: Basic Ray Tracing Shaders](#-phase-5-basic-ray-tracing-shaders)** - Implement minimal ray tracing shaders
-9. **[Phase 6: Integration and Rendering](#-phase-6-integration-and-rendering)** - Replace rasterization with ray tracing
-10. **[Phase 7: Material Shading](#-phase-7-material-shading)** - Add proper PBR material shading
-11. **[Phase 8: Lighting and Shadows](#-phase-8-lighting-and-shadows)** - Add realistic lighting and shadow casting
-12. **[Tutorial Completion Summary](#tutorial-completion-summary)** - What you've accomplished and next steps
+4. **[Rendering Acronyms and Concepts](rendering_concepts.md)** - Plain-language guide to BRDF, BSDF, PDF, NEE, MIS, and more
+5. **[Phase 1: Foundation Setup](#-phase-1-foundation-setup)** - Add ray tracing headers and enable extensions
+6. **[Phase 2: Acceleration Structure Infrastructure](#-phase-2-acceleration-structure-infrastructure)** - Set up BLAS/TLAS creation helpers
+7. **[Phase 3: Basic Acceleration Structures](#-phase-3-basic-acceleration-structures)** - Create and build acceleration structures
+8. **[Phase 4: Ray Tracing Pipeline Setup](#-phase-4-ray-tracing-pipeline-setup)** - Create pipeline and SBT infrastructure
+9. **[Phase 5: Basic Ray Tracing Shaders](#-phase-5-basic-ray-tracing-shaders)** - Implement minimal ray tracing shaders
+10. **[Phase 6: Integration and Rendering](#-phase-6-integration-and-rendering)** - Replace rasterization with ray tracing
+11. **[Phase 7: Material Shading](#-phase-7-material-shading)** - Add proper PBR material shading
+12. **[Phase 8: Lighting and Shadows](#-phase-8-lighting-and-shadows)** - Add realistic lighting and shadow casting
+13. **[Tutorial Completion Summary](#tutorial-completion-summary)** - What you've accomplished and next steps
 
 ## Setup Instructions
 
@@ -1705,23 +1706,13 @@ This function begins by binding the ray tracing pipeline, followed by binding th
 
 **Important**: The `updateSceneBuffer()` function needs to be updated to include the inverse matrices required for ray generation. These matrices are used in the ray generation shader to convert screen coordinates to world space rays.
 
-Find the `updateSceneBuffer()` method and ensure it includes these lines:
+Find the `updateSceneBuffer()` method and add the two inverse matrix lines as shown below:
 
 ```cpp
-void updateSceneBuffer(VkCommandBuffer cmd)
-{
-    NVVK_DBG_SCOPE(cmd);  // <-- Helps to debug in NSight
-    const glm::mat4& viewMatrix = g_cameraManip->getViewMatrix();
-    const glm::mat4& projMatrix = g_cameraManip->getPerspectiveMatrix();
-
-    m_sceneResource.sceneInfo.viewProjMatrix = projMatrix * viewMatrix;   // Combine the view and projection matrices
-    m_sceneResource.sceneInfo.projInvMatrix  = glm::inverse(projMatrix);  // Inverse projection matrix
-    m_sceneResource.sceneInfo.viewInvMatrix  = glm::inverse(viewMatrix);  // Inverse view matrix
-    m_sceneResource.sceneInfo.cameraPosition = g_cameraManip->getEye();   // Get the camera position
-    m_sceneResource.sceneInfo.instances = (shaderio::GltfInstance*)m_sceneResource.bInstances.address;  // Get the address of the instance buffer
-    
-    // ... rest of the function
-}
+m_sceneResource.sceneInfo.viewProjMatrix = projMatrix * viewMatrix;   // Combine the view and projection matrices
+m_sceneResource.sceneInfo.projInvMatrix  = glm::inverse(projMatrix);  // Inverse projection matrix (NEW)
+m_sceneResource.sceneInfo.viewInvMatrix  = glm::inverse(viewMatrix);  // Inverse view matrix (NEW)
+m_sceneResource.sceneInfo.cameraPosition = m_cameraManip->getEye();   // Get the camera position
 ```
 
 **Why these matrices are needed**:
@@ -2025,6 +2016,28 @@ At this point, it is possible to change the background color or use the sun and 
 - Materials look metallic or rough based on their properties
 - Background can be solid color or realistic sky
 
+### Important Notes
+
+**🌞 Finding the Sun:**
+
+The sun is positioned high by default (which provides better lighting in Phase 8). To locate the sun in the sky:
+
+- **Look up**: Use **ALT + Left Mouse Button** to look around without moving the camera
+- **Adjust position**: In Settings → Environment → Use Sky, adjust **Elevation** (~5-15°) and **Azimuth** (~-70°)
+
+![sun_pos](images/sun_pos.png)
+
+> **Phase 7 Limitation**: Adjusting sun position moves it **visually in the sky** (miss shader), but **doesn't affect lighting on objects**. Object lighting uses fixed `sceneInfo.punctualLights[0].direction`. Sun and lighting are connected in Phase 8 via `processLight()` function.
+
+**🎮 Camera Controls:**
+
+- **Left Mouse + Drag**: Orbit around center point (can go below ground plane)
+- **ALT + Left Mouse + Drag**: Look around from camera position (best for finding sun)
+- **Middle Mouse + Drag**: Pan camera
+- **Scroll Wheel**: Zoom
+- **Right Mouse + Drag**: Dolly (move forward/backward)
+
+
 ---
 
 ## 🔖 Phase 8: Lighting and Shadows
@@ -2032,6 +2045,8 @@ At this point, it is possible to change the background color or use the sun and 
 ### Phase Overview
 
 **Phase Objectives**: Add proper lighting calculations and shadow testing to create realistic lighting effects in the ray traced scene.
+
+- New to terms like BRDF, BSDF, PDF, NEE, or MIS? See the plain-language guide in [rendering_concepts.md](rendering_concepts.md).
 
 - Implement shadow ray testing for accurate shadow casting
 - Add proper light processing with distance and cone attenuation

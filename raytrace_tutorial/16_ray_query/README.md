@@ -84,6 +84,8 @@ The key advantage is **procedural control** - instead of relying on separate ray
 
 This tutorial implements a sophisticated Monte Carlo path tracer with the following advanced features:
 
+New to acronyms like BRDF, BSDF, PDF, NEE, or MIS? Read the plain-language guide: [/docs/rendering_concepts.md](/docs/rendering_concepts.md).
+
 ### Key Path Tracing Features
 
 - **Unidirectional path tracing** with importance sampling
