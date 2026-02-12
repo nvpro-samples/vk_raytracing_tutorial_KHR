@@ -82,6 +82,13 @@ public:
   // Override virtual methods from RtBase
   //-------------------------------------------------------------------------------
 
+  void onAttach(nvapp::Application* app) override
+  {
+    // Add Slang capability
+    m_slangCompiler.addCapability("spvRayTracingMotionBlurNV");  // For motion blur support
+    RtBase::onAttach(app);
+  }
+
   void onUIRender() override
   {
     if(ImGui::Begin("Settings"))

@@ -4,4 +4,7 @@
 # Copy this file to a new tutorial directory and modify the function call as needed.
 
 # Basic setup with RT common sources (most common case)
-setup_rt_tutorial_sample(USE_RT_COMMON) 
+setup_rt_tutorial_sample(
+	USE_RT_COMMON
+	EXTRA_CAPABILITY -capability spvRayQueryKHR
+) 

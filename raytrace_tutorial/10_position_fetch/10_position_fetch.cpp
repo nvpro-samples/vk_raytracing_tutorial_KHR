@@ -62,6 +62,9 @@ public:
 
   void onAttach(nvapp::Application* app) override
   {
+    // Add Slang capability for position fetch support
+    m_slangCompiler.addCapability("spvRayTracingPositionFetchKHR");
+    
     RtBase::onAttach(app);
 
     // Query position fetch support

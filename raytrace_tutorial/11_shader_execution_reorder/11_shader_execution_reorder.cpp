@@ -77,6 +77,11 @@ public:
     VkPhysicalDeviceProperties2 prop2{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
     prop2.pNext = &m_reorderProperties;
     vkGetPhysicalDeviceProperties2(app->getPhysicalDevice(), &prop2);
+    
+    // Add Slang capabilities for SER and shader clock
+    m_slangCompiler.addCapability("spvShaderInvocationReorderNV");  // For SER support
+    m_slangCompiler.addCapability("spvShaderClockKHR");             // For heatmap timing
+
     RtBase::onAttach(app);
 
     // ===== Profiling & Performance =====
@@ -497,8 +502,8 @@ int main(int argc, char** argv)
   VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR};
 
   // Add SER-specific features
-  VkPhysicalDeviceRayTracingInvocationReorderFeaturesNV serFeature{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_INVOCATION_REORDER_FEATURES_NV};
-  serFeature.rayTracingInvocationReorder = VK_TRUE;
+  VkPhysicalDeviceRayTracingInvocationReorderFeaturesNV serFeatureNV{
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_INVOCATION_REORDER_FEATURES_NV};
 
   // Add shader clock feature for heatmap timing (getRealtimeClock in shader)
   VkPhysicalDeviceShaderClockFeaturesKHR shaderClockFeature{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_CLOCK_FEATURES_KHR};
@@ -510,11 +515,11 @@ int main(int argc, char** argv)
           {
               {VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME},
               {VK_EXT_SHADER_OBJECT_EXTENSION_NAME, &shaderObjectFeatures},
-              {VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, &accelFeature},       // To build acceleration structures
-              {VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, &rtPipelineFeature},    // To use vkCmdTraceRaysKHR
-              {VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME},                    // Required by ray tracing pipeline
-              {VK_NV_RAY_TRACING_INVOCATION_REORDER_EXTENSION_NAME, &serFeature},  // For SER support
-              {VK_KHR_SHADER_CLOCK_EXTENSION_NAME, &shaderClockFeature},           // For shader clock (heatmap)
+              {VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, &accelFeature},     // To build acceleration structures
+              {VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, &rtPipelineFeature},  // To use vkCmdTraceRaysKHR
+              {VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME},                  // Required by ray tracing pipeline
+              {VK_NV_RAY_TRACING_INVOCATION_REORDER_EXTENSION_NAME, &serFeatureNV},  // For SER support (required)
+              {VK_KHR_SHADER_CLOCK_EXTENSION_NAME, &shaderClockFeature},  // For shader clock (heatmap)
           },
   };
 
@@ -529,6 +534,16 @@ int main(int argc, char** argv)
   {
     return 1;
   }
+
+  // Check if SER is supported
+  auto& logger = nvutils::Logger::getInstance();
+  if(serFeatureNV.rayTracingInvocationReorder == VK_FALSE)
+  {
+    logger.log(nvutils::Logger::eERROR, "SER(NV) support: Not Available\n");
+    return 1;
+  }
+  logger.log(nvutils::Logger::eINFO, "SER(NV) support: Available\n");
+
 
   // Setting up the application
   appInfo.name           = "Ray Tracing Tutorial - 11 Shader Execution Reorder";

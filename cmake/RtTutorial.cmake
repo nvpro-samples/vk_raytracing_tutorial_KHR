@@ -17,7 +17,7 @@ function(setup_rt_tutorial_sample)
     # Parse function arguments
     set(options USE_RT_COMMON USE_FOUNDATION_SHADER INCLUDE_H_SLANG_FILES)
     set(oneValueArgs)
-    set(multiValueArgs EXTRA_SHADER_INCLUDES EXTRA_COPY_FILES EXTRA_COPY_DIRECTORIES)
+    set(multiValueArgs EXTRA_SHADER_INCLUDES EXTRA_COPY_FILES EXTRA_COPY_DIRECTORIES EXTRA_CAPABILITY)
     cmake_parse_arguments(RT_TUTORIAL "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     # Get the name of the current directory
@@ -96,13 +96,20 @@ function(setup_rt_tutorial_sample)
         endforeach()
     endif()
 
+    # Base capabilities required by some shaders (e.g., tonemapper)
+    # These capabilities apply globally to all shader compilation via compile_slang
+    set(EXTRA_CAPABILITY -capability spvGroupNonUniformBallot+spvGroupNonUniformArithmetic)
+
+    # Append any additional capabilities specified by the sample
+    list(APPEND EXTRA_CAPABILITY ${RT_TUTORIAL_EXTRA_CAPABILITY})
+
     compile_slang(
         "${SHADER_SLANG_FILES}"
         "${SHADER_OUTPUT_DIR}"
         GENERATED_SHADER_HEADERS
         OPTIMIZATION_LEVEL 1
         DEBUG_LEVEL 1
-        EXTRA_FLAGS ${SHADER_INCLUDE_FLAGS}
+        EXTRA_FLAGS ${SHADER_INCLUDE_FLAGS} ${EXTRA_CAPABILITY}
     )
 
     compile_glsl(
