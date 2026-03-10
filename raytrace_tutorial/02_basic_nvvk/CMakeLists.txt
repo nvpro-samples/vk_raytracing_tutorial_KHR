@@ -6,9 +6,9 @@
 # Setup with foundation shader and extra includes
 setup_rt_tutorial_sample(
     USE_FOUNDATION_SHADER
-    EXTRA_SHADER_INCLUDES 
-        ${TUTO_DIR} 
+    SHADER_INCLUDE_DIRS
+        ${TUTO_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/shaders
-    EXTRA_COPY_DIRECTORIES 
+    COPY_DIRS
         ${COMMON_DIR}/shaders
 )

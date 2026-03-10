@@ -7,17 +7,22 @@
 #   setup_rt_tutorial_sample(
 #     [USE_RT_COMMON]                    # Include RT common sources (default: OFF)
 #     [USE_FOUNDATION_SHADER]            # Include foundation.slang (default: OFF)
-#     [EXTRA_SHADER_INCLUDES <dirs>]     # Additional shader include directories
-#     [EXTRA_COPY_FILES <files>]         # Additional files to copy
-#     [EXTRA_COPY_DIRECTORIES <dirs>]    # Additional directories to copy
-#     [INCLUDE_H_SLANG_FILES]            # Include .h.slang files in shader compilation
+#     [SHADER_HEADERS]                   # Include .h.slang files as shader dependencies (default: OFF)
+#     [SHADER_INCLUDE_DIRS <dirs>]       # Additional -I directories for shader compilation
+#     [CAPABILITIES <cap1> <cap2>...]    # Extra SPIR-V capabilities (clean names, e.g. spvRayQueryKHR)
+#     [LINK_LIBRARIES <lib1> <lib2>...]  # Extra libraries to link
+#     [COPY_FILES <files>]               # Additional files to copy alongside executable
+#     [COPY_DIRS <dirs>]                 # Additional directories to copy
 #   )
+#
+# Sets in parent scope:
+#   RT_TUTORIAL_TARGET - The CMake target name (directory name) for post-call customization
 
 function(setup_rt_tutorial_sample)
     # Parse function arguments
-    set(options USE_RT_COMMON USE_FOUNDATION_SHADER INCLUDE_H_SLANG_FILES)
+    set(options USE_RT_COMMON USE_FOUNDATION_SHADER SHADER_HEADERS)
     set(oneValueArgs)
-    set(multiValueArgs EXTRA_SHADER_INCLUDES EXTRA_COPY_FILES EXTRA_COPY_DIRECTORIES EXTRA_CAPABILITY)
+    set(multiValueArgs SHADER_INCLUDE_DIRS CAPABILITIES LINK_LIBRARIES COPY_FILES COPY_DIRS)
     cmake_parse_arguments(RT_TUTORIAL "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     # Get the name of the current directory
@@ -32,10 +37,7 @@ function(setup_rt_tutorial_sample)
     # Handle RT common sources if requested
     set(ALL_SOURCES ${EXE_SOURCES})
     if(RT_TUTORIAL_USE_RT_COMMON)
-        # Define RT common directory
         set(RT_COMMON_DIR "${TUTO_DIR}/common")
-        
-        # Add common files to make them visible in Visual Studio
         file(GLOB RT_COMMON_SOURCES "${RT_COMMON_DIR}/*.cpp" "${RT_COMMON_DIR}/*.hpp")
         source_group("RtTutorial Common" FILES ${RT_COMMON_SOURCES})
         list(APPEND ALL_SOURCES ${RT_COMMON_SOURCES})
@@ -45,7 +47,7 @@ function(setup_rt_tutorial_sample)
     add_executable(${PROJECT_NAME} ${ALL_SOURCES})
     set_property(TARGET ${PROJECT_NAME} PROPERTY FOLDER "RtTutorial")
 
-    # Link libraries and include directories (consistent across all samples)
+    # Base libraries (consistent across all samples)
     target_link_libraries(${PROJECT_NAME} PRIVATE
         nvpro2::nvapp           # The application framework
         nvpro2::nvgui           # The GUI framework
@@ -58,9 +60,12 @@ function(setup_rt_tutorial_sample)
         stb                     # Image loading
     )
 
+    if(RT_TUTORIAL_LINK_LIBRARIES)
+        target_link_libraries(${PROJECT_NAME} PRIVATE ${RT_TUTORIAL_LINK_LIBRARIES})
+    endif()
+
     add_project_definitions(${PROJECT_NAME})
 
-    # Include directory for generated files
     target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR} ${ROOT_DIR})
 
     #------------------------------------------------------------------------------------------------------------------------------
@@ -68,48 +73,44 @@ function(setup_rt_tutorial_sample)
     set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_LIST_DIR}/_autogen")
     file(GLOB SHADER_GLSL_FILES "shaders/*.glsl")
     file(GLOB SHADER_SLANG_FILES "shaders/*.slang")
-    
-    # Handle .h.slang files if requested
-    if(RT_TUTORIAL_INCLUDE_H_SLANG_FILES)
+
+    if(RT_TUTORIAL_SHADER_HEADERS)
         file(GLOB SHADER_H_FILES "shaders/*.h" "shaders/*.h.slang")
         list(FILTER SHADER_SLANG_FILES EXCLUDE REGEX ".*\\.h\\.slang$")
     else()
         file(GLOB SHADER_H_FILES "shaders/*.h")
     endif()
 
-    # Adding standard shaders (consistent across all samples)
-    list(APPEND SHADER_SLANG_FILES 
+    # Standard shaders included by all samples
+    list(APPEND SHADER_SLANG_FILES
         ${NVSHADERS_DIR}/nvshaders/sky_simple.slang
         ${NVSHADERS_DIR}/nvshaders/tonemapper.slang
     )
 
-    # Add foundation shader if requested
     if(RT_TUTORIAL_USE_FOUNDATION_SHADER)
         list(APPEND SHADER_SLANG_FILES ${COMMON_DIR}/shaders/foundation.slang)
     endif()
 
     # Build shader include flags
     set(SHADER_INCLUDE_FLAGS "-I${NVSHADERS_DIR}" "-I${ROOT_DIR}")
-    if(RT_TUTORIAL_EXTRA_SHADER_INCLUDES)
-        foreach(include_dir ${RT_TUTORIAL_EXTRA_SHADER_INCLUDES})
+    if(RT_TUTORIAL_SHADER_INCLUDE_DIRS)
+        foreach(include_dir ${RT_TUTORIAL_SHADER_INCLUDE_DIRS})
             list(APPEND SHADER_INCLUDE_FLAGS "-I${include_dir}")
         endforeach()
     endif()
 
-    # Base capabilities required by some shaders (e.g., tonemapper)
-    # These capabilities apply globally to all shader compilation via compile_slang
-    set(EXTRA_CAPABILITY -capability spvGroupNonUniformBallot+spvGroupNonUniformArithmetic)
-
-    # Append any additional capabilities specified by the sample
-    list(APPEND EXTRA_CAPABILITY ${RT_TUTORIAL_EXTRA_CAPABILITY})
+    # Base capabilities required by standard shaders (e.g., tonemapper)
+    set(ALL_CAPABILITIES spvGroupNonUniformBallot spvGroupNonUniformArithmetic)
+    list(APPEND ALL_CAPABILITIES ${RT_TUTORIAL_CAPABILITIES})
 
     compile_slang(
         "${SHADER_SLANG_FILES}"
         "${SHADER_OUTPUT_DIR}"
-        GENERATED_SHADER_HEADERS
-        OPTIMIZATION_LEVEL 1
-        DEBUG_LEVEL 1
-        EXTRA_FLAGS ${SHADER_INCLUDE_FLAGS} ${EXTRA_CAPABILITY}
+        HEADERS_VAR GENERATED_SHADER_SLANG_HEADERS
+        OPTIMIZATION_LEVEL 0
+        DEBUG_LEVEL 2
+        CAPABILITIES ${ALL_CAPABILITIES}
+        EXTRA_FLAGS ${SHADER_INCLUDE_FLAGS}
     )
 
     compile_glsl(
@@ -118,10 +119,10 @@ function(setup_rt_tutorial_sample)
         GENERATED_SHADER_GLSL_HEADERS
         EXTRA_FLAGS ${SHADER_INCLUDE_FLAGS}
     )
-    
+
     # Add shader files to the project
     source_group("Shaders" FILES ${SHADER_SLANG_FILES} ${SHADER_GLSL_FILES} ${SHADER_H_FILES})
-    source_group("Shaders/Compiled" FILES ${GENERATED_SHADER_SLANG_HEADERS} ${GENERATED_SHADER_GLSL_HEADERS} ${GENERATED_SHADER_HEADERS})
+    source_group("Shaders/Compiled" FILES ${GENERATED_SHADER_SLANG_HEADERS} ${GENERATED_SHADER_GLSL_HEADERS})
 
     # Add the output shader headers (target) directly to the executable
     # This allow to compile the shaders when the executable is built
@@ -129,24 +130,24 @@ function(setup_rt_tutorial_sample)
 
     #------------------------------------------------------------------------------------------------------------------------------
     # Installation, copy files
-    
-    # Build copy files list
-    set(COPY_FILES ${NsightAftermath_DLLS})
-    if(RT_TUTORIAL_EXTRA_COPY_FILES)
-        list(APPEND COPY_FILES ${RT_TUTORIAL_EXTRA_COPY_FILES})
+
+    set(FILES_TO_COPY ${NsightAftermath_DLLS})
+    if(RT_TUTORIAL_COPY_FILES)
+        list(APPEND FILES_TO_COPY ${RT_TUTORIAL_COPY_FILES})
     endif()
 
-    # Build copy directories list
-    set(COPY_DIRECTORIES)
-    if(RT_TUTORIAL_EXTRA_COPY_DIRECTORIES)
-        list(APPEND COPY_DIRECTORIES ${RT_TUTORIAL_EXTRA_COPY_DIRECTORIES})
+    set(DIRS_TO_COPY)
+    if(RT_TUTORIAL_COPY_DIRS)
+        list(APPEND DIRS_TO_COPY ${RT_TUTORIAL_COPY_DIRS})
     endif()
 
-    # Copy files next to the executable
     copy_to_runtime_and_install(${PROJECT_NAME}
-        FILES ${COPY_FILES} ${Slang_GLSLANG}
-        DIRECTORIES ${COPY_DIRECTORIES}
+        FILES ${FILES_TO_COPY} ${Slang_GLSLANG}
+        DIRECTORIES ${DIRS_TO_COPY}
         LOCAL_DIRS "${CMAKE_CURRENT_LIST_DIR}/shaders"
         AUTO
     )
+
+    # Expose target name for post-call customization
+    set(RT_TUTORIAL_TARGET ${PROJECT_NAME} PARENT_SCOPE)
 endfunction()

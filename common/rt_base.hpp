@@ -25,6 +25,9 @@
 // Derived classes should implement specific features and rendering logic for each tutorial step.
 //
 
+#include <string>
+#include <vector>
+
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <imgui/imgui.h>
@@ -146,7 +149,7 @@ public:
     m_slangCompiler.defaultTarget();
     m_slangCompiler.defaultOptions();
     m_slangCompiler.addOption({slang::CompilerOptionName::DebugInformation,
-                               {slang::CompilerOptionValueKind::Int, SLANG_DEBUG_INFO_LEVEL_MINIMAL}});
+                               {slang::CompilerOptionValueKind::Int, SLANG_DEBUG_INFO_LEVEL_STANDARD}});
     m_slangCompiler.addOption(
         {slang::CompilerOptionName::Optimization, {slang::CompilerOptionValueKind::Int, SLANG_OPTIMIZATION_LEVEL_NONE}});
 #if defined(AFTERMATH_AVAILABLE)
@@ -156,6 +159,10 @@ public:
       AftermathCrashTracker::getInstance().addShaderBinary(data);
     });
 #endif
+
+    // Adding capabilities to the Slang compiler, this will allow us to use the corresponding features in the shader code (like ray tracing, ray query, etc.)
+    for(const auto& cap : m_slangCapabilities)
+      m_slangCompiler.addCapability(cap.c_str());
 
     // Acquiring the texture sampler which will be used for displaying the GBuffer
     m_samplerPool.init(app->getDevice());
@@ -893,6 +900,7 @@ protected:
   nvvk::SamplerPool      m_samplerPool{};      // Texture sampler pool, used to acquire texture samplers for images
   nvvk::GBuffer          m_gBuffers{};         // The G-Buffer
   nvslang::SlangCompiler m_slangCompiler{};    // The Slang compiler used to compile the shaders
+  std::vector<std::string> m_slangCapabilities{};  // Extra SPIR-V capabilities for hot-reload (e.g. spvRayQueryKHR); set in derived constructor
 
   // Camera manipulator
   std::shared_ptr<nvutils::CameraManipulator> m_cameraManip{std::make_shared<nvutils::CameraManipulator>()};

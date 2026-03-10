@@ -8,5 +8,5 @@
 # Setup with foundation shader and RT common sources
 setup_rt_tutorial_sample(
     USE_RT_COMMON
-    EXTRA_CAPABILITY -capability spvRayQueryKHR
+    CAPABILITIES spvRayQueryKHR
 )

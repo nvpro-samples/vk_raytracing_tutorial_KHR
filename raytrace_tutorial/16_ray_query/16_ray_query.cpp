@@ -66,7 +66,7 @@ class Rt16RayQuery : public RtBase
 {
 
 public:
-  Rt16RayQuery()           = default;
+  Rt16RayQuery() { m_slangCapabilities = {"spvRayQueryKHR"}; }
   ~Rt16RayQuery() override = default;
 
   //-------------------------------------------------------------------------------

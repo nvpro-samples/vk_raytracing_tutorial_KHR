@@ -53,7 +53,7 @@ class RtPositionFetch : public RtBase
 {
 
 public:
-  RtPositionFetch()           = default;
+  RtPositionFetch() { m_slangCapabilities = {"spvRayTracingPositionFetchKHR"}; }
   ~RtPositionFetch() override = default;
 
   //-------------------------------------------------------------------------------
@@ -62,9 +62,6 @@ public:
 
   void onAttach(nvapp::Application* app) override
   {
-    // Add Slang capability for position fetch support
-    m_slangCompiler.addCapability("spvRayTracingPositionFetchKHR");
-    
     RtBase::onAttach(app);
 
     // Query position fetch support

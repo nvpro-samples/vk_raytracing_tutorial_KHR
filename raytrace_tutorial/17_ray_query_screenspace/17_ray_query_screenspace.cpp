@@ -82,7 +82,8 @@ public:
 
   Rt17RayQueryScreenSpace()
   {
-    m_useRayTracing = false;  // Use rasterization for G-buffer generation, not ray tracing
+    m_useRayTracing     = false;  // Use rasterization for G-buffer generation, not ray tracing
+    m_slangCapabilities = {"spvRayQueryKHR"};
   }
   ~Rt17RayQueryScreenSpace() override = default;
 

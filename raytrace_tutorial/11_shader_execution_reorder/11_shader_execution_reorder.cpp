@@ -64,7 +64,10 @@ class RtShadingExecutionReorder : public RtBase
 {
 
 public:
-  RtShadingExecutionReorder()           = default;
+  RtShadingExecutionReorder()
+  {
+    m_slangCapabilities = {"spvShaderInvocationReorderNV", "spvShaderInvocationReorderEXT", "spvShaderClockKHR"};
+  }
   ~RtShadingExecutionReorder() override = default;
 
   //-------------------------------------------------------------------------------
@@ -77,10 +80,6 @@ public:
     VkPhysicalDeviceProperties2 prop2{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
     prop2.pNext = &m_reorderProperties;
     vkGetPhysicalDeviceProperties2(app->getPhysicalDevice(), &prop2);
-    
-    // Add Slang capabilities for SER and shader clock
-    m_slangCompiler.addCapability("spvShaderInvocationReorderNV");  // For SER support
-    m_slangCompiler.addCapability("spvShaderClockKHR");             // For heatmap timing
 
     RtBase::onAttach(app);
 
@@ -515,11 +514,11 @@ int main(int argc, char** argv)
           {
               {VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME},
               {VK_EXT_SHADER_OBJECT_EXTENSION_NAME, &shaderObjectFeatures},
-              {VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, &accelFeature},     // To build acceleration structures
-              {VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, &rtPipelineFeature},  // To use vkCmdTraceRaysKHR
-              {VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME},                  // Required by ray tracing pipeline
+              {VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, &accelFeature},         // To build acceleration structures
+              {VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, &rtPipelineFeature},      // To use vkCmdTraceRaysKHR
+              {VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME},                      // Required by ray tracing pipeline
               {VK_NV_RAY_TRACING_INVOCATION_REORDER_EXTENSION_NAME, &serFeatureNV},  // For SER support (required)
-              {VK_KHR_SHADER_CLOCK_EXTENSION_NAME, &shaderClockFeature},  // For shader clock (heatmap)
+              {VK_KHR_SHADER_CLOCK_EXTENSION_NAME, &shaderClockFeature},             // For shader clock (heatmap)
           },
   };
 
