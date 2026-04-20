@@ -76,6 +76,29 @@ The SBT allows us to:
 - Define which hit shader groups can be executed for each instance
 - Associate instances with specific shader groups through the `hitGroupId` in the TLAS
 
+Building and filling the SBT tells the implementation *where* shader records live in memory, but the runtime still has to *pick the correct record* for each intersection. For **closest-hit** and **any-hit** shaders, the Vulkan specification defines how that address is computed from the hit region you pass to `vkCmdTraceRaysKHR`, the instance data in the TLAS, the geometry order inside each BLAS, and the parameters on `traceRayEXT` (or the SPIR-V equivalent) in the shading language.
+
+**Hit-group record address (from the [Vulkan specification](https://docs.vulkan.org/spec/latest/chapters/raytracing.html#shader-binding-table)):** the device resolves the hit shader binding table record using the strided region’s base address and stride, multiplied by an index assembled from the acceleration structure and the trace call:
+
+```text
+pHitShaderBindingTable->deviceAddress
+  + pHitShaderBindingTable->stride
+    × ( instanceShaderBindingTableRecordOffset
+        + geometryIndex × sbtRecordStride
+        + sbtRecordOffset )
+```
+
+**What each part contributes:**
+
+| Term | Role |
+|------|------|
+| **`pHitShaderBindingTable` (`deviceAddress`, `stride`)** | These come from the **hit** `VkStridedDeviceAddressRegionKHR` you pass to [`vkCmdTraceRaysKHR`](https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/vkCmdTraceRaysKHR.html). They describe where the hit section of the SBT lives and the byte stride between consecutive **SBT records** in that section (after alignment rules are satisfied). |
+| **`sbtRecordStride` and `sbtRecordOffset`** | These are the arguments with the same names on **`traceRayEXT`** in GLSL (SPIR-V **`OpTraceRayKHR`**). They select which “slot” within a hit group’s set of records to use, relative to the base record chosen by the instance and geometry indices—typically you set `sbtRecordStride` to the byte size of one hit record (handle plus optional user data) so each geometry or logical material maps to a distinct record. |
+| **`instanceShaderBindingTableRecordOffset`** | Stored per instance in **`VkAccelerationStructureInstanceKHR`**. You supply it when you **build the TLAS**: it is added into the formula above so different instances can point at different starting records in the hit SBT, independent of `geometryIndex`. |
+| **`geometryIndex`** | For each bottom-level acceleration structure (BLAS), geometries are ordered implicitly by **build order**. **`VkAccelerationStructureBuildGeometryInfoKHR::geometryCount`** counts them; the **`pGeometries`** or **`ppGeometries`** array defines geometry **0**, **1**, … in that order. At intersection time, **`geometryIndex`** identifies which geometry in the referenced BLAS was hit—so your hit-group records must be laid out consistently with that ordering (and with any `primitiveCount` / multi-segment layouts you use when building each geometry). |
+
+Ray generation and miss shaders use the **raygen** and **miss** regions from the same dispatch; their addressing uses a simpler index (no instance or geometry term). Callable shaders, if used, pull from the **callable** region. For hits, combine this formula with how each TLAS instance selects a pipeline hit group—this tutorial summarizes that link as **`hitGroupId`**—so **`instanceShaderBindingTableRecordOffset`**, **`geometryIndex`**, and **`traceRayEXT`** parameters line up with the records you packed into the hit region.
+
 ## SBT Structure
 
 The SBT consists of up to four arrays, each containing handles to shader groups:
@@ -135,11 +158,11 @@ flowchart TB
 
 Example of a raygen, miss and hit shader. (02_basic)
 
-![sbt](/docs/images/sbt_0.png)
+![sbt](images/sbt_0.png)
 
 Example where there are two miss shaders. (05_shadow_miss)
 
-![sbt](/docs/images/sbt_1.png)
+![sbt](images/sbt_1.png)
 
 
 ## Understanding Shader Group Indices

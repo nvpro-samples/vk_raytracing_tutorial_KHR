@@ -2253,7 +2253,7 @@ Your ray tracing implementation can now be extended with:
 5. **Motion blur** with animated acceleration structures
 6. **Callable shaders** for procedural effects
 
-Check out the [complete set of tutorials](/raytrace_tutorial/).
+Check out the [complete set of tutorials](https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/tree/v2/raytrace_tutorial/).
 
 ### Further Reading
 
