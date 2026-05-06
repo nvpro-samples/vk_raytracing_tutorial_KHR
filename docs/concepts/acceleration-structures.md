@@ -1,20 +1,5 @@
 # Vulkan Acceleration Structures - Complete Guide
 
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Quick Start Guide](#quick-start-guide)
-3. [Types of Acceleration Structures](#types-of-acceleration-structures)
-4. [Practical Implementation Details](#practical-implementation-details)
-5. [Helper Classes Architecture](#helper-classes-architecture)
-6. [Advanced Usage with Budgeting](#advanced-usage-with-budgeting)
-7. [Memory Management and Budgeting](#memory-management-and-budgeting)
-8. [BLAS Compaction](#blas-compaction)
-9. [Memory Barriers and Synchronization](#memory-barriers-and-synchronization)
-10. [Best Practices](#best-practices)
-11. [When to Use Each Approach](#when-to-use-each-approach)
-12. [Conclusion](#conclusion)
-
 ---
 
 ## Overview
@@ -156,7 +141,7 @@ A TLAS contains instances of BLAS structures and provides:
 
 The Quick Start section above shows the complete workflow. Here are the key implementation details and considerations for each step:
 
-### 1. Converting Mesh Data to Acceleration Structure Geometry
+### Converting Mesh Data to Acceleration Structure Geometry
 
 The `primitiveToGeometry` (from `02_basic.cpp`) function converts mesh data to Vulkan acceleration structure format. Here are the key parts:
 
@@ -298,7 +283,7 @@ NVIDIA has extended the standard Vulkan ray tracing geometry types with two addi
 - Efficient representation of capsules and motion-blurred spheres
 
 
-### 2. Creating Bottom-Level Acceleration Structures
+### Creating Bottom-Level Acceleration Structures
 
 From `02_basic.cpp` - `createBottomLevelAS` function. This creates all bottom-level acceleration structures in a single call using the high-level helper. The `AccelerationStructureHelper::blasSubmitBuildAndWait()` method handles all the complexity internally, including command buffer creation, memory allocation, proper synchronization, **memory budgeting**, and **automatic compaction** when the `VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR` flag is set.
 
@@ -326,7 +311,7 @@ void createBottomLevelAS()
 - **Helper Usage**: Uses `AccelerationStructureHelper::blasSubmitBuildAndWait()` for simplified BLAS creation
 - **Build Flags**: Uses `VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR` for optimal ray tracing performance. Add `VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR` to reduce memory footprint.
 
-### 3. Creating Top-Level Acceleration Structure
+### Creating Top-Level Acceleration Structure
 
 From `02_basic.cpp` - `createTopLevelAS` function:
 
@@ -435,7 +420,7 @@ direction TB
 
 
 
-### 1. AccelerationStructureHelper (High-Level Wrapper)
+### AccelerationStructureHelper (High-Level Wrapper)
 
 This is the **simplified interface** used in basic tutorials like `02_basic.cpp`:
 
@@ -474,7 +459,7 @@ m_asBuilder.blasSubmitBuildAndWait(geoInfos, VK_BUILD_ACCELERATION_STRUCTURE_PRE
 m_asBuilder.tlasSubmitBuildAndWait(tlasInstances, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 ```
 
-### 2. AccelerationStructureBuildData (Core Building Block)
+### AccelerationStructureBuildData (Core Building Block)
 
 This struct manages the construction process for a single acceleration structure:
 
@@ -521,7 +506,7 @@ struct AccelerationStructureBuildData
 - **Purpose**: Generates a `VkAccelerationStructureCreateInfoKHR` structure ready for allocation
 - **What it does**: Creates a properly configured create info structure with the exact size calculated by `finalizeGeometry`
 
-### 3. AccelerationStructureBuilder (Advanced Builder)
+### AccelerationStructureBuilder (Advanced Builder)
 
 This class provides manual control over memory budgeting, batching, and compaction:
 

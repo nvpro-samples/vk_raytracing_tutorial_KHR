@@ -1,5 +1,5 @@
 # [Number] [Tutorial Name] - Tutorial
-![](/docs/images/XX.png)
+![Sample result screenshot](/docs/images/XX.png)
 
 [2-3 sentence description of what this demonstrates and why it's important]
 

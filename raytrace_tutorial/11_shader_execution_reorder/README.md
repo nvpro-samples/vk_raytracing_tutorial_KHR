@@ -1,6 +1,6 @@
 # Ray Tracing Tutorial - 11 Shader Execution Reorder
 
-![](/docs/images/11.png)
+![11 Shader Execution Reorder (SER) path tracing result](/docs/images/11.png)
 
 This tutorial demonstrates **Shader Execution Reorder (SER)**, an advanced GPU optimization technique that improves ray tracing performance by reducing execution divergence. SER intelligently reorders shader invocations based on their execution characteristics, leading to significant performance gains in complex scenes with varied materials and lighting.
 

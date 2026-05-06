@@ -1,6 +1,6 @@
 # 13 Callable Shaders - Tutorial
 
-![](/docs/images/13.png)
+![13 Callable shaders material system result](/docs/images/13.png)
 
 This tutorial demonstrates how to use callable shaders to create a modular material system with procedural textures. Callable shaders enable you to break complex shading logic into reusable, specialized functions that can be invoked dynamically during ray tracing, eliminating expensive branching in closest hit shaders.
 

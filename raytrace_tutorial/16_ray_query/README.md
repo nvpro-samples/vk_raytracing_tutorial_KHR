@@ -1,5 +1,5 @@
 # 16 Ray Query - Tutorial
-![](/docs/images/16.png)
+![16 Ray query Monte Carlo path tracing result](/docs/images/16.png)
 
 This tutorial demonstrates how to implement **Monte Carlo path tracing** using Vulkan's ray query extension within compute shaders, offering an alternative to traditional ray tracing pipelines. Ray queries provide inline ray tracing capabilities that enable procedural control over ray processing within a single shader, which can be beneficial for certain algorithmic approaches and unified shader architectures.
 
@@ -84,7 +84,7 @@ The key advantage is **procedural control** - instead of relying on separate ray
 
 This tutorial implements a sophisticated Monte Carlo path tracer with the following advanced features:
 
-New to acronyms like BRDF, BSDF, PDF, NEE, or MIS? Read the plain-language guide: [/docs/rendering_concepts.md](/docs/rendering_concepts.md).
+New to acronyms like BRDF, BSDF, PDF, NEE, or MIS? Read the [plain-language rendering guide](/docs/concepts/rendering.md).
 
 ### Key Path Tracing Features
 
@@ -136,7 +136,7 @@ for(int depth = 0; depth < maxDepth; depth++) {
     throughput /= rrPcont;
 }
 ```
-![](/docs/images/16_pt.png)
+![Accumulated path tracing convergence](/docs/images/16_pt.png)
 
 
 ### Performance Optimizations
@@ -172,7 +172,7 @@ This technique adjusts the shadow ray origin so that shadows align more closely 
 
 | With | Without |
 | --- | --- |
-|![](/docs/images/16_termin_1.png) | ![](/docs/images/16_termin_2.png) |
+|![With shadow terminator fix](/docs/images/16_termin_1.png) | ![Without shadow terminator fix](/docs/images/16_termin_2.png) |
 
 
 ### Geometric vs Shading Normal Alignment
@@ -201,7 +201,7 @@ if(dot(r, hit.geonrm) < 0)
 
 | With | Without |
 | --- | --- |
-|![](/docs/images/16_geo_1.png) | ![](/docs/images/16_geo_2.png) |
+|![With geometric/shading normal alignment](/docs/images/16_geo_1.png) | ![Without geometric/shading normal alignment](/docs/images/16_geo_2.png) |
 
 
 

@@ -1,5 +1,5 @@
 # 17 Ray Query Screen-Space Effects - Tutorial
-![](/docs/images/17.png)
+![17 Ray query screen-space ambient occlusion result](/docs/images/17.png)
 
 This tutorial demonstrates practical ray query usage in compute shaders for screen-space effects like ambient occlusion. It shows how to integrate ray tracing capabilities with existing rasterization pipelines for real-time screen-space effects without the complexity of full path tracing.
 

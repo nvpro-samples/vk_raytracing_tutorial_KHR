@@ -1,0 +1,110 @@
+site_name: Vulkan Ray Tracing Tutorial KHR
+site_description: A comprehensive tutorial for learning Vulkan ray tracing with practical examples.
+site_url: https://nvpro-samples.github.io/vk_raytracing_tutorial_KHR/
+repo_url: https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR
+repo_name: nvpro-samples/vk_raytracing_tutorial_KHR
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: light green
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: light green
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+  logo: assets/nvidia-favicon.ico
+  favicon: assets/nvidia-favicon.ico
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+  - macros
+
+copyright: Copyright &copy; 2025-2026 NVIDIA Corporation. All rights reserved.
+
+extra:
+  # Base URL for source code links.
+  # Change this when working on a branch, e.g.:
+  source_base: https://github.com/nvpro-samples/vk_raytracing_tutorial_KHR/blob/v2
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.magiclink:
+      repo_url_shorthand: true
+      social_url_shorthand: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.arithmatex:
+      generic: true
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+      toc_depth: 2
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+
+hooks:
+  - hooks/ingest_sample_readmes.py
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Setup: getting-started/setup.md
+  - Concepts:
+    - Rendering: concepts/rendering.md
+    - Acceleration Structures: concepts/acceleration-structures.md
+    - Shader Binding Table: concepts/shader-binding-table.md
+  - Progressive Tutorial: tutorial/index.md
+  - Samples:
+    - Overview: samples/index.md
+    - 01 Foundation: samples/01-foundation.md
+    - 02 Basic (Direct Vulkan): samples/02-basic.md
+    - 02 Basic (nvvk helpers): samples/02-basic-nvvk.md
+    - 03 Any Hit: samples/03-any-hit.md
+    - 04 Jitter Camera: samples/04-jitter-camera.md
+    - 05 Shadow Miss: samples/05-shadow-miss.md
+    - 06 Reflection: samples/06-reflection.md
+    - 07 Multi Closest Hit: samples/07-multi-closest-hit.md
+    - 08 Intersection: samples/08-intersection.md
+    - 09 Motion Blur: samples/09-motion-blur.md
+    - 10 Position Fetch: samples/10-position-fetch.md
+    - 11 Shader Execution Reorder: samples/11-shader-execution-reorder.md
+    - 12 Infinite Plane: samples/12-infinite-plane.md
+    - 13 Callable Shader: samples/13-callable-shader.md
+    - 14 Animation: samples/14-animation.md
+    - 15 Micro-Maps Opacity: samples/15-micro-maps-opacity.md
+    - 16 Ray Query: samples/16-ray-query.md
+    - 17 Ray Query Screenspace: samples/17-ray-query-screenspace.md
+    - 18 Swept Spheres: samples/18-swept-spheres.md

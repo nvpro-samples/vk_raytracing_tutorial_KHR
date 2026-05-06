@@ -1,5 +1,5 @@
 # 12 Infinite Plane - Tutorial
-![](/docs/images/12.png)
+![12 Infinite plane intersection result](/docs/images/12.png)
 
 This tutorial demonstrates how to add an infinite plane to your ray tracing scene using custom intersection testing. You'll learn to integrate procedural geometry with the Vulkan ray tracing pipeline and implement proper hit state management for mixed scene geometry.
 

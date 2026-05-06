@@ -1,5 +1,5 @@
 # 14 Animation - Tutorial
-![](/docs/images/14.png)
+![14 Real-time animation result](/docs/images/14.png)
 
 This tutorial demonstrates real-time animation in ray tracing using two distinct approaches: instance animation through TLAS updates and geometry animation via compute shaders. It shows how to create dynamic, interactive ray-traced scenes with proper acceleration structure management and GPU-based vertex deformation.
 

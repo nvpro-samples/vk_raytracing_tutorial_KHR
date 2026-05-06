@@ -158,11 +158,11 @@ flowchart TB
 
 Example of a raygen, miss and hit shader. (02_basic)
 
-![sbt](images/sbt_0.png)
+![sbt](../images/sbt_0.png)
 
 Example where there are two miss shaders. (05_shadow_miss)
 
-![sbt](images/sbt_1.png)
+![sbt](../images/sbt_1.png)
 
 
 ## Understanding Shader Group Indices

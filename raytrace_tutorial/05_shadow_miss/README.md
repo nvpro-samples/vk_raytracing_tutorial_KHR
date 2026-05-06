@@ -1,5 +1,5 @@
 # 05 Shadow Miss Shader - Tutorial
-![](/docs/images/05.png)
+![05 Shadow miss shader result](/docs/images/05.png)
 
 This tutorial demonstrates how to optimize shadow ray tracing performance by using a dedicated shadow miss shader with a minimal payload structure. Instead of reusing the main miss shader for shadow testing, we create a specialized miss shader that only performs the essential shadow occlusion test, resulting in significant performance improvements.
 

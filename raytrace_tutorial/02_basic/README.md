@@ -1,5 +1,5 @@
 # 02 Basic Ray Tracing - Tutorial
-![](/docs/images/02.png)
+![02 Basic ray tracing result](/docs/images/02.png)
 
 This tutorial demonstrates the foundational ray tracing implementation by converting the raster foundation to use ray tracing pipelines. It introduces the core concepts of ray-based rendering with acceleration structures, ray generation, closest hit, and miss shaders. This serves as the essential foundation that all subsequent ray tracing tutorials build upon.
 
@@ -82,7 +82,7 @@ This basic implementation enables:
 
 ## Next Steps
 
-For step-by-step conversion guide, see [rt_tutorial](/docs/index.md)
+For step-by-step conversion guide, see [rt_tutorial](/docs/tutorial/index.md)
 
 This basic implementation can be extended with:
 - **[03_any_hit](../03_any_hit)** - for transparency and alpha testing
@@ -96,7 +96,7 @@ This basic implementation can be extended with:
 
 For detailed information about the core ray tracing components:
 
-- **[Acceleration Structures Guide](/docs/acceleration_structures.md)** - Comprehensive guide to BLAS/TLAS construction, memory management, and optimization
-- **[Shader Binding Table Guide](/docs/shader_binding_table.md)** - Complete reference for SBT creation, alignment, and advanced usage patterns
-- **[Ray Tracing Tutorial](/docs/index.md)** - Step-by-step progressive conversion guide from rasterization to ray tracing
+- **[Acceleration Structures Guide](/docs/concepts/acceleration-structures.md)** - Comprehensive guide to BLAS/TLAS construction, memory management, and optimization
+- **[Shader Binding Table Guide](/docs/concepts/shader-binding-table.md)** - Complete reference for SBT creation, alignment, and advanced usage patterns
+- **[Ray Tracing Tutorial](/docs/tutorial/index.md)** - Step-by-step progressive conversion guide from rasterization to ray tracing
 

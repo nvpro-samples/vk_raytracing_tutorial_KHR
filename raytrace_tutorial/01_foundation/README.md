@@ -1,5 +1,5 @@
 # 01 Foundation - Rasterization Base
-![](/docs/images/01.png)
+![01 Foundation - rasterization base result](/docs/images/01.png)
 
 This tutorial demonstrates a modern Vulkan 1.4 raster-based renderer that serves as the foundation for all subsequent ray tracing tutorials. It showcases a complete glTF scene renderer using Shader Objects, Push Descriptors, and Dynamic Rendering - the same modern Vulkan features that make ray tracing conversion straightforward and efficient.
 
@@ -101,6 +101,6 @@ This foundation can be extended with:
 ## Related Documentation
 
 For detailed conversion information:
-- **[Ray Tracing Tutorial](/docs/index.md)** - Step-by-step conversion guide
-- **[Acceleration Structures Guide](/docs/acceleration_structures.md)** - BLAS/TLAS construction and management
-- **[Shader Binding Table Guide](/docs/shader_binding_table.md)** - SBT creation and alignment
+- **[Ray Tracing Tutorial](/docs/tutorial/index.md)** - Step-by-step conversion guide
+- **[Acceleration Structures Guide](/docs/concepts/acceleration-structures.md)** - BLAS/TLAS construction and management
+- **[Shader Binding Table Guide](/docs/concepts/shader-binding-table.md)** - SBT creation and alignment

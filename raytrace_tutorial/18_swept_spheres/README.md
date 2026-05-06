@@ -1,5 +1,5 @@
 # 18 Swept Spheres - Tutorial
-![](/docs/images/18.png)
+![18 Linear swept spheres grass field result](/docs/images/18.png)
 
 This tutorial demonstrates how to use the NVIDIA `VK_NV_ray_tracing_linear_swept_spheres` extension to efficiently render grass fields, standalone spheres, and multi-segment chains using specialized ray tracing primitives. The extension introduces two new geometric primitives—Spheres and Linear Swept Spheres (LSS)—that provide compact representation and hardware-accelerated intersection for sphere-based geometry.
 

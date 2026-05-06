@@ -1,5 +1,5 @@
 # 07 Multiple Closest Hit Shaders - Tutorial
-![](/docs/images/07.png)
+![07 Multiple closest hit shaders result](/docs/images/07.png)
 
 This tutorial demonstrates how to use multiple closest hit shaders in Vulkan ray tracing, enabling different objects to use different shaders and per-instance material properties. The main learning objective is to understand how to configure the Shader Binding Table (SBT) for multiple shader variants and pass instance-specific data through shader record buffers.
 

@@ -1,6 +1,6 @@
 # 15 Micro-Maps Opacity - Tutorial
 
-![](/docs/images/15.png)
+![15 Opacity micro-maps result](/docs/images/15.png)
 
 This tutorial demonstrates **Opacity Micro-Maps**, a Vulkan extension that enables efficient ray tracing with selective AnyHit shader invocation. Micro-maps provide hardware-accelerated triangle subdivision for fine-grained opacity control without the performance overhead of traditional geometry subdivision. The main learning objective is to understand how micro-maps can optimize ray-triangle intersection testing by encoding visibility information at the sub-triangle level.
 

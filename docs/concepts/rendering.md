@@ -6,36 +6,33 @@ This guide is intended for those who are new to ray tracing and want to understa
 
 **How this guide works:** Each idea is explained in simple terms and compared to something from the real world. If you want more details about the math, look for the "Technical Implementation Details" sections and "For Mathematicians" links.
 
----
-
-## Table of Contents
-
-- [The Basics](#the-basics)
-  - [BRDF](#brdf) - How light bounces off solid surfaces
-  - [BSDF](#bsdf) - How light bounces AND passes through surfaces
-  - [PDF](#pdf) - Measuring the "likelihood" of picking a direction
-- [Advanced Techniques](#advanced-techniques)
-  - [NEE](#nee) - Aiming at lights instead of hoping to hit them
-  - [MIS](#mis) - Combining multiple strategies smartly
-  - [DIRAC](#dirac) - When light goes in exactly one direction
-- [How Monte Carlo Works](#how-monte-carlo-works)
-  - [Monte Carlo Integration](#monte-carlo-integration) - Using random samples to estimate results
-  - [Importance Sampling](#importance-sampling) - Focusing samples where they matter most
-  - [Russian Roulette](#russian-roulette) - Stopping weak rays early
-- [Putting It All Together](#putting-it-all-together)
-- [How Concepts Relate](#how-concepts-relate)
-- [Using These Concepts in the Tutorial](#using-these-concepts-in-the-tutorial)
-- [Further Reading](#further-reading)
 
 ---
 
-## The Basics
+## Foundations
 
 Before we talk about advanced rendering techniques, let's understand the basic parts. These are the three main ideas you'll see a lot in ray tracing.
 
+* [BRDF](#brdf) : Bidirectional Reflectance Distribution Function
+* [BSDF](#bsdf) : Bidirectional Scattering Distribution Function
+* [PDF](#pdf) : Probability Density Function
+
 ---
 
-### BRDF
+## Advanced Techniques
+
+Now that we covered the basics (BRDF, BSDF, PDF), let's look at the advanced techniques that make ray tracers fast and realistic.
+
+* [NEE](#nee) : Next Event Estimation
+* [MIS](#mis) : Multiple Importance Sampling
+* [DIRAC](#dirac) : Dirac Delta Function, a special case of a PDF that has probability concentrated at exactly one point/direction, with zero probability everywhere else.
+* [Monte Carlo Integration](#monte-carlo-integration) : Using random sampling to estimate things that are too complicated to calculate exactly.
+* [Importance Sampling](#importance-sampling) : Don't spend time on directions that are not important. Focus your samples where the interesting stuff happens.
+* [Russian Roulette](#russian-roulette) : Randomly terminate weak rays early to save computation, but do it in a way that keeps the math correct.
+
+---
+
+## BRDF
 
 **BRDF** stands for **Bidirectional Reflectance Distribution Function**.
 
@@ -54,7 +51,7 @@ Here's what these different BRDFs look like visually:
 
 |Diffuse (Matte)|Glossy (Semi-shiny)|Mirror (Perfect reflection)|
 |---|---|---|
-|![](https://upload.wikimedia.org/wikipedia/commons/4/4e/BRDF_diffuse.svg)|![](https://upload.wikimedia.org/wikipedia/commons/f/fa/BRDF_glossy.svg)|![](https://upload.wikimedia.org/wikipedia/commons/e/e8/BRDF_mirror.svg) |
+|![Diffuse BRDF lobe](https://upload.wikimedia.org/wikipedia/commons/4/4e/BRDF_diffuse.svg)|![Glossy BRDF lobe](https://upload.wikimedia.org/wikipedia/commons/f/fa/BRDF_glossy.svg)|![Mirror BRDF lobe](https://upload.wikimedia.org/wikipedia/commons/e/e8/BRDF_mirror.svg) |
 |Light scatters everywhere|Light prefers certain directions|Light reflects in one direction|
 
 **What does a BRDF give you?**
@@ -71,7 +68,7 @@ The materials you see in 3D software (like "metallic" and "roughness" sliders) a
 
 ---
 
-### BSDF
+## BSDF
 
 **BSDF** stands for **Bidirectional Scattering Distribution Function**.
 
@@ -86,7 +83,7 @@ Here's a visual of how BSDF works:
 
 |Bidirectional Scattering Distribution Function|
 |---|
-|![](/docs/images/bsdf.svg)|
+|![BSDF: light reflection and transmission lobes](../images/bsdf.svg)|
 |Light can bounce off (reflect) OR pass through (transmit)|
 
 **What does a BSDF give you?**
@@ -107,7 +104,7 @@ When you make a material transparent in 3D software (like glass or water), you'r
 
 ---
 
-### PDF
+## PDF
 
 **PDF** stands for **Probability Density Function**.
 
@@ -115,7 +112,7 @@ When you make a material transparent in 3D software (like glass or water), you'r
 
 | Probability Density Function | Probability Density Function |
 |---|---|
-|![PDF heatmap](/docs/images/pdf_hemisphere.svg)|![PDF heatmap](/docs/images/pdf2.svg)|
+|![PDF heatmap](../images/pdf_hemisphere.svg)|![PDF heatmap](../images/pdf2.svg)|
 
 
 In this hemisphere, warmer colors mean higher PDF values (directions chosen more often), while cooler colors mean lower PDF values (directions chosen less often).
@@ -185,7 +182,7 @@ This same pattern applies to other models too: GGX/Phong-like lobes use their ow
 
 #### Technical Implementation Details
 
-<details>
+<details markdown="1">
 <summary><b>Click to expand: How PDF works in the tutorial code</b></summary>
 
 The two situations described above map to two specific functions in `common/shaders/pbr.h.slang`:
@@ -219,15 +216,11 @@ In `raytrace_tutorial/16_ray_query/shaders/ray_query.slang`:
 
 **For more depth:** [PBR Book: Monte Carlo Basics](https://pbr-book.org/4ed/Monte_Carlo_Integration/Monte_Carlo_Basics)
 
----
 
-## Advanced Techniques
-
-Now that we covered the basics (BRDF, BSDF, PDF), let's look at advanced techniques that make ray tracers fast and realistic.
 
 ---
 
-### NEE
+## NEE
 
 **NEE** stands for **Next Event Estimation**.
 
@@ -260,7 +253,7 @@ graph TD
 
 #### Technical Implementation Details
 
-<details>
+<details markdown="1">
 <summary><b>Click to expand: NEE in practice</b></summary>
 
 **Q: What if there are 100 lights in the scene?**  
@@ -288,7 +281,7 @@ Environment maps are tricky because they're like one giant spherical light wrapp
 
 ---
 
-### MIS
+## MIS
 
 **MIS** stands for **Multiple Importance Sampling**.
 
@@ -368,7 +361,7 @@ With a point light:
 
 #### Technical Implementation Details
 
-<details>
+<details markdown="1">
 <summary><b>Click to expand: MIS Level 1 - Choosing Between Light Types</b></summary>
 
 Based on the reference implementation in [`gltf_pathtrace.slang`](https://github.com/nvpro-samples/vk_gltf_renderer/blob/master/shaders/gltf_pathtrace.slang), here's the detailed flow. There are actually TWO levels of MIS:
@@ -404,7 +397,7 @@ This prevents double-counting between punctual lights and environment lighting.
 
 #### Advanced Implementation
 
-<details>
+<details markdown="1">
 <summary><b>Click to expand: MIS Level 2 - NEE vs BSDF Sampling</b></summary>
 
 This section continues the flow once a light has been selected.
@@ -496,7 +489,7 @@ graph TD
 
 ---
 
-### DIRAC
+## DIRAC
 
 **DIRAC** refers to the **Dirac delta** concept, named after physicist Paul Dirac.
 
@@ -546,13 +539,11 @@ The code in `common/shaders/pbr.h.slang` mentions that it doesn't return a true 
 
 ---
 
-## How Monte Carlo Works
-
-You may have heard of "Monte Carlo rendering" or "Monte Carlo path tracing." What does that mean? This section explains the main idea behind Monte Carlo techniques used in ray tracing.
+**How Monte Carlo Works** — You may have heard of "Monte Carlo rendering" or "Monte Carlo path tracing." What does that mean? The next three sections explain the main ideas behind Monte Carlo techniques used in ray tracing.
 
 ---
 
-### Monte Carlo Integration
+## Monte Carlo Integration
 
 **More simply:** Monte Carlo integration means using random sampling to estimate things that are too complicated to calculate exactly.
 
@@ -592,7 +583,7 @@ The pixel color is an **integral** (a sum over all possible light paths). We can
 
 ---
 
-### Importance Sampling
+## Importance Sampling
 
 **The most important rule**: Don't spend time on directions that are not important. Focus your samples where the interesting stuff happens.
 
@@ -625,7 +616,7 @@ The PDF is the tool that makes importance sampling work:
 
 ---
 
-### Russian Roulette
+## Russian Roulette
 
 **More simply:** Randomly terminate weak rays early to save computation, but do it in a way that keeps the math correct.
 
@@ -695,7 +686,7 @@ This entire process repeats many times (often 5-50 bounces per ray), and you tra
 
 #### Technical Implementation Details
 
-<details>
+<details markdown="1">
 <summary><b>Click to expand: Detailed math example (one bounce)</b></summary>
 
 Let's walk through ONE bounce with actual numbers to see how all the pieces fit together.
@@ -785,7 +776,7 @@ The throughput is now `(0.8, 0.4, 0.2)` → more red, less green, even less blue
   Detailed explanation of the ray query tutorial
 
 - **Material shading walkthrough:**  
-  Phase 7 and Phase 8 in `docs/index.md`  
+  Phase 7 and Phase 8 in [the Progressive Tutorial](../tutorial/index.md)  
   Step-by-step tutorial phases that build up to path tracing
 
 **Recommended reading order:**

@@ -1,6 +1,6 @@
 # 10 Position Fetch - Tutorial
 
-![](/docs/images/10.png)
+![10 Position fetch extension result](/docs/images/10.png)
 
 This tutorial demonstrates the `VK_KHR_ray_tracing_position_fetch` extension, which allows retrieving vertex positions directly from the acceleration structure during ray traversal. This eliminates the need for separate vertex buffers during rendering, reducing memory usage and simplifying data management. The main learning objective is to understand how to use position fetch for memory-efficient ray tracing with proper feature detection and graceful hardware compatibility handling.
 

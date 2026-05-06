@@ -1,5 +1,5 @@
 # 06 Reflection - Tutorial
-![](/docs/images/06.png)
+![06 Reflection ray tracing result](/docs/images/06.png)
 
 This tutorial demonstrates how to implement realistic reflections in ray tracing by tracing secondary rays when light bounces off surfaces. It introduces two different approaches: recursive reflection (using hardware recursion) and iterative reflection (using explicit loops), showing the trade-offs between simplicity and scalability.
 

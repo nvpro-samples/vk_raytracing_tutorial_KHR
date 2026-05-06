@@ -153,7 +153,7 @@ The tutorial implements three transparency modes to demonstrate different approa
 - **Use Case**: Fences, foliage, architectural elements
 - **Performance**: Fastest, no color accumulation needed
 
-![](/docs/images/03_cutout.png)
+![Cutout transparency mode result](/docs/images/03_cutout.png)
 
 ### Mode 1: Stochastic Transparency
 
@@ -161,7 +161,7 @@ The tutorial implements three transparency modes to demonstrate different approa
 - **Use Case**: Real-time transparency with acceptable noise
 - **Performance**: Fast but requires temporal accumulation for quality
 
-![](/docs/images/03_stochastic.png)
+![Stochastic transparency mode result](/docs/images/03_stochastic.png)
 
 ### Mode 2: Accumulative Transparency
 
@@ -169,7 +169,7 @@ The tutorial implements three transparency modes to demonstrate different approa
 - **Use Case**: Glass, water, simple transparency
 - **Performance**: More expensive but simple
 
-![](/docs/images/03_accumulative.png)
+![Accumulative transparency mode result](/docs/images/03_accumulative.png)
 
 ### Key Implementation Concepts
 

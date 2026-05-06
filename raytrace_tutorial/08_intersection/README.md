@@ -1,5 +1,5 @@
 # 08 Intersection - Tutorial
-![](/docs/images/08.png)
+![08 Intersection shader procedural primitives result](/docs/images/08.png)
 
 This tutorial demonstrates how to use intersection shaders to render implicit primitives (spheres and cubes) alongside traditional triangle geometry. It introduces the concept of procedural hit groups and custom ray-primitive intersection tests, enabling ray tracing of mathematically defined shapes without requiring explicit triangle meshes.
 

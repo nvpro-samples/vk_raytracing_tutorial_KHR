@@ -1,5 +1,5 @@
 # 09 Motion Blur - Tutorial
-![](/docs/images/09.png)
+![09 Motion blur result](/docs/images/09.png)
 
 This tutorial demonstrates how to implement realistic motion blur in ray tracing using the VK_NV_ray_tracing_motion_blur extension. Motion blur simulates the temporal effects of fast-moving objects by interpolating between different states over time and accumulating multiple temporal samples per pixel.
 

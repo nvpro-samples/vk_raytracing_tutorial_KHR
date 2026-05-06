@@ -1,5 +1,5 @@
 # 04 Jitter Camera - Tutorial
-![](/docs/images/04.png)
+![04 Jitter camera anti-aliasing result](/docs/images/04.png)
 
 This tutorial demonstrates how to implement temporal antialiasing in ray tracing by jittering camera rays over multiple frames. Instead of shooting rays from fixed pixel centers, we randomly sample within each pixel and accumulate results over time to achieve smooth, high-quality antialiasing. This technique is essential for producing clean, professional ray-traced images without the jagged edges typical of single-sample rendering.
 
