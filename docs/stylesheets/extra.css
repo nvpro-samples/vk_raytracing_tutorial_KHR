@@ -12,85 +12,63 @@
   filter: brightness(0) invert(1);
 }
 
-/* Use more of the available screen width.
-   Material caps the grid at 61rem by default, which leaves large empty
-   margins on wide displays. Widen the overall grid and the content column
-   while keeping the side navigation panes at their default width. */
-   @media screen and (min-width: 76.25em) {
-    .md-grid {
-      max-width: 90rem;
-    }
+/* Slightly widen Material's default 61rem grid on laptop+ displays so
+   verbose Vulkan code lines fit without horizontal scroll. We deliberately
+   do NOT add a second tier for ultrawide monitors — past ~76rem the
+   layout starts to look stretched and prose becomes hard to read. */
+@media screen and (min-width: 76.25em) {
+  .md-grid {
+    max-width: 76rem;
   }
-  
-  @media screen and (min-width: 100em) {
-    .md-grid {
-      max-width: 110rem;
-    }
-  }
-  
-  /* Keep code blocks, tables, and images from stretching to absurd widths
-     on ultra-wide monitors so long-form prose stays readable. */
-  .md-typeset {
-    max-width: none;
-  }
-  
-  .md-content__inner {
-    max-width: 56rem;        /* cap text column at ~900px for readable line length */
-    margin: 0 auto;          /* center it within the wider grid */
-    padding: 0 1.2rem;
-  }
-  
-  /* Hero call-to-action row on the home page. */
-  .hero-cta {
-    margin: 1.5rem 0 2rem 0;
-  }
-  
-  .hero-cta .md-button {
-    margin: 0.4rem 0.4rem 0.4rem 0;
-  }
-  
-  /* Tighten Material's default type scale to feel closer to a classic
-     technical-doc site. Material defaults to a 125% root font-size on wide
-     screens which makes body text and headings noticeably larger than
-     most Jekyll/Sphinx themes. These overrides bring it down. */
-  /* Use an absolute size: Material switches its root font-size between
-     100% (narrow) and 125% (wide), so a rem value here would render too
-     small on mobile. 15px gives the intended size at every breakpoint
-     while still respecting browser zoom. */
-  .md-typeset {
-    font-size: 15px;
-    line-height: 1.6;
-  }
-  
-  .md-typeset h1 {
-    font-size: 1.85em;
-    line-height: 1.25;
-    margin: 0 0 0.6em;
-  }
-  
-  .md-typeset h2 {
-    font-size: 1.45em;
-    line-height: 1.3;
-    margin: 1.4em 0 0.5em;
-  }
-  
-  .md-typeset h3 {
-    font-size: 1.2em;
-    margin: 1.3em 0 0.4em;
-  }
-  
-  .md-typeset h4 {
-    font-size: 1.05em;
-    margin: 1.2em 0 0.3em;
-  }
-  
-  .md-typeset p,
-  .md-typeset ul,
-  .md-typeset ol {
-    margin: 0.6em 0;
-  }
-  
-  .md-typeset code {
-    font-size: 0.85em;
-  }
-  
+}
+
+/* Hero call-to-action row on the home page. */
+.hero-cta {
+  margin: 1.5rem 0 2rem 0;
+}
+
+.hero-cta .md-button {
+  margin: 0.4rem 0.4rem 0.4rem 0;
+}
+
+/* Tighten Material's default type scale to feel closer to a classic
+   technical-doc site. Use an absolute size: Material switches its root
+   font-size between 100% (narrow) and 125% (wide), so a rem value here
+   would render too small on mobile. 15px gives the intended size at every
+   breakpoint while still respecting browser zoom. */
+.md-typeset {
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.md-typeset h1 {
+  font-size: 1.85em;
+  line-height: 1.25;
+  margin: 0 0 0.6em;
+}
+
+.md-typeset h2 {
+  font-size: 1.45em;
+  line-height: 1.3;
+  margin: 1.4em 0 0.5em;
+}
+
+.md-typeset h3 {
+  font-size: 1.2em;
+  margin: 1.3em 0 0.4em;
+}
+
+.md-typeset h4 {
+  font-size: 1.05em;
+  margin: 1.2em 0 0.3em;
+}
+
+.md-typeset p,
+.md-typeset ul,
+.md-typeset ol {
+  margin: 0.6em 0;
+}
+
+.md-typeset code {
+  font-size: 0.85em;
+}

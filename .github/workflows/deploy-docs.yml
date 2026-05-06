@@ -9,6 +9,8 @@ on:
       - 'mkdocs.yml'
       - 'hooks/**'
       - 'raytrace_tutorial/**/README.md'
+      - 'README.md'
+      - '.github/workflows/deploy-docs.yml'
   workflow_dispatch:
 
 permissions:
