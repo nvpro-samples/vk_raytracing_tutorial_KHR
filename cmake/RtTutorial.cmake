@@ -100,7 +100,7 @@ function(setup_rt_tutorial_sample)
     endif()
 
     # Base capabilities required by standard shaders (e.g., tonemapper)
-    set(ALL_CAPABILITIES spvGroupNonUniformBallot spvGroupNonUniformArithmetic)
+    set(ALL_CAPABILITIES spvGroupNonUniformBallot spvGroupNonUniformArithmetic spvGroupNonUniform)
     list(APPEND ALL_CAPABILITIES ${RT_TUTORIAL_CAPABILITIES})
 
     compile_slang(

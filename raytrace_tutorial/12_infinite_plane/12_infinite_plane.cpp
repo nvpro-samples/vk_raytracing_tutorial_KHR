@@ -197,8 +197,8 @@ public:
 
   void updateFrame()
   {
-    static glm::mat4 refCamMatrix;
-    static float     refFov{m_cameraManip->getFov()};
+    static glm::dmat4 refCamMatrix;
+    static double     refFov{m_cameraManip->getFov()};
 
     const auto& m   = m_cameraManip->getViewMatrix();
     const auto  fov = m_cameraManip->getFov();
