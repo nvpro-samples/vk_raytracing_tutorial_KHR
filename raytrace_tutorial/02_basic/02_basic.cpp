@@ -1048,7 +1048,7 @@ public:
     rtPipelineInfo.pGroups                      = shader_groups.data();
     rtPipelineInfo.maxPipelineRayRecursionDepth = std::max(3U, m_rtProperties.maxRayRecursionDepth);  // Ray depth
     rtPipelineInfo.layout                       = m_rtPipelineLayout;
-    vkCreateRayTracingPipelinesKHR(m_app->getDevice(), {}, {}, 1, &rtPipelineInfo, nullptr, &m_rtPipeline);
+    NVVK_CHECK(vkCreateRayTracingPipelinesKHR(m_app->getDevice(), {}, {}, 1, &rtPipelineInfo, nullptr, &m_rtPipeline));
     NVVK_DBG_NAME(m_rtPipeline);
 
     // Create the shader binding table for this pipeline

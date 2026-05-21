@@ -216,7 +216,7 @@ public:
     const uint32_t pipelineDepth = 2;  // Iterative: only primary and shadow (RECOMMENDED)
 #endif
     VkRayTracingPipelineCreateInfoKHR rtPipelineInfo = createRayTracingPipelineCreateInfo(stages, shaderGroups, pipelineDepth);
-    vkCreateRayTracingPipelinesKHR(m_app->getDevice(), {}, {}, 1, &rtPipelineInfo, nullptr, &m_rtPipeline);
+    NVVK_CHECK(vkCreateRayTracingPipelinesKHR(m_app->getDevice(), {}, {}, 1, &rtPipelineInfo, nullptr, &m_rtPipeline));
     NVVK_DBG_NAME(m_rtPipeline);
 
     // Creating the SBT

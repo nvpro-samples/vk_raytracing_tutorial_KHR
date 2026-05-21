@@ -47,7 +47,9 @@
 // the hemisphere of incoming light directions.
 
 #include "common/shaders/pbr.h.slang"
-#include "nvshaders/constants.h.slang"
+#include "common/shaders/ray_common.h.slang"
+#include "common/shaders/gltf_accessor.h.slang"
+
 #include "nvshaders/random.h.slang"
 #include "nvshaders/ray_utils.h.slang"
 #include "nvshaders/sky_functions.h.slang"
@@ -87,66 +89,6 @@ struct HitPayload
 };
 
 
-// Generic function to retrieve vertex attributes from GLTF buffer data
-// T: Type of attribute (float, float2, float3, etc.)
-// dataBufferAddress: Base address of the GLTF buffer
-// bufferView: Buffer view containing offset, stride, and count information
-// attributeIndex: Index of the vertex attribute to retrieve
-__generic<T : IFloat> T getAttribute(uint8_t* dataBufferAddress, BufferView bufferView, uint attributeIndex)
-{
-  if(bufferView.count > 0)
-  {
-    // Calculate pointer to the specific attribute using offset and stride
-    T* ptr = (T*)(dataBufferAddress + bufferView.offset + attributeIndex * bufferView.byteStride);
-    return ptr[0];
-  }
-
-  return T(1);  // Error case - return default value
-}
-
-// Retrieve triangle vertex indices from the mesh index buffer
-// Supports both 16-bit and 32-bit index formats as per GLTF specification
-int3 getTriangleIndices(uint8_t* dataBufferAddress, const TriangleMesh mesh, int primitiveID)
-{
-  if(mesh.indices.byteStride == sizeof(int16_t))
-  {
-    // 16-bit indices (uint16_t) - more memory efficient for smaller meshes
-    int16_t3* indices = (int16_t3*)(dataBufferAddress + mesh.indices.offset);
-    return indices[primitiveID];
-  }
-  else if(mesh.indices.byteStride == sizeof(int32_t))
-  {
-    // 32-bit indices (uint32_t) - supports larger meshes with more vertices
-    int3* indices = (int3*)(dataBufferAddress + mesh.indices.offset);
-    return indices[primitiveID];
-  }
-
-  return int3(-1);  // Error case - invalid index format
-}
-
-// Interpolate vertex attributes across a triangle using barycentric coordinates
-// This performs smooth interpolation of attributes like position, normal, UV coordinates
-__generic<T : IFloat> T getInterpolated(float3 barycentrics, T attr0, T attr1, T attr2)
-{
-  // Barycentric interpolation: each vertex contributes based on its weight
-  return T(barycentrics.x) * attr0 + T(barycentrics.y) * attr1 + T(barycentrics.z) * attr2;
-}
-
-// Interpolate vertex attributes across a triangle using barycentric coordinates
-// T: Type of attribute to interpolate (float, float2, float3, etc.)
-// attributeIndex: Indices of the three triangle vertices
-// barycentrics: Barycentric coordinates (weights for each vertex)
-__generic<T : IFloat> T getTriangleAttribute(uint8_t* dataBufferAddress, BufferView bufferView, uint3 attributeIndex, float3 barycentrics)
-{
-  // Get the attribute value for each of the three triangle vertices
-  T attr0 = getAttribute<T>(dataBufferAddress, bufferView, attributeIndex.x);
-  T attr1 = getAttribute<T>(dataBufferAddress, bufferView, attributeIndex.y);
-  T attr2 = getAttribute<T>(dataBufferAddress, bufferView, attributeIndex.z);
-  // Interpolate using barycentric coordinates (weights sum to 1.0)
-  return T(barycentrics.x) * attr0 + T(barycentrics.y) * attr1 + T(barycentrics.z) * attr2;
-}
-
-
 //-----------------------------------------------------------------------
 // GEOMETRY PROCESSING - Convert ray intersection to shading data
 //-----------------------------------------------------------------------
@@ -169,7 +111,7 @@ HitState getHitState(const GltfMesh mesh, float2 barycentricCoords, float4x3 wor
   float3 pos0   = getAttribute<float3>(mesh.gltfBuffer, mesh.triMesh.positions, indices.x);
   float3 pos1   = getAttribute<float3>(mesh.gltfBuffer, mesh.triMesh.positions, indices.y);
   float3 pos2   = getAttribute<float3>(mesh.gltfBuffer, mesh.triMesh.positions, indices.z);
-  float3 posObj = getInterpolated(barycentrics, pos0, pos1, pos2);
+  float3 posObj = interpolateBarycentric(pos0, pos1, pos2, barycentrics);
   hit.pos       = float3(mul(float4(posObj, 1.0), objectToWorld4x3));
 
 
@@ -178,7 +120,7 @@ HitState getHitState(const GltfMesh mesh, float2 barycentricCoords, float4x3 wor
   float3 nrm0   = getAttribute<float3>(mesh.gltfBuffer, mesh.triMesh.normals, indices.x);
   float3 nrm1   = getAttribute<float3>(mesh.gltfBuffer, mesh.triMesh.normals, indices.y);
   float3 nrm2   = getAttribute<float3>(mesh.gltfBuffer, mesh.triMesh.normals, indices.z);
-  float3 nrmObj = normalize(getInterpolated(barycentrics, nrm0, nrm1, nrm2));
+  float3 nrmObj = normalize(interpolateBarycentric(nrm0, nrm1, nrm2, barycentrics));
   hit.nrm       = normalize(mul(worldToObject4x3, nrmObj).xyz);
 
   // Hacking the shadow terminator
@@ -252,9 +194,9 @@ void traceRay(RayDesc ray, inout HitPayload payload)
     HitState hitState = getHitState(mesh, barycentricCoords, worldToObject, objectToWorld, triID, ray.Direction);
 
     // Store intersection data in payload for further processing
-    payload.hitT          = hitT;                // Distance to hit point
-    payload.hit           = hitState;            // Hit state information
-    payload.instanceIndex = instanceIndex;       // Instance index
+    payload.hitT          = hitT;           // Distance to hit point
+    payload.hit           = hitState;       // Hit state information
+    payload.instanceIndex = instanceIndex;  // Instance index
   }
   else
   {
@@ -340,7 +282,7 @@ GltfPunctual processLight(GltfSceneInfo* sceneInfo, float3 worldPos)
 // MONTE CARLO PATH TRACING - Main rendering algorithm
 //-----------------------------------------------------------------------
 // Implements unbiased Monte Carlo path tracing with importance sampling
-// 
+//
 // Lighting Strategy:
 // - Direct lighting: Next Event Estimation (NEE) with explicit light sampling
 // - Indirect lighting: BSDF importance sampling
@@ -351,7 +293,7 @@ GltfPunctual processLight(GltfSceneInfo* sceneInfo, float3 worldPos)
 float3 pathTrace(RayDesc ray, inout uint seed)
 {
   GltfSceneInfo* sceneInfo = pushConst.sceneInfoAddress;
-  HitPayload    payload;
+  HitPayload     payload;
 
   // Path tracing state variables
   float3 radiance   = float3(0.0F, 0.0F, 0.0F);  // Accumulated radiance (final color)
@@ -429,19 +371,23 @@ float3 pathTrace(RayDesc ray, inout uint seed)
       // This implementation uses a simplified approach:
       // - NEE (Next Event Estimation) for direct lighting with weight = 1.0
       // - BSDF sampling for indirect lighting only
-      // 
+      //
       // For DELTA light sources (directional lights/sun), w=1.0 is mathematically correct
       // because BSDF sampling has zero probability of hitting a delta light, so only NEE contributes.
       //
       // For AREA LIGHTS or ENVIRONMENT MAPS, proper MIS would combine both light and BSDF sampling.
       // The evalData.pdf output (currently unused) would be needed for this calculation.
-      const float3 w = 1.0f;  // MIS weight (correct for delta lights, simplified for area lights)
-      contrib += w * evalData.bsdf_diffuse;  // Diffuse reflection
-      contrib += w * evalData.bsdf_glossy;   // Specular reflection
-      contrib *= throughput;                 // Weight by path throughput
+      if(evalData.pdf > 0.0)
+      {
+        const float3 w = 1.0f;                 // MIS weight (correct for delta lights, simplified for area lights)
+        contrib += w * evalData.bsdf_diffuse;  // Diffuse reflection
+        contrib += w * evalData.bsdf_glossy;   // Specular reflection
+        contrib *= throughput;                 // Weight by path throughput
+      }
     }
 
     // BSDF SAMPLING - Generate next ray direction for indirect lighting
+    bool absorbed = false;
     {
       BsdfSampleData sampleData;
       sampleData.k1 = -ray.Direction;                              // Incoming direction
@@ -450,35 +396,30 @@ float3 pathTrace(RayDesc ray, inout uint seed)
       // Sample BSDF to get next ray direction and evaluate BSDF/PDF ratio
       bsdfSampleSimple(sampleData, pbrMat);
 
-      // Check if ray was absorbed (path termination)
       if(sampleData.event_type == BSDF_EVENT_ABSORB)
       {
-        break;  // Terminate path - no more bounces
+        absorbed = true;
       }
+      else
+      {
+        // Update path throughput with BSDF/PDF ratio (Monte Carlo estimator)
+        throughput *= sampleData.bsdf_over_pdf;
 
-      // Update path throughput with BSDF/PDF ratio (Monte Carlo estimator)
-      throughput *= sampleData.bsdf_over_pdf;
-
-      // Set up next ray with slight offset to avoid self-intersection
-      ray.Origin    = offsetRay(payload.hit.pos, payload.hit.nrm);
-      ray.Direction = sampleData.k2;  // New ray direction from BSDF sampling
+        // Set up next ray with slight offset to avoid self-intersection
+        ray.Origin    = offsetRay(payload.hit.pos, payload.hit.nrm);
+        ray.Direction = sampleData.k2;  // New ray direction from BSDF sampling
+      }
     }
 
-    // RUSSIAN ROULETTE - Probabilistic path termination for efficiency
-    // Terminate paths with low contribution probability to reduce computation
-    float rrPcont = min(max(throughput.x, max(throughput.y, throughput.z)) + 0.001F, 0.95F);
-    if(rand(seed) >= rrPcont)
-      break;                // Terminate paths with low throughput (won't contribute much)
-    throughput /= rrPcont;  // Boost energy of surviving paths to maintain unbiased estimation
-
-    // SHADOW TESTING - Add direct lighting only if not occluded
+    // SHADOW TESTING - Add direct lighting only if not occluded.
+    // Runs even on absorbed paths so the last bounce's NEE contribution isn't lost.
     if(nextEventValid)
     {
       // Create shadow ray from surface point towards light
       RayDesc shadowRay;
       shadowRay.Origin    = offsetRay(payload.hit.shadowPos, payload.hit.nrm);  // Start from offset surface point
-      shadowRay.Direction = L;                                          // Direction towards light
-      shadowRay.TMin      = 0.01;                                       // Avoid self-intersection
+      shadowRay.Direction = L;                                                  // Direction towards light
+      shadowRay.TMin      = 0.01;                                               // Avoid self-intersection
       shadowRay.TMax = light.type == GltfLightType::eDirectional ? INFINITE : length(light.direction);  // Trace to infinity (or light distance)
 
       // Test if light is visible from this point
@@ -488,8 +429,16 @@ float3 pathTrace(RayDesc ray, inout uint seed)
         // Light is visible - add direct lighting contribution
         radiance += contrib * light.color * light.intensity;
       }
-      // If in shadow, skip direct lighting (contrib is discarded)
     }
+
+    if(absorbed)
+      break;
+
+    // RUSSIAN ROULETTE - Probabilistic path termination for efficiency
+    float rrPcont = min(max(throughput.x, max(throughput.y, throughput.z)) + 0.001F, 0.95F);
+    if(rand(seed) >= rrPcont)
+      break;                // Terminate paths with low throughput (won't contribute much)
+    throughput /= rrPcont;  // Boost energy of surviving paths to maintain unbiased estimation
   }
 
   // Return accumulated radiance from all path bounces
@@ -506,18 +455,10 @@ float3 samplePixel(inout uint seed, float2 launchID, float2 launchSize)
   GltfSceneInfo* sceneInfo = pushConst.sceneInfoAddress;
 
   // ANTI-ALIASING: Subpixel jittering for temporal supersampling
-  // First frame uses pixel center, subsequent frames use random subpixel positions
-  const float2 subpixelJitter = pushConst.frame == 0 ? float2(0.5f, 0.5f) : float2(rand(seed), rand(seed));
-  const float2 pixelCenter    = launchID + subpixelJitter;                                   // Jittered pixel position
-  const float2 clipCoords     = pixelCenter / launchSize * 2.0 - 1.0;                        // Convert to NDC [-1,1]
-  const float4 viewCoords     = mul(float4(clipCoords, 1.0, 1.0), sceneInfo.projInvMatrix);  // Transform to view space
-
-  // Generate primary camera ray
-  RayDesc ray;
-  ray.Origin = mul(float4(0.0, 0.0, 0.0, 1.0), sceneInfo.viewInvMatrix).xyz;  // Camera position in world space
-  ray.Direction = mul(float4(normalize(viewCoords.xyz), 0.0), sceneInfo.viewInvMatrix).xyz;  // Ray direction in world space
-  ray.TMin = 0.001;     // Minimum distance to avoid numerical issues
-  ray.TMax = INFINITE;  // Maximum distance (infinite for primary rays)
+  // First frame uses pixel center, subsequent frames use random subpixel positions.
+  // Jitter is relative to the pixel center (which `generatePrimaryRay` already targets), so the offset stays in [-0.5, 0.5).
+  const float2 subpixelJitter = pushConst.frame == 0 ? float2(0.0f, 0.0f) : float2(rand(seed) - 0.5f, rand(seed) - 0.5f);
+  RayDesc ray = generatePrimaryRay(launchID + subpixelJitter, launchSize, sceneInfo[0]);
 
   // Trace the primary ray through the scene
   float3 radiance = pathTrace(ray, seed);

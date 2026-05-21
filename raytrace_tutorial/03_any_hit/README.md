@@ -173,7 +173,7 @@ The tutorial implements three transparency modes to demonstrate different approa
 
 ### Key Implementation Concepts
 
-**Stochastic Transparency**: Uses high-quality pseudo-random number generation (xxhash32 + PCG) based on pixel coordinates and frame number to decide whether to ignore hits. The frame number is incremented in `onRender()` to ensure proper temporal variation for accumulation effects.
+**Stochastic Transparency**: Uses high-quality pseudo-random number generation (xxhash32 + PCG) to decide whether to ignore hits. The seed combines pixel coordinates, frame number, and per-intersection identifiers (`PrimitiveIndex()` and `InstanceID()`) — including the hit identifiers gives each transparent surface along the same ray a decorrelated random stream, so stacked transparencies in one pixel no longer share a single coin flip. The frame number is incremented in `onRender()` to ensure proper temporal variation for accumulation effects.
 
 **Accumulative Transparency**: Modifies the ray payload to accumulate color contributions and reduce ray weight as it passes through transparent surfaces.
 

@@ -37,7 +37,7 @@
 // - Single-ray effects are much faster than full path tracing
 // - Easy integration with existing rasterization pipelines
 
-#include "nvshaders/constants.h.slang"
+
 #include "nvshaders/functions.h.slang"
 #include "nvshaders/random.h.slang"
 #include "nvshaders/ray_utils.h.slang"

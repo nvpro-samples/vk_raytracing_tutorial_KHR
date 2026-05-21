@@ -26,13 +26,14 @@ A collection of focused Vulkan ray tracing samples that build progressively from
 | [16 Ray Query](16-ray-query.md)<br/>![16 Ray query thumbnail](../images/16_th.jpg) | **Ray Queries - Inline Ray Tracing in Compute Shaders**<br/>- Demonstrates Vulkan's `VK_KHR_ray_query` extension for inline ray tracing directly in compute shaders<br/>- Replaces the traditional ray tracing pipeline with a compute shader using `RayQuery<>` objects<br/>- All ray intersection and shading logic is handled procedurally in a single shader<br/>- Supports **Monte Carlo path tracing**, temporal accumulation, and physically-based materials|
 | [17 Ray Query Screenspace](17-ray-query-screenspace.md)<br/>![17 Ray query screen-space thumbnail](../images/17_th.jpg) | **Screen-Space Ray Queries**<br/>- Uses compute shader ray queries for effects like **ambient occlusion**<br/>- Integrates ray tracing with rasterization via G-buffer<br/>- Real-time, single-ray effects with adjustable **AO**<br/>- Efficient: processes only visible pixels |
 | [18 Swept Spheres](18-swept-spheres.md)<br/>![18 Linear swept spheres thumbnail](../images/18_th.jpg) | **Linear Swept Spheres and Sphere Primitives (NVIDIA ONLY)**<br/>- Demonstrates the `VK_NV_ray_tracing_linear_swept_spheres` extension for efficient strand-based geometry<br/>- Introduces **two new geometric primitives**: Linear Swept Spheres (LSS) and Spheres<br/>- Implements **three rendering modes**:<br/>  - **Grass field**: Dense grass using LIST indexing mode (independent strands)<br/>  - **Standalone spheres**: Decorative spheres with varying radii<br/>  - **Multi-segment chains**: Connected chains using SUCCESSIVE indexing mode<br/>- Perfect for rendering grass, hair, fur, and other thin cylindrical objects |
+| [19 Ray Differentials](19-ray-differentials.md)<br/>![19 Ray differentials thumbnail](../images/19_th.jpg) | **Texture LOD via Ray Cones**<br/>- Replaces missing rasterizer `ddx`/`ddy` in ray tracing by carrying a per-ray cone footprint (`width`, `spreadAngle`) in the payload<br/>- Computes proper trilinear LOD at every hit with **surface-slant correction** (1/\|N&middot;V\|), eliminating moire on grazing surfaces<br/>- Walks through three small helpers: pixel angle, world footprint, triangle texel density<br/>- Covers the required Vulkan setup: full mip chain via `nvvk::cmdGenerateMipmaps`,  and sampler `maxLod = VK_LOD_CLAMP_NONE`<br/>- Bounce-ready: the cone state propagates through secondary rays with a single assignment (see *Going Further* in the README) |
+| [20 Wireframe](20-wireframe.md)<br/>![20 Wireframe thumbnail](../images/20_th.jpg) | **Wireframe via Ray Differentials**<br/>- Renders anti-aliased wireframes in a single ray-tracing pass using helpers in `shaders/wireframe_helpers.h.slang`<br/>- Reuses some of the ray-differentials concept from sample 19<br/>- Combines `computeDifferentials` + `computeDerivative` + `processWireframe` in the closest hit; the wireframe is blended over the PBR-shaded surface. |
 
 
 
 ## Coming Soon
 
 - `xx_ray_indirect`
-- `xx_wireframe`
 - `xx_partition_tlas`
 - `xx_clusters`
 - `xx_particles_large_accel`

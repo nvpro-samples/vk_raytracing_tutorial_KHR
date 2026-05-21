@@ -1484,7 +1484,7 @@ void createRayTracingPipeline()
     rtPipelineInfo.pGroups = shader_groups.data();
     rtPipelineInfo.maxPipelineRayRecursionDepth = std::max(3U, m_rtProperties.maxRayRecursionDepth);
     rtPipelineInfo.layout = m_rtPipelineLayout;
-    vkCreateRayTracingPipelinesKHR(m_app->getDevice(), {}, {}, 1, &rtPipelineInfo, nullptr, &m_rtPipeline);
+    NVVK_CHECK(vkCreateRayTracingPipelinesKHR(m_app->getDevice(), {}, {}, 1, &rtPipelineInfo, nullptr, &m_rtPipeline));
     NVVK_DBG_NAME(m_rtPipeline);
 
     LOGI("Ray tracing pipeline created successfully\n");
@@ -1888,20 +1888,20 @@ __generic<T : IFloat> T getAttribute(uint8_t* dataBufferAddress, BufferView buff
   return T(1);  // Error case
 }
 
-int3 getTriangleIndices(uint8_t* dataBufferAddress, const TriangleMesh mesh, int primitiveID)
+uint3 getTriangleIndices(uint8_t* dataBufferAddress, const TriangleMesh mesh, uint primitiveID)
 {
-  if(mesh.indices.byteStride == sizeof(int16_t))
+  if(mesh.indices.byteStride == sizeof(uint16_t))
   {
-    int16_t3* indices = (int16_t3*)(dataBufferAddress + mesh.indices.offset);
+    uint16_t3* indices = (uint16_t3*)(dataBufferAddress + mesh.indices.offset);
     return indices[primitiveID];
   }
-  else if(mesh.indices.byteStride == sizeof(int32_t))
+  else if(mesh.indices.byteStride == sizeof(uint32_t))
   {
-    int3* indices = (int3*)(dataBufferAddress + mesh.indices.offset);
+    uint3* indices = (uint3*)(dataBufferAddress + mesh.indices.offset);
     return indices[primitiveID];
   }
 
-  return int3(-1);  // Error case
+  return uint3(0xFFFFFFFFu);  // Error case
 }
 
 __generic<T : IFloat> T getTriangleAttribute(uint8_t* dataBufferAddress, BufferView bufferView, uint3 attributeIndex, float3 barycentrics)
@@ -1936,7 +1936,7 @@ void rchitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttribute
     GltfMetallicRoughness material = sceneInfo.materials[instance.materialIndex];
 
     // Get world position and normal
-    int3 indices = getTriangleIndices(mesh.gltfBuffer, mesh.triMesh, triID);
+    uint3 indices = getTriangleIndices(mesh.gltfBuffer, mesh.triMesh, triID);
     float3 pos = getTriangleAttribute<float3>(mesh.gltfBuffer, mesh.triMesh.positions, indices, barycentrics);
     float3 nrm = getTriangleAttribute<float3>(mesh.gltfBuffer, mesh.triMesh.normals, indices, barycentrics);
     float3 worldPos = float3(mul(float4(pos, 1.0), ObjectToWorld4x3()));

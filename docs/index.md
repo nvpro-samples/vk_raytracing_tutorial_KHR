@@ -7,7 +7,7 @@
 <div class="hero-cta" markdown>
 
 [Start the Progressive Tutorial →](tutorial/index.md){ .md-button .md-button--primary }
-[Browse the 18+ samples](samples/index.md){ .md-button }
+[Browse the 20+ samples](samples/index.md){ .md-button }
 
 </div>
 
@@ -44,7 +44,7 @@ Built on the [`VK_KHR_acceleration_structure`](https://www.khronos.org/registry/
 
     ---
 
-    18+ focused samples covering reflections, motion blur, ray queries, callable shaders, and more.
+    20+ focused samples covering reflections, motion blur, ray queries, callable shaders, and more.
 
     [Browse samples →](samples/index.md)
 

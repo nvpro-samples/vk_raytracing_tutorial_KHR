@@ -108,3 +108,5 @@ nav:
     - 16 Ray Query: samples/16-ray-query.md
     - 17 Ray Query Screenspace: samples/17-ray-query-screenspace.md
     - 18 Swept Spheres: samples/18-swept-spheres.md
+    - 19 Ray Differentials: samples/19-ray-differentials.md
+    - 20 Wireframe: samples/20-wireframe.md

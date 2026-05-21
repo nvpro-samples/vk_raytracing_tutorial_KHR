@@ -17,8 +17,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "common/shaders/gltf_accessor.h.slang"
+#include "common/shaders/light.h.slang"
 #include "common/shaders/pbr.h.slang"
-#include "nvshaders/constants.h.slang"
+#include "common/shaders/shadow.h.slang"
+#include "common/shaders/ray_common.h.slang"
+
 #include "nvshaders/sky_functions.h.slang"
 #include "shaderio.h"
 
@@ -32,11 +36,13 @@
 #define MISS_DEPTH 1000
 
 // Raytracing Payload
-struct HitPayload
+struct HitPayload : IShadowPayload
 {
-  float3 color;
-  float  weight;
-  int    depth;
+  float3 color  = float3(0);
+  float  weight = 1;
+  int    depth  = 0;
+
+  bool isMissed() { return depth == MISS_DEPTH; }
 };
 
 // Hit state information
@@ -46,41 +52,6 @@ struct HitState
   float3 nrm;
   float3 geonrm;
 };
-
-__generic<T : IFloat> T getAttribute(uint8_t* dataBufferAddress, BufferView bufferView, uint attributeIndex)
-{
-  if(bufferView.count > 0)
-  {
-    T* ptr = (T*)(dataBufferAddress + bufferView.offset + attributeIndex * bufferView.byteStride);
-    return ptr[0];
-  }
-
-  return T(1);  // Error case
-}
-
-int3 getTriangleIndices(uint8_t* dataBufferAddress, const TriangleMesh mesh, int primitiveID)
-{
-  if(mesh.indices.byteStride == sizeof(int16_t))
-  {
-    int16_t3* indices = (int16_t3*)(dataBufferAddress + mesh.indices.offset);
-    return indices[primitiveID];
-  }
-  else if(mesh.indices.byteStride == sizeof(int32_t))
-  {
-    int3* indices = (int3*)(dataBufferAddress + mesh.indices.offset);
-    return indices[primitiveID];
-  }
-
-  return int3(-1);  // Error case
-}
-
-__generic<T : IFloat> T getTriangleAttribute(uint8_t* dataBufferAddress, BufferView bufferView, uint3 attributeIndex, float3 barycentrics)
-{
-  T attr0 = getAttribute<T>(dataBufferAddress, bufferView, attributeIndex.x);
-  T attr1 = getAttribute<T>(dataBufferAddress, bufferView, attributeIndex.y);
-  T attr2 = getAttribute<T>(dataBufferAddress, bufferView, attributeIndex.z);
-  return T(barycentrics.x) * attr0 + T(barycentrics.y) * attr1 + T(barycentrics.z) * attr2;
-}
 
 //-----------------------------------------------------------------------
 // RAY GENERATION
@@ -93,87 +64,14 @@ void rgenMain()
 
   GltfSceneInfo* sceneInfo = pushConst.sceneInfoAddress;
 
-  const uint   rayFlags   = 0;
-  const float2 clipCoords = launchID / launchSize * 2.0 - 1.0;
-  const float4 viewCoords = mul(float4(clipCoords, 1.0, 1.0), sceneInfo.projInvMatrix);
+  const uint rayFlags = RAY_FLAG_NONE;
+  RayDesc    ray      = generatePrimaryRay(launchID, launchSize, sceneInfo[0]);
 
-  RayDesc ray;
-  ray.Origin    = mul(float4(0.0, 0.0, 0.0, 1.0), sceneInfo.viewInvMatrix).xyz;
-  ray.Direction = mul(float4(normalize(viewCoords.xyz), 0.0), sceneInfo.viewInvMatrix).xyz;
-  ray.TMin      = 0.001;
-  ray.TMax      = INFINITE;
-
-  // Initial state
-  HitPayload payload;
-  payload.color  = float3(0, 0, 0);
-  payload.weight = 1;
-  payload.depth  = 0;
+  HitPayload payload = {};
 
   TraceRay(topLevelAS, rayFlags, 0xff, 0, 0, 0, ray, payload);
   float3 color             = payload.color;
   outImage[int2(launchID)] = float4(color, 1.0);
-}
-
-//-----------------------------------------------------------------------
-// SHADOW TESTING
-//-----------------------------------------------------------------------
-float testShadow(float3 worldPos, float3 worldNormal, float3 lightDirection, GltfPunctual light)
-{
-  RayDesc shadowRay;
-  shadowRay.Origin    = worldPos + worldNormal * 0.001;
-  shadowRay.Direction = normalize(lightDirection);
-  shadowRay.TMin      = 0.001;
-  shadowRay.TMax      = light.type == GltfLightType::eDirectional ? INFINITE : length(lightDirection);
-
-  // Create a simple payload for shadow ray
-  HitPayload shadowPayload;
-  shadowPayload.depth = 0;
-
-  // Trace the shadow ray
-  TraceRay(topLevelAS, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER, 0xff, 0, 0, 0,
-           shadowRay, shadowPayload);
-
-  // If the shadow ray hit something, the light is occluded
-  return shadowPayload.depth != MISS_DEPTH ? 0.0 : 1.0;
-}
-
-//-----------------------------------------------------------------------
-// Handles sky override, point light distance attenuation, and spot light cone attenuation
-//-----------------------------------------------------------------------
-GltfPunctual processLight(GltfSceneInfo sceneInfo, float3 worldPos)
-{
-  GltfPunctual light = sceneInfo.punctualLights[0];  // Assuming we only use the first light for simplicity
-
-  // Sky override: replace punctual light with sun parameters
-  if(sceneInfo.useSky == 1)
-  {
-    light.direction = sceneInfo.skySimpleParam.sunDirection;
-    light.color     = sceneInfo.skySimpleParam.sunColor;
-    light.intensity = sceneInfo.skySimpleParam.sunIntensity;
-    light.type      = GltfLightType::eDirectional;
-  }
-
-  // Point light: calculate direction and apply distance attenuation
-  if(light.type == GltfLightType::ePoint)
-  {
-    light.direction = light.position - worldPos;
-    float d         = length(light.direction);
-    light.intensity /= (d * d);
-  }
-  // Spot light: calculate direction, apply distance and cone attenuation
-  else if(light.type == GltfLightType::eSpot)
-  {
-    float3 lightDir = light.position - worldPos;
-    float  d        = length(lightDir);
-    light.intensity /= (d * d);
-    // Cone attenuation
-    float theta         = (dot(normalize(lightDir), normalize(light.direction)));
-    float spotIntensity = clamp((theta - cos(light.coneAngle)) / (1.0 - cos(light.coneAngle)), 0.0, 1.0);
-    light.intensity *= spotIntensity;
-    light.direction = lightDir;
-  }
-
-  return light;
 }
 
 //-----------------------------------------------------------------------
@@ -193,7 +91,7 @@ void rchitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttribute
   GltfMetallicRoughness material  = sceneInfo.materials[instance.materialIndex];
 
   // Retrieve the data
-  int3   indices       = getTriangleIndices(mesh.gltfBuffer, mesh.triMesh, triID);
+  uint3  indices       = getTriangleIndices(mesh.gltfBuffer, mesh.triMesh, triID);
   float3 pos           = getTriangleAttribute<float3>(mesh.gltfBuffer, mesh.triMesh.positions, indices, barycentrics);
   float3 nrm           = getTriangleAttribute<float3>(mesh.gltfBuffer, mesh.triMesh.normals, indices, barycentrics);
   float3 worldPos      = float3(mul(float4(pos, 1.0), ObjectToWorld4x3()));
@@ -207,7 +105,7 @@ void rchitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttribute
   float3 L = normalize(light.direction);
 
   // Test for shadows
-  float shadowFactor = testShadow(worldPos, N, light.direction, light);
+  float shadowFactor = testShadow<HitPayload>(topLevelAS, worldPos, N, light.direction, light);
 
   // Get base color from material or texture
   float3 albedo = material.baseColorFactor.xyz;
@@ -237,7 +135,7 @@ void rchitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttribute
     float3 skyUpDir    = float3(0, 1, 0);
     float3 groundColor = sceneInfo.skySimpleParam.groundColor;
     float3 skyColor    = sceneInfo.skySimpleParam.skyColor;
-    float3 ambient     = lerp(groundColor, skyColor, dot(N, skyUpDir) * 0.5 + 0.5);
+    ambient            = lerp(groundColor, skyColor, dot(N, skyUpDir) * 0.5 + 0.5);
   }
   // Add ambient to final color
   color += ambient * albedo * 0.025;

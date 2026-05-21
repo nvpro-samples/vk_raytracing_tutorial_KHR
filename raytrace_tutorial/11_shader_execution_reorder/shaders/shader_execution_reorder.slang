@@ -18,8 +18,9 @@
  */
 
 #include "common/shaders/pbr.h.slang"
-#include "nvshaders/bsdf_functions.h.slang"
-#include "nvshaders/constants.h.slang"
+#include "common/shaders/ray_common.h.slang"
+#include "common/shaders/gltf_accessor.h.slang"
+
 #include "nvshaders/random.h.slang"
 #include "nvshaders/ray_utils.h.slang"
 #include "nvshaders/sky_functions.h.slang"
@@ -56,41 +57,6 @@ struct HitState
   float3 nrm;
 };
 
-__generic<T : IFloat> T getAttribute(uint8_t* dataBufferAddress, BufferView bufferView, uint attributeIndex)
-{
-  if(bufferView.count > 0)
-  {
-    T* ptr = (T*)(dataBufferAddress + bufferView.offset + attributeIndex * bufferView.byteStride);
-    return ptr[0];
-  }
-
-  return T(1);  // Error case
-}
-
-int3 getTriangleIndices(uint8_t* dataBufferAddress, const TriangleMesh mesh, int primitiveID)
-{
-  if(mesh.indices.byteStride == sizeof(int16_t))
-  {
-    int16_t3* indices = (int16_t3*)(dataBufferAddress + mesh.indices.offset);
-    return indices[primitiveID];
-  }
-  else if(mesh.indices.byteStride == sizeof(int32_t))
-  {
-    int3* indices = (int3*)(dataBufferAddress + mesh.indices.offset);
-    return indices[primitiveID];
-  }
-
-  return int3(-1);  // Error case
-}
-
-__generic<T : IFloat> T getTriangleAttribute(uint8_t* dataBufferAddress, BufferView bufferView, uint3 attributeIndex, float3 barycentrics)
-{
-  T attr0 = getAttribute<T>(dataBufferAddress, bufferView, attributeIndex.x);
-  T attr1 = getAttribute<T>(dataBufferAddress, bufferView, attributeIndex.y);
-  T attr2 = getAttribute<T>(dataBufferAddress, bufferView, attributeIndex.z);
-  return T(barycentrics.x) * attr0 + T(barycentrics.y) * attr1 + T(barycentrics.z) * attr2;
-}
-
 //-----------------------------------------------------------------------
 // Return hit position, normal and geometric normal in world space
 HitState getHitState(GltfMesh mesh, uint triID, float4x3 objectToWorld, float4x3 worldToObject, float3 barycentrics)
@@ -98,7 +64,7 @@ HitState getHitState(GltfMesh mesh, uint triID, float4x3 objectToWorld, float4x3
   HitState hit;
 
   // Retrieve the data
-  int3   indices     = getTriangleIndices(mesh.gltfBuffer, mesh.triMesh, triID);
+  uint3  indices     = getTriangleIndices(mesh.gltfBuffer, mesh.triMesh, triID);
   float3 pos         = getTriangleAttribute<float3>(mesh.gltfBuffer, mesh.triMesh.positions, indices, barycentrics);
   float3 nrm         = getTriangleAttribute<float3>(mesh.gltfBuffer, mesh.triMesh.normals, indices, barycentrics);
   float3 worldPos    = float3(mul(float4(pos, 1.0), objectToWorld));
@@ -149,7 +115,7 @@ void traceRay(RayDesc ray, inout HitPayload payload, int depth)
 {
   payload.hitT  = 0.0F;
   ray.TMax      = INFINITE;
-  uint rayFlags = 0;
+  uint rayFlags = RAY_FLAG_NONE;
   if(USE_SER == 1)
   {
     HitObject hitObj = HitObject::TraceRay(topLevelAS, rayFlags, 0xFF, 0, 0, 0, ray, payload);
@@ -342,16 +308,9 @@ float3 samplePixel(inout uint seed, inout HitPayload payload)
   GltfSceneInfo* sceneInfo = pushConst.sceneInfoAddress;
 
   // Subpixel jitter: send the ray through a different position inside the pixel each time, to provide antialiasing.
-  const float2 subpixelJitter = pushConst.frame == 0 ? float2(0.5f, 0.5f) : float2(rand(seed), rand(seed));
-  const float2 pixelCenter    = launchID + subpixelJitter;
-  const float2 clipCoords     = pixelCenter / launchSize * 2.0 - 1.0;
-  const float4 viewCoords     = mul(float4(clipCoords, 1.0, 1.0), sceneInfo.projInvMatrix);
-
-  RayDesc ray;
-  ray.Origin    = mul(float4(0.0, 0.0, 0.0, 1.0), sceneInfo.viewInvMatrix).xyz;
-  ray.Direction = mul(float4(normalize(viewCoords.xyz), 0.0), sceneInfo.viewInvMatrix).xyz;
-  ray.TMin      = 0.001;
-  ray.TMax      = INFINITE;
+  // Jitter is relative to the pixel center (which `generatePrimaryRay` already targets), so the offset stays in [-0.5, 0.5).
+  const float2 subpixelJitter = pushConst.frame == 0 ? float2(0.0f, 0.0f) : float2(rand(seed) - 0.5f, rand(seed) - 0.5f);
+  RayDesc ray = generatePrimaryRay(launchID + subpixelJitter, launchSize, sceneInfo[0]);
 
   float3 radiance = pathTrace(ray, seed, payload);
 

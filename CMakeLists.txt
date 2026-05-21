@@ -46,6 +46,8 @@ add_subdirectory(raytrace_tutorial/15_micro_maps_opacity)
 add_subdirectory(raytrace_tutorial/16_ray_query)
 add_subdirectory(raytrace_tutorial/17_ray_query_screenspace)
 add_subdirectory(raytrace_tutorial/18_swept_spheres)
+add_subdirectory(raytrace_tutorial/19_ray_differentials)
+add_subdirectory(raytrace_tutorial/20_wireframe)
 add_subdirectory(raytrace_tutorial/XX_template)
 
 # Make Visual Studio use this project as the startup project

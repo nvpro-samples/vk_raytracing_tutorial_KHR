@@ -161,7 +161,7 @@ PSout fragmentMain(VSout stage)
     float3 skyUpDir    = float3(0, 1, 0);
     float3 groundColor = sceneInfo.skySimpleParam.groundColor;
     float3 skyColor    = sceneInfo.skySimpleParam.skyColor;
-    float3 ambient     = lerp(groundColor, skyColor, dot(N, skyUpDir) * 0.5 + 0.5);
+    ambient            = lerp(groundColor, skyColor, dot(N, skyUpDir) * 0.5 + 0.5);
   }
   // Add ambient to final color
   color += ambient * albedo * 0.025;

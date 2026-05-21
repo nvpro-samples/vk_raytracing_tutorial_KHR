@@ -25,6 +25,8 @@ EXECUTABLES = [
     ("16_ray_query", ["--headless"]),
     ("17_ray_query_screenspace", ["--headless"]),
     ("18_swept_spheres", ["--headless"]),
+    ("19_ray_differentials", ["--headless"]),
+    ("20_wireframe", ["--headless"]),
 ]
 
 def run_executable(executable_path, args):
@@ -50,17 +52,21 @@ def get_testing_time(log_file):
     except (IndexError, FileNotFoundError):
         return "N/A"
 
-def test_executables():
-    """Test all executables and return results."""
+def test_executables(selected=None):
+    """Test all executables (or a subset) and return results."""
     test_dir = Path("_install")
     if not test_dir.exists():
         logger.error(f"Test directory '{test_dir}' not found")
-        return False
-    
+        return [], False
+
+    executables = EXECUTABLES
+    if selected:
+        executables = [(name, args) for name, args in EXECUTABLES if name in selected]
+
     results = []
     all_passed = True
-    
-    for executable, args in EXECUTABLES:
+
+    for executable, args in executables:
         logger.info(f"\nTesting: {executable}")
         executable_path = test_dir / executable
         success = run_executable(executable_path, args)
@@ -85,13 +91,37 @@ def print_report(results):
     logger.info("-" * 60)
 
 def main():
+    available = [name for name, _ in EXECUTABLES]
     parser = argparse.ArgumentParser(description="Test Vulkan raytracing executables")
-    parser.add_argument("--test", action="store_true", help="Run all tests")
-    
+    parser.add_argument(
+        "--test",
+        action="store_true",
+        help="Run all tests (kept for CI compatibility; this is the default behavior).",
+    )
+    parser.add_argument(
+        "-e", "--executable",
+        action="append",
+        choices=available,
+        metavar="NAME",
+        help="Name of an executable to test (repeat to test several). Defaults to all.",
+    )
+    parser.add_argument(
+        "-l", "--list",
+        action="store_true",
+        help="List available executables and exit.",
+    )
+
     args = parser.parse_args()
 
-    
-    results, success = test_executables()
+    if args.list:
+        for name in available:
+            print(name)
+        return 0
+
+    results, success = test_executables(selected=args.executable)
+    if not results:
+        logger.error("No matching executables to run.")
+        return 1
     print_report(results)
     return 0 if success else 1
 

@@ -12,7 +12,7 @@
 
 ![resultRaytraceShadowMedieval](docs/images/tuto.png)
 
-**Convert a modern Vulkan 1.4 rasterization application into a fully functional ray tracer through 8 progressive, compilable phases**, then explore 18+ focused samples covering reflections, motion blur, ray queries, callable shaders, opacity micro-maps, and more. Built on the [`VK_KHR_acceleration_structure`](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VK_KHR_acceleration_structure), [`VK_KHR_ray_tracing_pipeline`](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VK_KHR_ray_tracing_pipeline), and [`VK_KHR_ray_query`](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VK_KHR_ray_query) extensions.
+**Convert a modern Vulkan 1.4 rasterization application into a fully functional ray tracer through 8 progressive, compilable phases**, then explore 20+ focused samples covering reflections, motion blur, ray queries, callable shaders, opacity micro-maps, and more. Built on the [`VK_KHR_acceleration_structure`](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VK_KHR_acceleration_structure), [`VK_KHR_ray_tracing_pipeline`](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VK_KHR_ray_tracing_pipeline), and [`VK_KHR_ray_query`](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VK_KHR_ray_query) extensions.
 
 ---
 

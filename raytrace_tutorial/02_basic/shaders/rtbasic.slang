@@ -19,8 +19,6 @@
 
 #include "shaderio.h"
 
-#include "nvshaders/constants.h.slang"
-
 #include "common/shaders/pbr.h.slang"
 #include "nvshaders/sky_functions.h.slang"
 
@@ -41,9 +39,9 @@
 // Ray payload structure - carries data through the ray tracing pipeline
 struct HitPayload
 {
-  float3 color;   // Accumulated color along the ray path
-  float  weight;  // Weight/importance of this ray (for importance sampling)
-  int    depth;   // Current recursion depth (for limiting bounces)
+  float3 color  = float3(0);  // Accumulated color along the ray path
+  float  weight = 1;          // Weight/importance of this ray (for importance sampling)
+  int    depth  = 0;          // Current recursion depth (for limiting bounces)
 };
 
 // Generic function to retrieve vertex attributes from GLTF buffer data
@@ -65,22 +63,22 @@ __generic<T : IFloat> T getAttribute(uint8_t* dataBufferAddress, BufferView buff
 
 // Retrieve triangle vertex indices from the mesh index buffer
 // Supports both 16-bit and 32-bit index formats as per GLTF specification
-int3 getTriangleIndices(uint8_t* dataBufferAddress, const TriangleMesh mesh, int primitiveID)
+uint3 getTriangleIndices(uint8_t* dataBufferAddress, const TriangleMesh mesh, uint primitiveID)
 {
-  if(mesh.indices.byteStride == sizeof(int16_t))
+  if(mesh.indices.byteStride == sizeof(uint16_t))
   {
     // 16-bit indices (uint16_t) - more memory efficient for smaller meshes
-    int16_t3* indices = (int16_t3*)(dataBufferAddress + mesh.indices.offset);
+    uint16_t3* indices = (uint16_t3*)(dataBufferAddress + mesh.indices.offset);
     return indices[primitiveID];
   }
-  else if(mesh.indices.byteStride == sizeof(int32_t))
+  else if(mesh.indices.byteStride == sizeof(uint32_t))
   {
     // 32-bit indices (uint32_t) - supports larger meshes with more vertices
-    int3* indices = (int3*)(dataBufferAddress + mesh.indices.offset);
+    uint3* indices = (uint3*)(dataBufferAddress + mesh.indices.offset);
     return indices[primitiveID];
   }
 
-  return int3(-1);  // Error case - invalid index format
+  return uint3(-1);  // Error case - invalid index format
 }
 
 // Interpolate vertex attributes across a triangle using barycentric coordinates
@@ -94,7 +92,7 @@ __generic<T : IFloat> T getTriangleAttribute(uint8_t* dataBufferAddress, BufferV
   T attr0 = getAttribute<T>(dataBufferAddress, bufferView, attributeIndex.x);
   T attr1 = getAttribute<T>(dataBufferAddress, bufferView, attributeIndex.y);
   T attr2 = getAttribute<T>(dataBufferAddress, bufferView, attributeIndex.z);
-  
+
   // Interpolate using barycentric coordinates (weights sum to 1.0)
   return T(barycentrics.x) * attr0 + T(barycentrics.y) * attr1 + T(barycentrics.z) * attr2;
 }
@@ -113,7 +111,7 @@ float testShadow(float3 worldPos, float3 worldNormal, float3 lightDirection, Glt
   shadowRay.Direction = normalize(lightDirection);
   shadowRay.TMin      = 0.001;  // Minimum distance to avoid self-intersection
   // For directional lights, trace to infinity; for point/spot lights, trace to light position
-  shadowRay.TMax      = light.type == GltfLightType::eDirectional ? INFINITE : length(lightDirection);
+  shadowRay.TMax = light.type == GltfLightType::eDirectional ? INFINITE : length(lightDirection);
 
   // Create a minimal payload for shadow ray (we only need to know if it hits something)
   HitPayload shadowPayload;
@@ -185,44 +183,41 @@ GltfPunctual processLight(GltfSceneInfo sceneInfo, float3 worldPos)
 void rgenMain()
 {
   // Get the current pixel coordinates and image dimensions
-  float2 launchID   = (float2)DispatchRaysIndex().xy;     // Current pixel (x,y)
-  float2 launchSize = (float2)DispatchRaysDimensions().xy; // Image size (width,height)
+  float2 launchID   = (float2)DispatchRaysIndex().xy;       // Current pixel (x,y)
+  float2 launchSize = (float2)DispatchRaysDimensions().xy;  // Image size (width,height)
 
   // Retrieve scene information from push constants
   GltfSceneInfo* sceneInfo = pushConst.sceneInfoAddress;
 
   // Set ray tracing flags (0 = no special flags)
-  const uint   rayFlags   = 0;
-  
+  const uint rayFlags = 0;
+
   // Convert pixel coordinates to normalized device coordinates (NDC)
   // Range: [-1,1] for both x and y
   const float2 clipCoords = launchID / launchSize * 2.0 - 1.0;
-  
+
   // Transform from NDC to view space using inverse projection matrix
   const float4 viewCoords = mul(float4(clipCoords, 1.0, 1.0), sceneInfo.projInvMatrix);
 
   // Create the primary ray
   RayDesc ray;
   // Transform camera origin (0,0,0) from view space to world space
-  ray.Origin    = mul(float4(0.0, 0.0, 0.0, 1.0), sceneInfo.viewInvMatrix).xyz;
+  ray.Origin = mul(float4(0.0, 0.0, 0.0, 1.0), sceneInfo.viewInvMatrix).xyz;
   // Transform ray direction from view space to world space
   ray.Direction = mul(float4(normalize(viewCoords.xyz), 0.0), sceneInfo.viewInvMatrix).xyz;
-  ray.TMin      = 0.001;    // Minimum distance to avoid self-intersection
-  ray.TMax      = INFINITE; // Maximum distance (infinite for primary rays)
+  ray.TMin      = 0.001;     // Minimum distance to avoid self-intersection
+  ray.TMax      = INFINITE;  // Maximum distance (infinite for primary rays)
 
   // Initialize ray payload with default values
   HitPayload payload;
-  payload.color  = float3(0, 0, 0);  // Start with black
-  payload.weight = 1;                // Full weight for primary rays
-  payload.depth  = 0;                // Start at depth 0
 
   // Cast the ray into the scene using the acceleration structure
   // Parameters: AS, flags, instance mask, sbt offset, sbt stride, miss offset, ray, payload
   TraceRay(topLevelAS, rayFlags, 0xff, 0, 0, 0, ray, payload);
-  
+
   // Get the final color from the ray tracing result
   float3 color = payload.color;
-  
+
   // Write the result to the output image
   outImage[int2(launchID)] = float4(color, 1.0);
 }
@@ -238,31 +233,31 @@ void rchitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttribute
   float3 barycentrics = float3(1 - attr.barycentrics.x - attr.barycentrics.y, attr.barycentrics.x, attr.barycentrics.y);
 
   // Get instance and primitive information from ray tracing built-ins
-  uint instanceID = InstanceIndex();  // Which instance was hit
-  uint meshID     = InstanceID();     // Instance ID (same as instanceID in this case)
-  uint triID      = PrimitiveIndex(); // Which triangle within the mesh was hit
+  uint instanceID = InstanceIndex();   // Which instance was hit
+  uint meshID     = InstanceID();      // Instance ID (same as instanceID in this case)
+  uint triID      = PrimitiveIndex();  // Which triangle within the mesh was hit
 
   // Retrieve scene data structures
   GltfSceneInfo         sceneInfo = pushConst.sceneInfoAddress[0];
-  GltfInstance          instance  = sceneInfo.instances[instanceID];      // Instance data
-  GltfMesh              mesh      = sceneInfo.meshes[instance.meshIndex]; // Mesh data
-  GltfMetallicRoughness material  = sceneInfo.materials[instance.materialIndex]; // Material data
+  GltfInstance          instance  = sceneInfo.instances[instanceID];              // Instance data
+  GltfMesh              mesh      = sceneInfo.meshes[instance.meshIndex];         // Mesh data
+  GltfMetallicRoughness material  = sceneInfo.materials[instance.materialIndex];  // Material data
 
   // Interpolate vertex attributes across the hit triangle
-  int3   indices       = getTriangleIndices(mesh.gltfBuffer, mesh.triMesh, triID);
+  uint3  indices       = getTriangleIndices(mesh.gltfBuffer, mesh.triMesh, triID);
   float3 pos           = getTriangleAttribute<float3>(mesh.gltfBuffer, mesh.triMesh.positions, indices, barycentrics);
   float3 nrm           = getTriangleAttribute<float3>(mesh.gltfBuffer, mesh.triMesh.normals, indices, barycentrics);
   float2 worldTexCoord = getTriangleAttribute<float2>(mesh.gltfBuffer, mesh.triMesh.texCoords, indices, barycentrics);
-  
+
   // Transform from object space to world space
-  float3 worldPos      = float3(mul(float4(pos, 1.0), ObjectToWorld4x3()));
-  float3 worldNormal   = normalize(mul(WorldToObject4x3(), nrm).xyz);
+  float3 worldPos    = float3(mul(float4(pos, 1.0), ObjectToWorld4x3()));
+  float3 worldNormal = normalize(mul(WorldToObject4x3(), nrm).xyz);
 
   // Extract material properties (PBR parameters)
   float3 albedo    = material.baseColorFactor.xyz;  // Base color/albedo
   float  metallic  = material.metallicFactor;       // Metallic factor (0=dielectric, 1=metal)
   float  roughness = material.roughnessFactor;      // Surface roughness (0=smooth, 1=rough)
-  
+
   // Sample albedo texture if available
   if(material.baseColorTextureIndex > -1)
   {
@@ -279,9 +274,9 @@ void rchitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttribute
   GltfPunctual light = processLight(sceneInfo, worldPos);
 
   // Calculate lighting vectors
-  float3 N = normalize(worldNormal);  // Surface normal
-  float3 V = -WorldRayDirection();    // View direction (towards camera)
-  float3 L = normalize(light.direction); // Light direction
+  float3 N = normalize(worldNormal);      // Surface normal
+  float3 V = -WorldRayDirection();        // View direction (towards camera)
+  float3 L = normalize(light.direction);  // Light direction
 
   // Test for shadows by casting a shadow ray towards the light
   float shadowFactor = testShadow(worldPos, N, light.direction, light);
@@ -289,7 +284,7 @@ void rchitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttribute
   // Calculate PBR lighting using the metallic-roughness model
   // This computes the final color based on material properties and lighting
   float3 color = pbrMetallicRoughness(albedo, metallic, roughness, N, V, L);
-  
+
   // Apply light color, intensity, and shadow factor
   color *= light.color * light.intensity * shadowFactor;
 

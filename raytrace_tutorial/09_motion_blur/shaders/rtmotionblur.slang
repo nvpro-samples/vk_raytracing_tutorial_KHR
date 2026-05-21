@@ -17,8 +17,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "common/shaders/gltf_accessor.h.slang"
 #include "common/shaders/pbr.h.slang"
-#include "nvshaders/constants.h.slang"
+#include "common/shaders/ray_common.h.slang"
+
 #include "nvshaders/random.h.slang"
 #include "nvshaders/sky_functions.h.slang"
 #include "shaderio.h"
@@ -35,10 +37,13 @@
 // Raytracing Payload
 struct HitPayload
 {
-  float3 color;
-  float  weight;
-  int    depth;
+  float3 color  = float3(0);
+  float  weight = 1;
+  int    depth  = 0;
   uint   seed;
+  // Time of the current primary motion sample, carried through to secondary
+  // (shadow) rays so they hit the scene at the same moment in time.
+  float time;
 };
 
 // Hit state information
@@ -49,40 +54,6 @@ struct HitState
   float3 geonrm;
 };
 
-__generic<T : IFloat> T getAttribute(uint8_t* dataBufferAddress, BufferView bufferView, uint attributeIndex)
-{
-  if(bufferView.count > 0)
-  {
-    T* ptr = (T*)(dataBufferAddress + bufferView.offset + attributeIndex * bufferView.byteStride);
-    return ptr[0];
-  }
-
-  return T(1);  // Error case
-}
-
-int3 getTriangleIndices(uint8_t* dataBufferAddress, const TriangleMesh mesh, int primitiveID)
-{
-  if(mesh.indices.byteStride == sizeof(int16_t))
-  {
-    int16_t3* indices = (int16_t3*)(dataBufferAddress + mesh.indices.offset);
-    return indices[primitiveID];
-  }
-  else if(mesh.indices.byteStride == sizeof(int32_t))
-  {
-    int3* indices = (int3*)(dataBufferAddress + mesh.indices.offset);
-    return indices[primitiveID];
-  }
-
-  return int3(-1);  // Error case
-}
-
-__generic<T : IFloat> T getTriangleAttribute(uint8_t* dataBufferAddress, BufferView bufferView, uint3 attributeIndex, float3 barycentrics)
-{
-  T attr0 = getAttribute<T>(dataBufferAddress, bufferView, attributeIndex.x);
-  T attr1 = getAttribute<T>(dataBufferAddress, bufferView, attributeIndex.y);
-  T attr2 = getAttribute<T>(dataBufferAddress, bufferView, attributeIndex.z);
-  return T(barycentrics.x) * attr0 + T(barycentrics.y) * attr1 + T(barycentrics.z) * attr2;
-}
 
 //-----------------------------------------------------------------------
 // RAY GENERATION
@@ -95,17 +66,10 @@ void rgenMain()
 
   GltfSceneInfo* sceneInfo = pushConst.sceneInfoAddress;
 
-  const uint   rayFlags   = 0;
-  const float2 clipCoords = launchID / launchSize * 2.0 - 1.0;
-  const float4 viewCoords = mul(float4(clipCoords, 1.0, 1.0), sceneInfo.projInvMatrix);
+  const uint rayFlags = RAY_FLAG_NONE;
+  RayDesc    ray      = generatePrimaryRay(launchID, launchSize, sceneInfo[0]);
 
-  RayDesc ray;
-  ray.Origin    = mul(float4(0.0, 0.0, 0.0, 1.0), sceneInfo.viewInvMatrix).xyz;
-  ray.Direction = mul(float4(normalize(viewCoords.xyz), 0.0), sceneInfo.viewInvMatrix).xyz;
-  ray.TMin      = 0.001;
-  ray.TMax      = INFINITE;
-
-  HitPayload payload;
+  HitPayload payload = {};
 
   // Initialize the random number generator
   payload.seed = xxhash32(uint3(DispatchRaysIndex().xy, 0));
@@ -122,6 +86,8 @@ void rgenMain()
     payload.color  = float3(0, 0, 0);
     payload.weight = 1;
     payload.depth  = 0;
+    // Forward the primary sample time so shadow rays see the same scene snapshot
+    payload.time = time;
 
     // Trace ray with time parameter for motion blur
     TraceMotionRay(topLevelAS, rayFlags, 0xff, 0, 0, 0, ray, time, payload);
@@ -136,7 +102,7 @@ void rgenMain()
 //-----------------------------------------------------------------------
 // SHADOW TESTING
 //-----------------------------------------------------------------------
-float testShadow(float3 worldPos, float3 worldNormal, float3 lightDirection, GltfPunctual light, inout uint seed)
+float testShadow(float3 worldPos, float3 worldNormal, float3 lightDirection, GltfPunctual light, float time)
 {
   RayDesc shadowRay;
   shadowRay.Origin    = worldPos + worldNormal * 0.001;
@@ -148,10 +114,10 @@ float testShadow(float3 worldPos, float3 worldNormal, float3 lightDirection, Glt
   HitPayload shadowPayload;
   shadowPayload.depth = 0;
 
-  // Trace the shadow ray with motion blur
-  float shadowRayTime = rand(seed);  // Generate time for shadow ray
+  // Trace the shadow ray at the SAME time as the primary motion sample, so the
+  // shadow is computed against the exact geometry snapshot we just hit.
   TraceMotionRay(topLevelAS, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER, 0xff, 0, 0, 0,
-                 shadowRay, shadowRayTime, shadowPayload);
+                 shadowRay, time, shadowPayload);
 
   // If the shadow ray hit something, the light is occluded
   return shadowPayload.depth != MISS_DEPTH ? 0.0 : 1.0;
@@ -213,7 +179,7 @@ void rchitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttribute
   GltfMetallicRoughness material  = sceneInfo.materials[instance.materialIndex];
 
   // Retrieve the data
-  int3   indices       = getTriangleIndices(mesh.gltfBuffer, mesh.triMesh, triID);
+  uint3  indices       = getTriangleIndices(mesh.gltfBuffer, mesh.triMesh, triID);
   float3 pos           = getTriangleAttribute<float3>(mesh.gltfBuffer, mesh.triMesh.positions, indices, barycentrics);
   float3 nrm           = getTriangleAttribute<float3>(mesh.gltfBuffer, mesh.triMesh.normals, indices, barycentrics);
   float3 worldPos      = float3(mul(float4(pos, 1.0), ObjectToWorld4x3()));
@@ -226,8 +192,8 @@ void rchitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttribute
   float3 N = normalize(worldNormal);
   float3 L = normalize(light.direction);
 
-  // Test for shadows
-  float shadowFactor = testShadow(worldPos, N, light.direction, light, payload.seed);
+  // Test for shadows (use the primary sample's time, carried via the payload)
+  float shadowFactor = testShadow(worldPos, N, light.direction, light, payload.time);
 
   // Get base color from material or texture
   float3 albedo = material.baseColorFactor.xyz;
@@ -257,7 +223,7 @@ void rchitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttribute
     float3 skyUpDir    = float3(0, 1, 0);
     float3 groundColor = sceneInfo.skySimpleParam.groundColor;
     float3 skyColor    = sceneInfo.skySimpleParam.skyColor;
-    float3 ambient     = lerp(groundColor, skyColor, dot(N, skyUpDir) * 0.5 + 0.5);
+    ambient            = lerp(groundColor, skyColor, dot(N, skyUpDir) * 0.5 + 0.5);
   }
   // Add ambient to final color
   color += ambient * albedo * 0.025;

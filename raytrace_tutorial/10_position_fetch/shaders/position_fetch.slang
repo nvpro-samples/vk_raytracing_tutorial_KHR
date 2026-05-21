@@ -17,8 +17,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "common/shaders/light.h.slang"
 #include "common/shaders/pbr.h.slang"
-#include "nvshaders/constants.h.slang"
+#include "common/shaders/shadow.h.slang"
+#include "common/shaders/ray_common.h.slang"
+
 #include "nvshaders/sky_functions.h.slang"
 #include "shaderio.h"
 
@@ -32,11 +35,13 @@
 #define MISS_DEPTH 1000
 
 // Raytracing Payload
-struct HitPayload
+struct HitPayload : IShadowPayload
 {
-  float3 color;
-  float  weight;
-  int    depth;
+  float3 color  = float3(0);
+  float  weight = 1;
+  int    depth  = 0;
+
+  bool isMissed() { return depth == MISS_DEPTH; }
 };
 
 // Hit state information
@@ -89,87 +94,14 @@ void rgenMain()
 
   GltfSceneInfo* sceneInfo = pushConst.sceneInfoAddress;
 
-  const uint   rayFlags   = 0;
-  const float2 clipCoords = launchID / launchSize * 2.0 - 1.0;
-  const float4 viewCoords = mul(float4(clipCoords, 1.0, 1.0), sceneInfo.projInvMatrix);
+  const uint rayFlags = RAY_FLAG_NONE;
+  RayDesc    ray      = generatePrimaryRay(launchID, launchSize, sceneInfo[0]);
 
-  RayDesc ray;
-  ray.Origin    = mul(float4(0.0, 0.0, 0.0, 1.0), sceneInfo.viewInvMatrix).xyz;
-  ray.Direction = mul(float4(normalize(viewCoords.xyz), 0.0), sceneInfo.viewInvMatrix).xyz;
-  ray.TMin      = 0.001;
-  ray.TMax      = INFINITE;
-
-  // Initial state
-  HitPayload payload;
-  payload.color  = float3(0, 0, 0);
-  payload.weight = 1;
-  payload.depth  = 0;
+  HitPayload payload = {};
 
   TraceRay(topLevelAS, rayFlags, 0xff, 0, 0, 0, ray, payload);
   float3 color             = payload.color;
   outImage[int2(launchID)] = float4(color, 1.0);
-}
-
-//-----------------------------------------------------------------------
-// SHADOW TESTING
-//-----------------------------------------------------------------------
-float testShadow(float3 worldPos, float3 worldNormal, float3 lightDirection, GltfPunctual light)
-{
-  RayDesc shadowRay;
-  shadowRay.Origin    = worldPos + worldNormal * 0.001;
-  shadowRay.Direction = normalize(lightDirection);
-  shadowRay.TMin      = 0.001;
-  shadowRay.TMax      = light.type == GltfLightType::eDirectional ? INFINITE : length(lightDirection);
-
-  // Create a simple payload for shadow ray
-  HitPayload shadowPayload;
-  shadowPayload.depth = 0;
-
-  // Trace the shadow ray
-  TraceRay(topLevelAS, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER, 0xff, 0, 0, 0,
-           shadowRay, shadowPayload);
-
-  // If the shadow ray hit something, the light is occluded
-  return shadowPayload.depth != MISS_DEPTH ? 0.0 : 1.0;
-}
-
-//-----------------------------------------------------------------------
-// Handles sky override, point light distance attenuation, and spot light cone attenuation
-//-----------------------------------------------------------------------
-GltfPunctual processLight(GltfSceneInfo sceneInfo, float3 worldPos)
-{
-  GltfPunctual light = sceneInfo.punctualLights[0];  // Assuming we only use the first light for simplicity
-
-  // Sky override: replace punctual light with sun parameters
-  if(sceneInfo.useSky == 1)
-  {
-    light.direction = sceneInfo.skySimpleParam.sunDirection;
-    light.color     = sceneInfo.skySimpleParam.sunColor;
-    light.intensity = sceneInfo.skySimpleParam.sunIntensity;
-    light.type      = GltfLightType::eDirectional;
-  }
-
-  // Point light: calculate direction and apply distance attenuation
-  if(light.type == GltfLightType::ePoint)
-  {
-    light.direction = light.position - worldPos;
-    float d         = length(light.direction);
-    light.intensity /= (d * d);
-  }
-  // Spot light: calculate direction, apply distance and cone attenuation
-  else if(light.type == GltfLightType::eSpot)
-  {
-    float3 lightDir = light.position - worldPos;
-    float  d        = length(lightDir);
-    light.intensity /= (d * d);
-    // Cone attenuation
-    float theta         = (dot(normalize(lightDir), normalize(light.direction)));
-    float spotIntensity = clamp((theta - cos(light.coneAngle)) / (1.0 - cos(light.coneAngle)), 0.0, 1.0);
-    light.intensity *= spotIntensity;
-    light.direction = lightDir;
-  }
-
-  return light;
 }
 
 //-----------------------------------------------------------------------
@@ -200,7 +132,7 @@ void rchitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttribute
   float3 L = normalize(light.direction);
 
   // Test for shadows
-  float shadowFactor = testShadow(hitState.pos, N, light.direction, light);
+  float shadowFactor = testShadow<HitPayload>(topLevelAS, hitState.pos, N, light.direction, light);
 
   // Get base color from material
   float3 albedo = material.baseColorFactor.xyz;

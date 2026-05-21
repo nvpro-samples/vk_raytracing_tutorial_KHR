@@ -39,10 +39,14 @@ inline static VkShaderModuleCreateInfo getShaderModuleCreateInfo(const std::span
   };
 }
 
+// When `generateMipmaps` is true, the image is created with a full mip chain and
+// `VK_IMAGE_USAGE_TRANSFER_SRC_BIT`, and mip levels 1..N are produced by blitting
+// from level 0 before this function returns.
 nvvk::Image loadAndCreateImage(VkCommandBuffer              cmd,
                                nvvk::StagingUploader&       staging,
                                VkDevice                     device,
                                const std::filesystem::path& filename,
-                               bool                         sRgb = true);
+                               bool                         sRgb            = true,
+                               bool                         generateMipmaps = false);
 
 }  // namespace nvsamples

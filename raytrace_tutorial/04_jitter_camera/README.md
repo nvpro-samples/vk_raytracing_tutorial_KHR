@@ -18,9 +18,14 @@ This tutorial demonstrates how to implement temporal antialiasing in ray tracing
 // Deterministic random seed per pixel and frame
 uint seed = xxhash32(uint3(uint2(launchID.xy), pushConst.frame));
 
-// Subpixel jitter for antialiasing
-float2 subpixel_jitter = pushConst.frame == 0 ? float2(0.5f, 0.5f) : float2(rand(seed), rand(seed));
-const float2 pixelCenter = launchID + subpixel_jitter;
+// Subpixel jitter for antialiasing.
+// generatePrimaryRay already targets the pixel center, so the jitter is
+// expressed *relative* to that center: range [-0.5, 0.5). Frame 0 uses no
+// jitter to render a clean reference image at the pixel center.
+float2 subpixel_jitter = pushConst.frame == 0
+                       ? float2(0.0f, 0.0f)
+                       : float2(rand(seed) - 0.5f, rand(seed) - 0.5f);
+RayDesc ray = generatePrimaryRay(launchID + subpixel_jitter, launchSize, sceneInfo[0]);
 ```
 
 ### 2. Data Structure Changes
