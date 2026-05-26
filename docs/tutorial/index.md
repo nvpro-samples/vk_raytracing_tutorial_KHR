@@ -1022,7 +1022,7 @@ At this point, you have:
 
 The acceleration structures are now ready to be used by the ray tracing pipeline for efficient ray-geometry intersection testing.
 
-### Testing with Night Graphics
+### Testing with Nsight Graphics
 
 We are not yet using the acceleration structures, but since they have been created, you can inspect them in Nsight Graphics.
 
