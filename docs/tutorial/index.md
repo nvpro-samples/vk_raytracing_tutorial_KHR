@@ -1111,7 +1111,6 @@ void createRayTracingPipeline()
     SCOPED_TIMER(__FUNCTION__);
 
     // For re-creation
-    m_allocator.destroyBuffer(m_sbtBuffer);
     vkDestroyPipeline(m_app->getDevice(), m_rtPipeline, nullptr);
     vkDestroyPipelineLayout(m_app->getDevice(), m_rtPipelineLayout, nullptr);
 
