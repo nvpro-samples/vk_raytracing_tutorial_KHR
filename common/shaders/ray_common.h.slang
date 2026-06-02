@@ -53,4 +53,25 @@ RayDesc generatePrimaryRay(float2 pixelPos, float2 imageSize, GltfSceneInfo scen
   return ray;
 }
 
+//-----------------------------------------------------------------------
+// RAY ORIGIN OFFSET - Avoid self-intersection at bounce points
+//-----------------------------------------------------------------------
+// Standard ULP-based offset (Wächter & Binder, Ray Tracing Gems 2019).
+// Offset along the geometric normal side the next ray travels on.
+float3 safeOffsetRay(float3 worldPosition, float3 offsetDirection)
+{
+  const float scaleValue = 256.0f;
+  const int3  scaleInt   = int3(scaleValue * offsetDirection);
+
+  const float3 offsetPosition = float3(asfloat(asint(worldPosition.x) + ((worldPosition.x < 0) ? -scaleInt.x : scaleInt.x)),
+                                       asfloat(asint(worldPosition.y) + ((worldPosition.y < 0) ? -scaleInt.y : scaleInt.y)),
+                                       asfloat(asint(worldPosition.z) + ((worldPosition.z < 0) ? -scaleInt.z : scaleInt.z)));
+
+  const float origin     = 1.0f / 32.0f;
+  const float floatScale = 1.0f / 65536.0f;
+  return float3(abs(worldPosition.x) < origin ? worldPosition.x + floatScale * offsetDirection.x : offsetPosition.x,
+                abs(worldPosition.y) < origin ? worldPosition.y + floatScale * offsetDirection.y : offsetPosition.y,
+                abs(worldPosition.z) < origin ? worldPosition.z + floatScale * offsetDirection.z : offsetPosition.z);
+}
+
 #endif  // TUTORIAL_RAY_COMMON_H

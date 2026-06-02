@@ -22,13 +22,13 @@ The hit payload is extended to track reflection state and accumulate results:
 ```hlsl
 struct HitPayload
 {
-    float3 color;      // Final color for this ray
-    float  weight;     // Reflection weight (decreases with each bounce)
-    int    depth;      // Current reflection depth
+    float3 color  = float3(0);  // Final color for this ray (start with black)
+    float  weight = 1;          // Reflection weight (decreases with each bounce)
+    int    depth  = 0;          // Current reflection depth (start at depth 0)
     
     // For iterative reflection
-    float3 rayOrigin;    // Origin for next ray iteration
-    float3 rayDirection; // Direction for next ray iteration
+    float3 rayOrigin    = float3(0); // Origin for next ray iteration
+    float3 rayDirection = float3(0); // Direction for next ray iteration
 };
 ```
 

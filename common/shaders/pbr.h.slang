@@ -36,6 +36,11 @@
 #define M_TWO_PI 6.28318530717958647692
 #endif
 
+// Special PDF value for delta lights (directional sun) in path tracing MIS
+#ifndef DIRAC
+#define DIRAC (-1.0f)
+#endif
+
 #define MICROFACET_MIN_ROUGHNESS 0.0014142f
 
 

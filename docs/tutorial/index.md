@@ -1111,7 +1111,6 @@ void createRayTracingPipeline()
     SCOPED_TIMER(__FUNCTION__);
 
     // For re-creation
-    m_allocator.destroyBuffer(m_sbtBuffer);
     vkDestroyPipeline(m_app->getDevice(), m_rtPipeline, nullptr);
     vkDestroyPipelineLayout(m_app->getDevice(), m_rtPipelineLayout, nullptr);
 
@@ -1181,7 +1180,7 @@ void createRayTracingPipeline()
 ```
 {% endraw %}
 
-In this step, we've added the creation of the ray tracing pipeline layout. Because this function may be called multiple times (for example, when shaders are reloaded), we ensure that any previously created pipeline layout and related resources are properly destroyed before recreating them to avoid resource leaks.
+In this step, we've added the creation of the ray tracing pipeline layout. Because this function may be called multiple times (for example, when shaders are reloaded), we destroy any previously created ray tracing pipeline handles and layouts before recreating them. The SBT buffer is cleaned up in `createShaderBindingTable()`, where the buffer is recreated.
 
 Next, we define three essential shader groups for the ray tracing pipeline: the ray generation group, the miss group, and the closest hit group. These groups form the fundamental building blocks required for a minimal ray tracing pipeline.
 
@@ -1308,9 +1307,9 @@ Create a new shader file `01_foundation_copy/shaders/rtbasic.slang` with the fol
 // Ray payload structure - carries data through the ray tracing pipeline
 struct HitPayload
 {
-    float3 color;   // Accumulated color along the ray path
-    float  weight;  // Weight/importance of this ray (for importance sampling)
-    int    depth;   // Current recursion depth (for limiting bounces)
+    float3 color  = float3(0);  // Accumulated color along the ray path (start with black)
+    float  weight = 1;          // Weight/importance of this ray (for importance sampling)
+    int    depth  = 0;          // Current recursion depth (for limiting bounces) (start at depth 0)
 };
 
 // Ray generation shader - entry point for each pixel
@@ -1344,10 +1343,7 @@ void rgenMain()
     ray.TMax = INFINITE; // Maximum distance (infinite for primary rays)
 
     // Initialize ray payload with default values
-    HitPayload payload;
-    payload.color = float3(0, 0, 0);  // Start with black
-    payload.weight = 1;               // Full weight for primary rays
-    payload.depth = 0;                // Start at depth 0
+    HitPayload payload = {};
 
     // Cast the ray into the scene using the acceleration structure
     // Parameters: AS, flags, instance mask, sbt offset, sbt stride, miss offset, ray, payload
@@ -2074,8 +2070,7 @@ float testShadow(float3 worldPos, float3 worldNormal, float3 lightDirection, Glt
   shadowRay.TMax      = light.type == GltfLightType::eDirectional ? INFINITE : length(lightDirection);
 
   // Create a simple payload for shadow ray
-  HitPayload shadowPayload;
-  shadowPayload.depth = 0;
+  HitPayload shadowPayload = {};
 
   // Trace the shadow ray with optimized flags
   TraceRay(topLevelAS, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER, 0xff, 0, 0, 0,

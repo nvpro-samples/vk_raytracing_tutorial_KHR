@@ -26,17 +26,25 @@
 //
 // Key Features:
 // - Unidirectional path tracing with importance sampling
-// - Physically-based materials (PBR metallic-roughness workflow)
+// - Simplified metallic-roughness BSDF (common/shaders/pbr.h.slang)
+// - Next Event Estimation (NEE) with Multiple Importance Sampling (MIS)
 // - Multiple light types (directional, point, spot) with proper attenuation
 // - Procedural sky system with sun/atmosphere simulation
 // - Russian roulette path termination for unbiased rendering
 // - Temporal accumulation for progressive refinement
 // - Firefly clamping to reduce noise artifacts
 //
+// Path Tracing Loop (same structure as vk_gltf_renderer/gltf_pathtrace.slang):
+//   1. Trace ray -> hit surface or environment
+//   2. NEE: evaluate BSDF toward light, accumulate contribution (shadow test later)
+//   3. BSDF sample: pick next bounce direction, update throughput
+//   4. Shadow ray: add direct light only if unoccluded
+//   5. Russian roulette: probabilistically terminate long paths
+//
 // Performance Optimizations:
 // - Inline ray queries avoid shader binding table overhead
-// - Early path termination using Russian roulette
-// - Optimized BSDF sampling and evaluation
+// - Early path termination using Russian roulette (after RR_MIN_DEPTH bounces)
+// - Shadow rays use RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH
 // - Efficient random number generation using xxhash
 //
 // Mathematical Foundation:
@@ -46,13 +54,15 @@
 // Where Monte Carlo integration is used to approximate the integral over
 // the hemisphere of incoming light directions.
 
-#include "common/shaders/pbr.h.slang"
-#include "common/shaders/ray_common.h.slang"
+// Tutorial headers (scene, geometry, lights, simplified PBR)
+#include "common/shaders/pbr.h.slang"          // bsdfEvaluateSimple, bsdfSampleSimple, DIRAC
+#include "common/shaders/ray_common.h.slang"   // generatePrimaryRay (pulls INFINITE via nvshaders/constants)
 #include "common/shaders/gltf_accessor.h.slang"
+#include "common/shaders/light.h.slang"        // processLight() for punctual lights / sky sun
 
-#include "nvshaders/random.h.slang"
-#include "nvshaders/ray_utils.h.slang"
-#include "nvshaders/sky_functions.h.slang"
+// nvpro_core2 utilities kept minimal on purpose
+#include "nvshaders/random.h.slang"            // rand(), xxhash32
+#include "nvshaders/sky_functions.h.slang"   // evalSimpleSky
 
 
 #include "shaderio.h"
@@ -68,24 +78,101 @@
  [[vk::binding(BindingPoints::eOutImage, 1)]]    RWTexture2D<float4> outImage;
 // clang-format on
 
-#define MISS_DEPTH 1000  // Sentinel value indicating ray missed all geometry
+
+// Maximum luminance per path sample; higher values reduce fireflies but may bias bright highlights
+#define FIREFLY_CLAMP_THRESHOLD 10.0f
+
+//-----------------------------------------------------------------------
+// PATH TRACING TUNING CONSTANTS
+//-----------------------------------------------------------------------
+// Russian roulette is only applied after RR_MIN_DEPTH surface bounces so that
+// short paths (direct view + one bounce) are never randomly killed.
+static const int   RR_MIN_DEPTH   = 3;      // Minimum bounces before Russian roulette
+static const float RR_PCONT_FLOOR = 0.001f; // Added to max(throughput) for continuation probability
+static const float RR_PCONT_CAP   = 0.95f;  // Cap on continuation probability
+
+//-----------------------------------------------------------------------
+// DIRECT LIGHT SAMPLE - Input to Next Event Estimation (NEE)
+//-----------------------------------------------------------------------
+// Bundles everything needed to connect a surface hit to a punctual light source.
+// This mirrors vk_gltf_renderer/pathtrace_functions.h.slang::DirectLight.
+//
+// - direction:        unit vector from the shading point toward the light (ω_i)
+// - radianceOverPdf:  light radiance L_i already divided by the light-sampling PDF
+//                     (for a directional/sun light with PDF = DIRAC, this is simply color * intensity)
+// - distance:         ray parameter to the light (INFINITE for directional lights)
+// - pdf:              light sampling PDF (DIRAC = -1 for delta lights like the sun)
+struct DirectLight
+{
+  float3 direction;        // Direction from surface point to the light
+  float3 radianceOverPdf;  // Radiance over PDF (Li / pdf_light)
+  float  distance;         // Distance to the light (INFINITE for directional)
+  float  pdf;              // Probability of sampling this light direction
+};
+
+//-----------------------------------------------------------------------
+// MATERIAL SETUP - Build PbrBaseMaterial from tutorial glTF factors
+//-----------------------------------------------------------------------
+// Uses the simplified BSDF in pbr.h.slang (metallic-roughness, no textures).
+// vk_gltf_renderer uses the full glTF BSDF with texture fetches instead.
+PbrBaseMaterial pbrMaterialFromGltf(GltfMetallicRoughness material, HitState hit, float metallicOverride, float roughnessOverride)
+{
+  float metallic  = material.metallicFactor;
+  float roughness = max(0.0001f, material.roughnessFactor);  // Clamped to avoid divisions by zero
+  // Apply material overrides from push constants (for debugging/experimentation)
+  if(metallicOverride >= 0.0)
+    metallic = metallicOverride;
+  if(roughnessOverride >= 0.0)
+    roughness = roughnessOverride;
+  return initPbrBaseMaterial(material.baseColorFactor.xyz, metallic, roughness, hit.nrm, hit.geonrm);
+}
+
+//-----------------------------------------------------------------------
+// LIGHT SAMPLING - Prepare direct light for NEE at a shading point
+//-----------------------------------------------------------------------
+// Uses common/shaders/light.h.slang::processLight() for sky override and
+// distance/cone attenuation, then packs the result into DirectLight.
+void sampleDirectLight(GltfSceneInfo* sceneInfo, float3 worldPos, out DirectLight directLight)
+{
+  // processLight takes GltfSceneInfo by value; sceneInfo is a device pointer
+  GltfPunctual light = processLight(sceneInfo[0], worldPos);
+
+  directLight.direction = normalize(light.direction);
+  directLight.distance  = light.type == GltfLightType::eDirectional ? INFINITE : length(light.direction);
+  // Tutorial uses a single known light (not stochastic light selection), so treat as delta
+  directLight.pdf             = DIRAC;
+  directLight.radianceOverPdf = light.color * light.intensity;
+}
+
+//-----------------------------------------------------------------------
+// ENVIRONMENT MIS - Balance BSDF hits against environment map / sky hits
+//-----------------------------------------------------------------------
+// When a path eventually escapes to the sky, it may have been sampled twice:
+// once via NEE toward the sun and once via a BSDF bounce that lands on the environment.
+// This weight reduces double counting (see vk_gltf_renderer computeEnvHitMisWeight).
+float computeEnvHitMisWeight(float lastSamplePdf, float envPdf)
+{
+  if(lastSamplePdf == DIRAC)
+    return 1.0f;
+  return lastSamplePdf / (lastSamplePdf + envPdf);
+}
 
 // Hit state information - processed intersection data ready for shading
 struct HitState
 {
-  float3 pos;        // World-space hit position
-  float3 nrm;        // Shading normal (interpolated and transformed)
-  float3 geonrm;     // Geometric normal (face normal, for back-face detection)
-  float3 shadowPos;  // Shadow position
+  float3 pos       = float3(0);  // World-space hit position
+  float3 nrm       = float3(0);  // Shading normal (interpolated and transformed)
+  float3 geonrm    = float3(0);  // Geometric normal (face normal, for back-face detection)
+  float3 shadowPos = float3(0);  // Shadow position
 };
 
 // Ray payload structure - carries intersection data through ray queries
 // Unlike traditional RT pipelines, ray queries return this data directly
 struct HitPayload
 {
-  float    hitT;           // Distance to intersection (INFINITE if no hit)
-  int      instanceIndex;  // Index of hit instance in the scene
-  HitState hit;            // Hit state information
+  float    hitT          = INFINITE;  // Distance to intersection (INFINITE if no hit)
+  int      instanceIndex = -1;        // Index of hit instance in the scene
+  HitState hit           = {};        // Hit state information
 };
 
 
@@ -229,219 +316,182 @@ bool traceShadow(RayDesc ray)
 }
 
 //-----------------------------------------------------------------------
-// LIGHT PROCESSING - Handles sky override, distance attenuation, and spot light cone effects
-//-----------------------------------------------------------------------
-// Processes light properties based on type and applies appropriate attenuation
-GltfPunctual processLight(GltfSceneInfo* sceneInfo, float3 worldPos)
-{
-  // Start with the first punctual light in the scene (simplified for tutorial)
-  GltfPunctual light = sceneInfo.punctualLights[0];
-
-  // Sky override: Replace punctual light with sun parameters from sky system
-  // This allows using procedural sky lighting instead of manual light setup
-  if(sceneInfo.useSky == 1)
-  {
-    light.direction = sceneInfo.skySimpleParam.sunDirection;  // Sun direction from sky
-    light.color     = sceneInfo.skySimpleParam.sunColor;      // Sun color from sky
-    light.intensity = sceneInfo.skySimpleParam.sunIntensity;  // Sun intensity from sky
-    light.type      = GltfLightType::eDirectional;            // Sun is always directional
-  }
-
-  // Point light: Calculate direction from light to surface and apply distance attenuation
-  if(light.type == GltfLightType::ePoint)
-  {
-    // Direction from surface point to light position
-    light.direction = light.position - worldPos;
-    float d         = length(light.direction);
-    // Apply inverse square law: intensity decreases with distance squared
-    light.intensity /= (d * d);
-  }
-  // Spot light: Calculate direction, apply distance attenuation and cone falloff
-  else if(light.type == GltfLightType::eSpot)
-  {
-    // Direction from surface point to light position
-    float3 lightDir = light.position - worldPos;
-    float  d        = length(lightDir);
-    // Apply distance attenuation (inverse square law)
-    light.intensity /= (d * d);
-
-    // Calculate cone attenuation based on angle from spot light direction
-    // theta: cosine of angle between light direction and spot direction
-    float theta = dot(normalize(lightDir), normalize(light.direction));
-    // Smooth falloff from inner cone (1.0) to outer cone (0.0)
-    float spotIntensity = clamp((theta - cos(light.coneAngle)) / (1.0 - cos(light.coneAngle)), 0.0, 1.0);
-    light.intensity *= spotIntensity;
-    light.direction = lightDir;
-  }
-
-  return light;
-}
-
-
-//-----------------------------------------------------------------------
 // MONTE CARLO PATH TRACING - Main rendering algorithm
 //-----------------------------------------------------------------------
-// Implements unbiased Monte Carlo path tracing with importance sampling
+// Implements unbiased Monte Carlo path tracing with importance sampling.
 //
-// Lighting Strategy:
-// - Direct lighting: Next Event Estimation (NEE) with explicit light sampling
-// - Indirect lighting: BSDF importance sampling
-// - For delta lights (directional/sun): No MIS needed, NEE weight = 1.0
-// - For area lights: Would benefit from MIS combining both strategies (not implemented)
+// Lighting strategy (same bounce order as vk_gltf_renderer/gltf_pathtrace.slang):
+// - Direct lighting:  Next Event Estimation (NEE) — explicitly sample the light
+// - Indirect lighting: BSDF importance sampling — sample a new bounce direction
+// - MIS combines light and BSDF strategies when both can hit the same direction
+// - For delta lights (directional/sun): MIS weight = 1.0 (BSDF cannot randomly hit the sun)
 //
-// Returns the radiance (color) along the given ray path
+// Per-bounce order (important for correctness):
+//   NEE eval -> BSDF sample -> shadow test -> Russian roulette
+//
+// Returns accumulated radiance (color) along the camera ray path.
 float3 pathTrace(RayDesc ray, inout uint seed)
 {
   GltfSceneInfo* sceneInfo = pushConst.sceneInfoAddress;
   HitPayload     payload;
 
-  // Path tracing state variables
-  float3 radiance   = float3(0.0F, 0.0F, 0.0F);  // Accumulated radiance (final color)
-  float3 throughput = float3(1.0F, 1.0F, 1.0F);  // Path throughput (energy transmission)
+  // Path tracing state (see vk_gltf_renderer PathTracerState)
+  float3 radiance      = float3(0.0F, 0.0F, 0.0F);  // Accumulated radiance (final pixel color)
+  float3 throughput    = float3(1.0F, 1.0F, 1.0F);  // Path throughput (energy along the path)
+  float  lastSamplePdf = DIRAC;                     // PDF of last BSDF sample (for environment MIS)
+  int    surfaceDepth  = 0;                       // Number of surface bounces so far
 
-  // Main path tracing loop - bounce rays through the scene
-  for(int depth = 0; depth < pushConst.maxDepth; depth++)
+  // Main path tracing loop — each iteration is one surface interaction
+  while(surfaceDepth < pushConst.maxDepth)
   {
-    // Cast ray into scene and get intersection information
+    //-----------------------------------------------------------------------
+    // STEP 1: Trace ray into the scene
+    //-----------------------------------------------------------------------
     traceRay(ray, payload);
 
-    // Environment hit - ray escaped the scene without hitting geometry
+    //-----------------------------------------------------------------------
+    // STEP 2: Environment hit — ray escaped without hitting geometry
+    //-----------------------------------------------------------------------
     if(payload.hitT == INFINITE)
     {
       float3 envColor;
       if(sceneInfo.useSky == 1)
       {
-        // Sample procedural sky system for realistic environment lighting
+        // Sample procedural sky (sun + gradient atmosphere)
         envColor = evalSimpleSky(sceneInfo.skySimpleParam, ray.Direction);
       }
       else
       {
-        // Use simple solid background color
         envColor = sceneInfo.backgroundColor;
       }
 
-      // Add environment contribution weighted by path throughput and terminate
-      return radiance + (envColor * throughput);
+      // MIS: if we also reached the sky via a BSDF sample, down-weight to avoid double counting
+      // (approximate hemisphere PDF — evalSimpleSky does not expose a direction PDF)
+      const float envPdf    = M_1_PI * 0.5f;
+      float       misWeight = computeEnvHitMisWeight(lastSamplePdf, envPdf);
+      radiance += throughput * misWeight * envColor;
+      break;
     }
 
-    // Retrieve scene data for the hit surface
-    GltfInstance          instance = sceneInfo.instances[payload.instanceIndex];   // Instance data
-    GltfMesh              mesh     = sceneInfo.meshes[instance.meshIndex];         // Mesh geometry
-    GltfMetallicRoughness material = sceneInfo.materials[instance.materialIndex];  // Material properties
+    //-----------------------------------------------------------------------
+    // STEP 3: Retrieve hit material and build PbrBaseMaterial for BSDF
+    //-----------------------------------------------------------------------
+    GltfInstance          instance = sceneInfo.instances[payload.instanceIndex];
+    GltfMetallicRoughness material = sceneInfo.materials[instance.materialIndex];
 
-    // Process light source (handles different light types and sky override)
-    GltfPunctual light = processLight(sceneInfo, payload.hit.pos);
+    PbrBaseMaterial pbrMat = pbrMaterialFromGltf(material, payload.hit, pushConst.metallicRoughnessOverride.x,
+                                                 pushConst.metallicRoughnessOverride.y);
 
-    // Set up lighting vectors for BSDF evaluation
-    float  pdf = 0.0F;                        // Probability density function (for importance sampling)
-    float3 V   = -ray.Direction;              // View direction (towards camera)
-    float3 L   = normalize(light.direction);  // Light direction
+    //-----------------------------------------------------------------------
+    // STEP 4: NEXT EVENT ESTIMATION (NEE) — direct lighting toward the light
+    //-----------------------------------------------------------------------
+    // Sample the scene punctual light (or sky sun via processLight).
+    DirectLight directLight;
+    sampleDirectLight(sceneInfo, payload.hit.pos, directLight);
 
-    // Extract PBR material properties
-    float4 albedo   = material.baseColorFactor;                // Base color (albedo)
-    float  metallic = material.metallicFactor;                 // Metallic factor (0=dielectric, 1=metal)
-    float roughness = max(0.0001f, material.roughnessFactor);  // Surface roughness (clamped to avoid divisions by zero)
+    // Light can contribute if it illuminates the front face (N·L > 0)
+    float3 contribution = float3(0.0F);
+    bool   nextEventValid = (dot(directLight.direction, payload.hit.nrm) > 0.0f) && directLight.pdf != 0.0f;
 
-    // Apply material overrides from push constants (for debugging/experimentation)
-    if(pushConst.metallicRoughnessOverride.x >= 0.0)
-      metallic = pushConst.metallicRoughnessOverride.x;  // Override metallic value
-    if(pushConst.metallicRoughnessOverride.y >= 0.0)
-      roughness = pushConst.metallicRoughnessOverride.y;  // Override roughness value
-
-    // Initialize PBR material structure for BSDF evaluation
-    PbrBaseMaterial pbrMat  = initPbrBaseMaterial(albedo.xyz, metallic, roughness, payload.hit.nrm, payload.hit.geonrm);
-    float3          contrib = float3(0, 0, 0);  // Direct lighting contribution
-
-    // NEXT EVENT ESTIMATION - Direct lighting evaluation
-    // Check if light direction is above the surface (no self-illumination)
-    bool nextEventValid = (dot(L, payload.hit.nrm) > 0.0f);
     if(nextEventValid)
     {
-      // Evaluate BSDF for direct lighting
+      // Evaluate simplified BSDF (pbr.h.slang) for the fixed light direction
+      // k1 = view direction V (toward camera); k2 = light direction L (toward light)
+      // ray.Direction points into the scene, so -ray.Direction points back toward the camera.
       BsdfEvaluateData evalData;
-      evalData.k1 = -ray.Direction;                                    // Incoming direction (from camera)
-      evalData.k2 = normalize(sceneInfo.skySimpleParam.sunDirection);  // Outgoing direction (to light)
-      evalData.xi = float3(rand(seed), rand(seed), rand(seed));        // Random numbers for sampling
-
-      // Evaluate PBR BSDF (both diffuse and specular components)
+      evalData.k1 = -ray.Direction;
+      evalData.k2 = directLight.direction;
+      evalData.xi = float3(rand(seed), rand(seed), rand(seed));
       bsdfEvaluateSimple(evalData, pbrMat);
 
-      // Accumulate direct lighting contribution
-      // NOTE: Light sampling strategy and MIS
-      // This implementation uses a simplified approach:
-      // - NEE (Next Event Estimation) for direct lighting with weight = 1.0
-      // - BSDF sampling for indirect lighting only
-      //
-      // For DELTA light sources (directional lights/sun), w=1.0 is mathematically correct
-      // because BSDF sampling has zero probability of hitting a delta light, so only NEE contributes.
-      //
-      // For AREA LIGHTS or ENVIRONMENT MAPS, proper MIS would combine both light and BSDF sampling.
-      // The evalData.pdf output (currently unused) would be needed for this calculation.
+      // Monte Carlo estimator for direct lighting:
+      //   L_direct += throughput * (Li / pdf_light) * MIS * f(ω_i, ω_o)
+      // bsdf_diffuse and bsdf_glossy already include cos(theta) (N·L)
       if(evalData.pdf > 0.0)
       {
-        const float3 w = 1.0f;                 // MIS weight (correct for delta lights, simplified for area lights)
-        contrib += w * evalData.bsdf_diffuse;  // Diffuse reflection
-        contrib += w * evalData.bsdf_glossy;   // Specular reflection
-        contrib *= throughput;                 // Weight by path throughput
+        const float misWeight =
+            (directLight.pdf == DIRAC) ? 1.0F : directLight.pdf / (directLight.pdf + evalData.pdf);
+        const float3 w = throughput * directLight.radianceOverPdf * misWeight;
+        contribution += w * evalData.bsdf_diffuse;
+        contribution += w * evalData.bsdf_glossy;
       }
     }
 
-    // BSDF SAMPLING - Generate next ray direction for indirect lighting
-    bool absorbed = false;
+    //-----------------------------------------------------------------------
+    // STEP 5: BSDF SAMPLING — pick the next bounce direction (indirect path)
+    //-----------------------------------------------------------------------
+    bool pathContinue = true;
     {
       BsdfSampleData sampleData;
-      sampleData.k1 = -ray.Direction;                              // Incoming direction
-      sampleData.xi = float3(rand(seed), rand(seed), rand(seed));  // Random numbers for sampling
+      sampleData.k1 = -ray.Direction;                              // View direction V (toward camera)
+      sampleData.xi = float3(rand(seed), rand(seed), rand(seed));  // Random numbers for lobe selection
 
-      // Sample BSDF to get next ray direction and evaluate BSDF/PDF ratio
+      // Sample diffuse or glossy lobe and get bsdf/pdf (see pbr.h.slang)
       bsdfSampleSimple(sampleData, pbrMat);
 
       if(sampleData.event_type == BSDF_EVENT_ABSORB)
       {
-        absorbed = true;
+        // Invalid direction (e.g. below the surface) — path ends after this bounce's NEE
+        pathContinue = false;
       }
       else
       {
-        // Update path throughput with BSDF/PDF ratio (Monte Carlo estimator)
+        // Update throughput with BSDF/PDF ratio (standard path tracing Monte Carlo weight)
         throughput *= sampleData.bsdf_over_pdf;
+        ray.Direction = sampleData.k2;  // Sampled outgoing direction (away from surface, into scene)
+        lastSamplePdf = sampleData.pdf; // Remember PDF for environment MIS on a later miss
 
-        // Set up next ray with slight offset to avoid self-intersection
-        ray.Origin    = offsetRay(payload.hit.pos, payload.hit.nrm);
-        ray.Direction = sampleData.k2;  // New ray direction from BSDF sampling
+        // Offset next ray origin along geometric normal (avoids self-intersection)
+        float3 offsetDir = dot(ray.Direction, payload.hit.geonrm) > 0.0f ? payload.hit.geonrm : -payload.hit.geonrm;
+        ray.Origin       = safeOffsetRay(payload.hit.pos, offsetDir);
       }
     }
 
-    // SHADOW TESTING - Add direct lighting only if not occluded.
-    // Runs even on absorbed paths so the last bounce's NEE contribution isn't lost.
+    //-----------------------------------------------------------------------
+    // STEP 6: SHADOW TESTING — add direct light only if not occluded
+    //-----------------------------------------------------------------------
+    // Deferred from step 4 to keep less live state per bounce (same as vk_gltf_renderer).
+    // Still runs when pathContinue is false so the last bounce's NEE is not lost.
     if(nextEventValid)
     {
-      // Create shadow ray from surface point towards light
-      RayDesc shadowRay;
-      shadowRay.Origin    = offsetRay(payload.hit.shadowPos, payload.hit.nrm);  // Start from offset surface point
-      shadowRay.Direction = L;                                                  // Direction towards light
-      shadowRay.TMin      = 0.01;                                               // Avoid self-intersection
-      shadowRay.TMax = light.type == GltfLightType::eDirectional ? INFINITE : length(light.direction);  // Trace to infinity (or light distance)
+      // Shadow terminator fix: use shadowPos on the lit side, pos on the back side
+      bool   shadowSideForward = dot(directLight.direction, payload.hit.nrm) > 0.0F;
+      float3 shadowOffsetDir   = shadowSideForward ? payload.hit.geonrm : -payload.hit.geonrm;
+      float3 shadowOffsetBase  = shadowSideForward ? payload.hit.shadowPos : payload.hit.pos;
 
-      // Test if light is visible from this point
-      bool inShadow = traceShadow(shadowRay);
-      if(!inShadow)
+      RayDesc shadowRay;
+      shadowRay.Origin    = safeOffsetRay(shadowOffsetBase, shadowOffsetDir);
+      shadowRay.Direction = directLight.direction;
+      shadowRay.TMin      = 0.0;  // Safe with the offsetRay
+      shadowRay.TMax      = directLight.distance;
+
+      if(!traceShadow(shadowRay))
       {
-        // Light is visible - add direct lighting contribution
-        radiance += contrib * light.color * light.intensity;
+        radiance += contribution;
       }
     }
 
-    if(absorbed)
+    // If the path does not continue, break out of the loop
+    // This means the path hit an absorbing surface
+    if(!pathContinue)
       break;
 
-    // RUSSIAN ROULETTE - Probabilistic path termination for efficiency
-    float rrPcont = min(max(throughput.x, max(throughput.y, throughput.z)) + 0.001F, 0.95F);
-    if(rand(seed) >= rrPcont)
-      break;                // Terminate paths with low throughput (won't contribute much)
-    throughput /= rrPcont;  // Boost energy of surviving paths to maintain unbiased estimation
+    //-----------------------------------------------------------------------
+    // STEP 7: RUSSIAN ROULETTE — unbiased early termination of low-throughput paths
+    //-----------------------------------------------------------------------
+    // Survival probability scales with throughput; surviving paths are boosted by 1/P
+    // so the estimator remains unbiased. Only applied after RR_MIN_DEPTH bounces.
+    if(surfaceDepth >= RR_MIN_DEPTH)
+    {
+      float rrPcont = min(max(throughput.x, max(throughput.y, throughput.z)) + RR_PCONT_FLOOR, RR_PCONT_CAP);
+      if(rand(seed) >= rrPcont)
+        break;  // Terminate — path unlikely to contribute much more
+      throughput /= rrPcont;  // Boost energy of surviving paths
+    }
+
+    surfaceDepth++;
   }
 
-  // Return accumulated radiance from all path bounces
   return radiance;
 }
 
@@ -465,12 +515,11 @@ float3 samplePixel(inout uint seed, float2 launchID, float2 launchSize)
 
   // FIREFLY CLAMPING - Remove bright noise artifacts
   // Calculate luminance using standard RGB-to-luminance conversion
-  float       lum                   = dot(radiance, float3(0.212671F, 0.715160F, 0.072169F));
-  const float fireflyClampThreshold = 10.0f;
-  if(lum > fireflyClampThreshold)
+  float lum = dot(radiance, float3(0.212671F, 0.715160F, 0.072169F));
+  if(lum > FIREFLY_CLAMP_THRESHOLD)
   {
     // Clamp overly bright pixels while preserving color ratios
-    radiance *= fireflyClampThreshold / lum;
+    radiance *= FIREFLY_CLAMP_THRESHOLD / lum;
   }
 
   return radiance;

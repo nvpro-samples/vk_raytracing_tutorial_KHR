@@ -22,7 +22,6 @@
 #include "common/shaders/gltf_accessor.h.slang"
 
 #include "nvshaders/random.h.slang"
-#include "nvshaders/ray_utils.h.slang"
 #include "nvshaders/sky_functions.h.slang"
 
 #include "shaderio.h"
@@ -268,7 +267,7 @@ float3 pathTrace(RayDesc ray, inout uint seed, inout HitPayload payload)
       }
 
       throughput *= sampleData.bsdf_over_pdf;
-      ray.Origin    = offsetRay(payload.pos, payload.nrm);
+      ray.Origin    = safeOffsetRay(payload.pos, payload.nrm);
       ray.Direction = sampleData.k2;
     }
 

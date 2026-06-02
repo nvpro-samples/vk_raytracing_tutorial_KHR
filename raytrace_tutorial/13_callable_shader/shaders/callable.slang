@@ -314,8 +314,7 @@ float testShadow(float3 worldPos, float3 worldNormal, float3 lightDirection, Glt
   shadowRay.TMin      = 0.001;
   shadowRay.TMax      = light.type == GltfLightType::eDirectional ? INFINITE : length(lightDirection);
 
-  HitPayload shadowPayload;
-  shadowPayload.depth = 0;
+  HitPayload shadowPayload = {};
   TraceRay(topLevelAS, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER, 0xff, 0, 0, 0,
            shadowRay, shadowPayload);
 

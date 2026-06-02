@@ -87,6 +87,7 @@ public:
       {
         PE::DragInt("Max Frames", (int*)&m_maxFrames, 1, 1, 1000);
         ImGui::TextDisabled("Max Frames: %d", m_pushValues.frame);
+        changed = PE::SliderInt("Max Depth", (int*)&m_pushValues.maxDepth, 1, 10);
         PE::end();
       }
     }

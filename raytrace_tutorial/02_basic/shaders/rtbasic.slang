@@ -114,8 +114,7 @@ float testShadow(float3 worldPos, float3 worldNormal, float3 lightDirection, Glt
   shadowRay.TMax = light.type == GltfLightType::eDirectional ? INFINITE : length(lightDirection);
 
   // Create a minimal payload for shadow ray (we only need to know if it hits something)
-  HitPayload shadowPayload;
-  shadowPayload.depth = 0;  // Will be set to MISS_DEPTH if no hit occurs
+  HitPayload shadowPayload = {};
 
   // Trace the shadow ray with optimized flags for performance:
   // RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH: Stop at first intersection (we don't need closest)
@@ -209,7 +208,7 @@ void rgenMain()
   ray.TMax      = INFINITE;  // Maximum distance (infinite for primary rays)
 
   // Initialize ray payload with default values
-  HitPayload payload;
+  HitPayload payload = {};
 
   // Cast the ray into the scene using the acceleration structure
   // Parameters: AS, flags, instance mask, sbt offset, sbt stride, miss offset, ray, payload

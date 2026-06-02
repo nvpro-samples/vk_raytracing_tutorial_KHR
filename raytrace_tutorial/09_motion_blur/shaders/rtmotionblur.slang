@@ -40,10 +40,10 @@ struct HitPayload
   float3 color  = float3(0);
   float  weight = 1;
   int    depth  = 0;
-  uint   seed;
+  uint   seed   = 0;
   // Time of the current primary motion sample, carried through to secondary
   // (shadow) rays so they hit the scene at the same moment in time.
-  float time;
+  float time = 0.0;
 };
 
 // Hit state information
@@ -111,8 +111,7 @@ float testShadow(float3 worldPos, float3 worldNormal, float3 lightDirection, Glt
   shadowRay.TMax      = light.type == GltfLightType::eDirectional ? INFINITE : length(lightDirection);
 
   // Create a simple payload for shadow ray
-  HitPayload shadowPayload;
-  shadowPayload.depth = 0;
+  HitPayload shadowPayload = {};
 
   // Trace the shadow ray at the SAME time as the primary motion sample, so the
   // shadow is computed against the exact geometry snapshot we just hit.

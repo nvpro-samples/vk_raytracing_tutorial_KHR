@@ -77,4 +77,25 @@ T getTriangleAttribute(uint8_t* dataBufferAddress, BufferView bufferView, uint3 
   return T(barycentrics.x) * attr0 + T(barycentrics.y) * attr1 + T(barycentrics.z) * attr2;
 }
 
+//-----------------------------------------------------------------------
+// Shadow-terminator fix ("Hacking the shadow terminator", Johannes Hanika).
+// Adjusts hit position so shadow rays align with interpolated vertex normals.
+//-----------------------------------------------------------------------
+float3 pointOffset(float3 p, float3 pa, float3 pb, float3 pc, float3 na, float3 nb, float3 nc, float3 bary)
+{
+  float3 tmpu = p - pa;
+  float3 tmpv = p - pb;
+  float3 tmpw = p - pc;
+
+  float dotu = min(0.0F, dot(tmpu, na));
+  float dotv = min(0.0F, dot(tmpv, nb));
+  float dotw = min(0.0F, dot(tmpw, nc));
+
+  tmpu -= dotu * na;
+  tmpv -= dotv * nb;
+  tmpw -= dotw * nc;
+
+  return p + tmpu * bary.x + tmpv * bary.y + tmpw * bary.z;
+}
+
 #endif  // GLTF_ACCESSOR_H
