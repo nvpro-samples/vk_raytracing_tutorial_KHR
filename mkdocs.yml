@@ -110,3 +110,5 @@ nav:
     - 18 Swept Spheres: samples/18-swept-spheres.md
     - 19 Ray Differentials: samples/19-ray-differentials.md
     - 20 Wireframe: samples/20-wireframe.md
+    - 21 Clusters: samples/21-clusters.md
+    - 22 Partition TLAS: samples/22-partition-tlas.md

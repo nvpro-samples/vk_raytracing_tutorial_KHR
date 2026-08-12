@@ -27,6 +27,8 @@ EXECUTABLES = [
     ("18_swept_spheres", ["--headless"]),
     ("19_ray_differentials", ["--headless"]),
     ("20_wireframe", ["--headless"]),
+    ("21_clusters", ["--headless"]),
+    ("22_partition_tlas", ["--headless"]),
 ]
 
 def run_executable(executable_path, args):

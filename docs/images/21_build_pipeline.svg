@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 360" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 z" fill="#444"/>
+    </marker>
+    <style>
+      .box   { rx:8; ry:8; stroke:#333; stroke-width:1.5; }
+      .title { font-size:15px; font-weight:700; fill:#111; }
+      .sub   { font-size:12px; fill:#333; }
+      .api   { font-size:11px; fill:#555; font-family:Consolas, monospace; }
+      .flow  { stroke:#444; stroke-width:2; fill:none; marker-end:url(#arrow); }
+      .lbl   { font-size:11.5px; fill:#666; }
+      .phase { font-size:13px; font-weight:700; fill:#1f6feb; }
+    </style>
+  </defs>
+
+  <!-- Input geometry -->
+  <rect class="box" x="20" y="120" width="150" height="110" fill="#eef2f7"/>
+  <text class="title" x="95" y="150" text-anchor="middle">Geometry</text>
+  <text class="sub"   x="95" y="172" text-anchor="middle">per-cluster</text>
+  <text class="sub"   x="95" y="190" text-anchor="middle">local vertices +</text>
+  <text class="sub"   x="95" y="208" text-anchor="middle">8-bit indices</text>
+
+  <!-- Pass 1 -->
+  <text class="phase" x="330" y="70" text-anchor="middle">Pass 1  (once)</text>
+  <rect class="box" x="220" y="90" width="220" height="170" fill="#dbeafe"/>
+  <text class="title" x="330" y="122" text-anchor="middle">Build CLAS</text>
+  <text class="api"   x="330" y="146" text-anchor="middle">op = BUILD_TRIANGLE_CLUSTER</text>
+  <text class="sub"   x="330" y="172" text-anchor="middle">one BVH over the triangles</text>
+  <text class="sub"   x="330" y="190" text-anchor="middle">of each cluster</text>
+  <text class="sub"   x="330" y="216" text-anchor="middle">assigns each a clusterID</text>
+  <text class="sub"   x="330" y="240" text-anchor="middle">→ CLAS pool + addresses</text>
+
+  <!-- Pass 2 -->
+  <text class="phase" x="640" y="70" text-anchor="middle">Pass 2  (cheap, per LOD)</text>
+  <rect class="box" x="490" y="90" width="240" height="170" fill="#c7f0d8"/>
+  <text class="title" x="610" y="122" text-anchor="middle">Build cluster BLAS</text>
+  <text class="api"   x="610" y="146" text-anchor="middle">op = BUILD_CLUSTERS_BOTTOM_LEVEL</text>
+  <text class="sub"   x="610" y="172" text-anchor="middle">input = a list of</text>
+  <text class="sub"   x="610" y="190" text-anchor="middle">CLAS addresses</text>
+  <text class="sub"   x="610" y="216" text-anchor="middle">(no triangles touched)</text>
+  <text class="sub"   x="610" y="240" text-anchor="middle">→ one BLAS per level</text>
+
+  <!-- TLAS -->
+  <rect class="box" x="780" y="120" width="170" height="110" fill="#fde7c7"/>
+  <text class="title" x="865" y="150" text-anchor="middle">TLAS</text>
+  <text class="sub"   x="865" y="172" text-anchor="middle">1 instance</text>
+  <text class="sub"   x="865" y="190" text-anchor="middle">references the</text>
+  <text class="sub"   x="865" y="208" text-anchor="middle">active cluster BLAS</text>
+
+  <!-- Flows -->
+  <path class="flow" d="M170,175 L214,175"/>
+  <path class="flow" d="M440,175 L484,175"/>
+  <path class="flow" d="M730,175 L774,175"/>
+
+  <!-- Barrier label between pass1 and pass2 -->
+  <text class="lbl" x="462" y="163" text-anchor="middle">AS</text>
+  <text class="lbl" x="462" y="195" text-anchor="middle">barrier</text>
+
+  <!-- Refit label on the TLAS arrow -->
+  <text class="lbl" x="752" y="163" text-anchor="middle">refit</text>
+
+  <!-- Footnote -->
+  <text class="lbl" x="490" y="320" text-anchor="middle">Both passes use one call: vkCmdBuildClusterAccelerationStructureIndirectNV, opMode = IMPLICIT_DESTINATIONS</text>
+</svg>

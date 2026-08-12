@@ -48,6 +48,8 @@ add_subdirectory(raytrace_tutorial/17_ray_query_screenspace)
 add_subdirectory(raytrace_tutorial/18_swept_spheres)
 add_subdirectory(raytrace_tutorial/19_ray_differentials)
 add_subdirectory(raytrace_tutorial/20_wireframe)
+add_subdirectory(raytrace_tutorial/21_clusters)
+add_subdirectory(raytrace_tutorial/22_partition_tlas)
 add_subdirectory(raytrace_tutorial/XX_template)
 
 # Make Visual Studio use this project as the startup project

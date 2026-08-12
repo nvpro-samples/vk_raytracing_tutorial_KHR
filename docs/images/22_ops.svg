@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 430" font-family="Segoe UI, Arial, sans-serif">
+<style>
+.t{font-size:15px;font-weight:700;fill:#111;}
+.s{font-size:12.5px;fill:#333;}
+.m{font-size:11.5px;fill:#444;font-family:Consolas,monospace;}
+.lbl{font-size:11px;fill:#666;}
+.flow{stroke:#444;stroke-width:2;fill:none;marker-end:url(#b);}
+</style>
+<defs><marker id="b" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#444"/></marker></defs>
+
+<text class="t" x="40" y="30">Each frame: a small delta op list, applied in place</text>
+
+<!-- op list box -->
+<rect class="box" x="40" y="52" width="380" height="250" rx="10" fill="#dbeafe" stroke="#7fa8d8" stroke-width="1.5"/>
+<text class="t" x="230" y="78" text-anchor="middle">Operation list (only what changed)</text>
+
+<rect x="60" y="92" width="340" height="54" rx="6" fill="#e07a5f" fill-opacity="0.18" stroke="#e07a5f" stroke-width="1"/>
+<text class="m" x="74" y="114">WRITE_INSTANCE  × ~96</text>
+<text class="lbl" x="74" y="132">NEAR — one record per instance (per-instance motion, high LOD)</text>
+
+<rect x="60" y="154" width="340" height="54" rx="6" fill="#e9c46a" fill-opacity="0.22" stroke="#c9a63f" stroke-width="1"/>
+<text class="m" x="74" y="176">WRITE_PARTITION_TRANSLATION  × ~35</text>
+<text class="lbl" x="74" y="194">MID — one record shifts a whole 16-instance partition (medium LOD)</text>
+
+<rect x="60" y="216" width="340" height="54" rx="6" fill="#8ab6d6" fill-opacity="0.28" stroke="#5b8fb5" stroke-width="1"/>
+<text class="m" x="74" y="238">UPDATE_INSTANCE  × 0..16</text>
+<text class="lbl" x="74" y="256">on a zone crossing — re-point an instance's BLAS (swap LOD)</text>
+
+<text class="lbl" x="230" y="290" text-anchor="middle">FAR: nothing submitted — instances are retained</text>
+
+<!-- build -->
+<rect class="box" x="472" y="132" width="222" height="96" rx="10" fill="#c7f0d8" stroke="#7cc79b" stroke-width="1.5"/>
+<text class="s" x="583" y="162" text-anchor="middle">vkCmdBuildPartitioned-</text>
+<text class="s" x="583" y="180" text-anchor="middle">AccelerationStructuresNV</text>
+<text class="lbl" x="583" y="206" text-anchor="middle">src == dst — updated in place</text>
+
+<!-- result -->
+<rect class="box" x="754" y="142" width="176" height="76" rx="10" fill="#eef2f7" stroke="#c7d0da" stroke-width="1.5"/>
+<text class="t" x="842" y="172" text-anchor="middle">PTLAS</text>
+<text class="lbl" x="842" y="194" text-anchor="middle">referenced by</text>
+<text class="lbl" x="842" y="210" text-anchor="middle">device address</text>
+
+<path class="flow" d="M420,180 L468,180"/>
+<path class="flow" d="M694,180 L750,180"/>
+
+<!-- feedback: retained -->
+<path d="M842,218 C842,300 583,300 583,232" fill="none" stroke="#7cc79b" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#b)"/>
+<text class="lbl" x="712" y="296" text-anchor="middle">previous structure reused — untouched instances retained</text>
+
+<!-- takeaway -->
+<rect x="40" y="342" width="890" height="66" rx="10" fill="#fff6e6" stroke="#e0b050" stroke-width="1.5"/>
+<text class="s" x="485" y="367" text-anchor="middle">A src == dst build keeps every instance you do not re-submit, so the delta lists only the changes: three op types,</text>
+<text class="s" x="485" y="386" text-anchor="middle">each tied to a zone. A static frame emits zero. Generating this list on the GPU is the production technique — see</text>
+<text class="s" x="485" y="405" text-anchor="middle">vk_forest_ray_tracing.</text>
+</svg>

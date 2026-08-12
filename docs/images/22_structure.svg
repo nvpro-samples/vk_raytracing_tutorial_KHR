@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 430" font-family="Segoe UI, Arial, sans-serif">
+<style>.box{stroke:#333;stroke-width:1.5;} .t{font-size:15px;font-weight:700;fill:#111;} .s{font-size:12.5px;fill:#333;} .m{font-size:11px;fill:#555;font-family:Consolas,monospace;} .lbl{font-size:12px;fill:#666;} .flow{stroke:#444;stroke-width:2;fill:none;marker-end:url(#a);}</style>
+<defs><marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#444"/></marker></defs>
+<text class="t" x="40" y="34">Instances (indexable slots, each references a BLAS)</text>
+<rect class="box" x="40" y="52" width="26" height="26" rx="4" fill="#8ecae6" fill-opacity="0.85"/>
+<rect class="box" x="72" y="52" width="26" height="26" rx="4" fill="#8ecae6" fill-opacity="0.85"/>
+<rect class="box" x="104" y="52" width="26" height="26" rx="4" fill="#8ecae6" fill-opacity="0.85"/>
+<rect class="box" x="136" y="52" width="26" height="26" rx="4" fill="#8ecae6" fill-opacity="0.85"/>
+<rect class="box" x="178" y="52" width="26" height="26" rx="4" fill="#ffb703" fill-opacity="0.85"/>
+<rect class="box" x="210" y="52" width="26" height="26" rx="4" fill="#ffb703" fill-opacity="0.85"/>
+<rect class="box" x="242" y="52" width="26" height="26" rx="4" fill="#ffb703" fill-opacity="0.85"/>
+<rect class="box" x="274" y="52" width="26" height="26" rx="4" fill="#ffb703" fill-opacity="0.85"/>
+<rect class="box" x="316" y="52" width="26" height="26" rx="4" fill="#e07a5f" fill-opacity="0.85"/>
+<rect class="box" x="348" y="52" width="26" height="26" rx="4" fill="#e07a5f" fill-opacity="0.85"/>
+<rect class="box" x="380" y="52" width="26" height="26" rx="4" fill="#e07a5f" fill-opacity="0.85"/>
+<rect class="box" x="412" y="52" width="26" height="26" rx="4" fill="#e07a5f" fill-opacity="0.85"/>
+<rect class="box" x="454" y="52" width="26" height="26" rx="4" fill="#81b29a" fill-opacity="0.85"/>
+<rect class="box" x="486" y="52" width="26" height="26" rx="4" fill="#81b29a" fill-opacity="0.85"/>
+<rect class="box" x="518" y="52" width="26" height="26" rx="4" fill="#81b29a" fill-opacity="0.85"/>
+<rect class="box" x="550" y="52" width="26" height="26" rx="4" fill="#81b29a" fill-opacity="0.85"/>
+<rect class="box" x="616" y="52" width="26" height="26" rx="4" fill="#bdbdbd" fill-opacity="0.85"/>
+<rect class="box" x="648" y="52" width="26" height="26" rx="4" fill="#bdbdbd" fill-opacity="0.85"/>
+<rect class="box" x="34" y="110" width="134" height="44" rx="8" fill="#8ecae6" fill-opacity="0.18"/>
+<text class="s" x="101.0" y="137" text-anchor="middle">partition 0</text>
+<rect class="box" x="172" y="110" width="134" height="44" rx="8" fill="#ffb703" fill-opacity="0.18"/>
+<text class="s" x="239.0" y="137" text-anchor="middle">partition 1</text>
+<rect class="box" x="310" y="110" width="134" height="44" rx="8" fill="#e07a5f" fill-opacity="0.18"/>
+<text class="s" x="377.0" y="137" text-anchor="middle">partition 2</text>
+<rect class="box" x="448" y="110" width="134" height="44" rx="8" fill="#81b29a" fill-opacity="0.18"/>
+<text class="s" x="515.0" y="137" text-anchor="middle">partition 3</text>
+<rect class="box" x="608" y="110" width="74" height="44" rx="8" fill="#9e9e9e" fill-opacity="0.22" stroke-dasharray="5 3"/>
+<text class="s" x="634" y="137" text-anchor="middle">global</text>
+<line class="flow" x1="88.0" y1="78" x2="88.0" y2="110"/>
+<line class="flow" x1="226.0" y1="78" x2="226.0" y2="110"/>
+<line class="flow" x1="364.0" y1="78" x2="364.0" y2="110"/>
+<line class="flow" x1="502.0" y1="78" x2="502.0" y2="110"/>
+<line class="flow" x1="628" y1="78" x2="628" y2="110"/>
+<rect class="box" x="300" y="212" width="360" height="56" rx="10" fill="#dbeafe"/>
+<text class="t" x="480" y="238" text-anchor="middle">PTLAS</text>
+<text class="s" x="480" y="257" text-anchor="middle">one structure over all partitions</text>
+<line class="flow" x1="220" y1="154" x2="440" y2="210"/>
+<line class="flow" x1="720" y1="154" x2="540" y2="210"/>
+<rect class="box" x="250" y="316" width="460" height="60" rx="10" fill="#c7f0d8"/>
+<text class="s" x="480" y="342" text-anchor="middle">referenced by device address (not an AS handle);</text>
+<text class="s" x="480" y="360" text-anchor="middle">converted to an acceleration structure in the shader</text>
+<line class="flow" x1="480" y1="268" x2="480" y2="314"/>
+<text class="lbl" x="480" y="404" text-anchor="middle">In the shader it is used like an ordinary acceleration structure (TraceRay).</text>
+</svg>

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 748 514" font-family="Segoe UI, Arial, sans-serif">
+<style>.thin{stroke:#00000030;stroke-width:0.6;} .thick{stroke:#222;stroke-width:2.5;fill:none;} .t{font-size:15px;font-weight:700;fill:#111;} .s{font-size:12.5px;fill:#333;} .c{font-size:12px;fill:#0b3d2e;font-weight:700;}</style>
+<text class="t" x="70" y="45">Sphere surface as a latitude-longitude grid (8 x 16 cells)</text>
+<text class="s" x="70" y="68">Each 4x4-cell patch becomes one cluster - here 2 x 4 = 8 clusters (level 0)</text>
+<rect x="70" y="90" width="152" height="152" fill="#8ecae6" fill-opacity="0.75"/>
+<rect x="222" y="90" width="152" height="152" fill="#ffb703" fill-opacity="0.75"/>
+<rect x="374" y="90" width="152" height="152" fill="#e07a5f" fill-opacity="0.75"/>
+<rect x="526" y="90" width="152" height="152" fill="#81b29a" fill-opacity="0.75"/>
+<rect x="70" y="242" width="152" height="152" fill="#c77dff" fill-opacity="0.75"/>
+<rect x="222" y="242" width="152" height="152" fill="#f4a261" fill-opacity="0.75"/>
+<rect x="374" y="242" width="152" height="152" fill="#57cc99" fill-opacity="0.75"/>
+<rect x="526" y="242" width="152" height="152" fill="#f28482" fill-opacity="0.75"/>
+<line class="thin" x1="70" y1="90" x2="678" y2="90"/>
+<line class="thin" x1="70" y1="128" x2="678" y2="128"/>
+<line class="thin" x1="70" y1="166" x2="678" y2="166"/>
+<line class="thin" x1="70" y1="204" x2="678" y2="204"/>
+<line class="thin" x1="70" y1="242" x2="678" y2="242"/>
+<line class="thin" x1="70" y1="280" x2="678" y2="280"/>
+<line class="thin" x1="70" y1="318" x2="678" y2="318"/>
+<line class="thin" x1="70" y1="356" x2="678" y2="356"/>
+<line class="thin" x1="70" y1="394" x2="678" y2="394"/>
+<line class="thin" x1="70" y1="90" x2="70" y2="394"/>
+<line class="thin" x1="108" y1="90" x2="108" y2="394"/>
+<line class="thin" x1="146" y1="90" x2="146" y2="394"/>
+<line class="thin" x1="184" y1="90" x2="184" y2="394"/>
+<line class="thin" x1="222" y1="90" x2="222" y2="394"/>
+<line class="thin" x1="260" y1="90" x2="260" y2="394"/>
+<line class="thin" x1="298" y1="90" x2="298" y2="394"/>
+<line class="thin" x1="336" y1="90" x2="336" y2="394"/>
+<line class="thin" x1="374" y1="90" x2="374" y2="394"/>
+<line class="thin" x1="412" y1="90" x2="412" y2="394"/>
+<line class="thin" x1="450" y1="90" x2="450" y2="394"/>
+<line class="thin" x1="488" y1="90" x2="488" y2="394"/>
+<line class="thin" x1="526" y1="90" x2="526" y2="394"/>
+<line class="thin" x1="564" y1="90" x2="564" y2="394"/>
+<line class="thin" x1="602" y1="90" x2="602" y2="394"/>
+<line class="thin" x1="640" y1="90" x2="640" y2="394"/>
+<line class="thin" x1="678" y1="90" x2="678" y2="394"/>
+<rect class="thick" x="70" y="90" width="152" height="152"/>
+<rect class="thick" x="222" y="90" width="152" height="152"/>
+<rect class="thick" x="374" y="90" width="152" height="152"/>
+<rect class="thick" x="526" y="90" width="152" height="152"/>
+<rect class="thick" x="70" y="242" width="152" height="152"/>
+<rect class="thick" x="222" y="242" width="152" height="152"/>
+<rect class="thick" x="374" y="242" width="152" height="152"/>
+<rect class="thick" x="526" y="242" width="152" height="152"/>
+<text class="c" x="146.0" y="166.0" text-anchor="middle">1 cluster</text>
+<text class="s" x="70" y="434">A cluster stores its own local vertices and 8-bit triangle indices, so it must stay within the</text>
+<text class="s" x="70" y="456">per-cluster limits (256 vertices with 8-bit indices). Finer levels use more, smaller patches.</text>
+</svg>
