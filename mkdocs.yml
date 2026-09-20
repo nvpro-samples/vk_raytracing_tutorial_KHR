@@ -35,6 +35,19 @@ theme:
 plugins:
   - search
   - macros
+  # Use the mermaid2 plugin (instead of Material's built-in Mermaid support)
+  # so Mermaid's theme can follow the active MkDocs Material palette. The
+  # leading '^' is mermaid2's "unquote" operator: it inlines the string as
+  # raw JavaScript into mermaid.initialize({...}), so the check runs at
+  # page load. Palette index 1 means the user is in slate (dark) mode, in
+  # which case we use Mermaid's 'dark' theme; otherwise 'default' (light).
+  # The extra_javascript hook 'refresh_on_toggle_dark_light.js' reloads
+  # the page on toggle so Mermaid re-initializes with the new theme.
+  # https://mkdocs-mermaid2.readthedocs.io/en/latest/tips/#material-theme-switching-on-the-fly-between-light-and-dark-mode
+  - mermaid2:
+      arguments:
+        theme: |
+          ^(JSON.parse(__md_get("__palette")).index == 1) ? 'dark' : 'default'
 
 copyright: Copyright &copy; 2025-2026 NVIDIA Corporation. All rights reserved.
 
@@ -50,7 +63,7 @@ markdown_extensions:
       custom_fences:
         - name: mermaid
           class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
+          format: !!python/name:mermaid2.fence_mermaid
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
@@ -74,6 +87,10 @@ extra_css:
 extra_javascript:
   - javascripts/mathjax.js
   - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+  # Reload the page when the user toggles the Material palette so Mermaid
+  # re-initializes with the matching 'dark' or 'default' theme (see
+  # mermaid2 plugin configuration above).
+  - javascripts/refresh_on_toggle_dark_light.js
 
 hooks:
   - hooks/ingest_sample_readmes.py

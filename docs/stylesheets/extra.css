@@ -72,3 +72,8 @@
 .md-typeset code {
   font-size: 0.85em;
 }
+
+/* Mermaid theming is handled dynamically by mkdocs-mermaid2-plugin, which
+   switches between Mermaid's 'default' and 'dark' themes based on the
+   active Material palette (see mkdocs.yml + refresh_on_toggle_dark_light.js).
+   No extra Mermaid CSS is needed here. */

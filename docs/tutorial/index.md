@@ -112,24 +112,31 @@ By the end of this tutorial, you'll understand:
 ```mermaid
 ---
 config:
-  theme: 'neutral'
+  theme: base
+  themeVariables:
+    primaryColor: "#ECEFF1"
+    primaryTextColor: "#000000"
+    primaryBorderColor: "#546E7A"
+    lineColor: "#546E7A"
+    clusterBkg: "#FAFAFA"
+    titleColor: "#000000"
+    textColor: "#000000"
+    clusterBorder: "#90A4AE"
 ---
 flowchart TB
+    classDef programmable fill:#C8E6C9,stroke:#1B5E20,color:#000
+    classDef fixed        fill:#BBDEFB,stroke:#0D47A1,color:#000
+    classDef output       fill:#FFE0B2,stroke:#E65100,color:#000
+
  subgraph s1["Graphic Pipeline"]
-        RS["Rasterization"]
-        VS["Vertex Shader"]
-        FS["Fragment Shader"]
-        FB["Frame Buffer"]
+        VS["Vertex Shader"]:::programmable
+        RS["Rasterization"]:::fixed
+        FS["Fragment Shader"]:::programmable
+        TGT["Target Image"]:::output
   end
     VS --> RS
     RS --> FS
-    FS --> FB
-
-    style RS fill:#BBDEFB
-    style VS fill:#FFCDD2
-    style FS fill:#C8E6C9
-    style FB fill:#FFF9C4
-    style s1 fill:#FFFFFF
+    FS --> TGT
 ```
 
 ### After: Ray Tracing Pipeline
@@ -137,22 +144,39 @@ flowchart TB
 ```mermaid
 ---
 config:
-  theme: neutral
+  theme: base
   layout: dagre
+  themeVariables:
+    primaryColor: "#ECEFF1"
+    primaryTextColor: "#000000"
+    primaryBorderColor: "#546E7A"
+    lineColor: "#546E7A"
+    clusterBkg: "#FAFAFA"
+    titleColor: "#000000"
+    textColor: "#000000"
+    clusterBorder: "#90A4AE"
 ---
 flowchart TB
+    classDef programmable fill:#C8E6C9,stroke:#1B5E20,color:#000
+    classDef fixed        fill:#BBDEFB,stroke:#0D47A1,color:#000
+    classDef decision     fill:#F3E5F5,stroke:#4A148C,color:#000
+    classDef output       fill:#FFE0B2,stroke:#E65100,color:#000
+    classDef neutral      fill:#ECEFF1,stroke:#546E7A,color:#000
+
  subgraph s1["Ray Tracing Pipeline"]
-        AST["Acceleration Structure Traversal"]
-        RG["Ray Generation"]
-        Hit{"Hit?"}
-        Intersection["Intersection Shader"]
-        AnyHit["Any Hit Shader"]
-        No["No"]
-        Yes["Yes"]
-        Miss["Miss Shader"]
-        CH["Closest Hit Shader"]
+        RG["Ray Generation"]:::programmable
+        AST["Acceleration Structure Traversal"]:::fixed
+        Hit{"Hit?"}:::decision
+        Intersection["Intersection Shader"]:::programmable
+        AnyHit["Any Hit Shader"]:::programmable
+        No["No"]:::neutral
+        Yes["Yes"]:::neutral
+        Miss["Miss Shader"]:::programmable
+        CH["Closest Hit Shader"]:::programmable
+        TGT["Target Image"]:::output
   end
     RG -- traceRayEXT() --> AST
+    RG --> TGT
     AST --> Hit
     AST -. During Traversal .-> Intersection
     Intersection --> AnyHit
@@ -160,13 +184,42 @@ flowchart TB
     Hit --- No & Yes
     No --> Miss
     Yes --> CH
-    style RG fill:#FFCDD2
-    style AST fill:#BBDEFB
-    style Hit fill:#FFFFFF
-    style Intersection fill:#C8E6C9
-    style AnyHit fill:#C8E6C9
-    style Miss fill:#BBDEFB
-    style CH fill:#FFF9C4
+```
+
+**Palette (shared with the rasterization diagram above):**
+🟢 programmable shader — 🔵 fixed-function / hardware stage — 🟣 decision — 🟠 output target.
+
+### Where the Pixels Actually Go: The Target Image
+
+Neither pipeline writes directly to the screen. Both fill the same intermediate **target image**:
+
+- **Rasterization** writes to it as a framebuffer color attachment.
+- **Ray tracing** writes to it via a storage-image binding (`RWTexture2D` in the ray-generation shader).
+
+The target image is then tonemapped, composited with the ImGui UI overlay, and finally presented to the swapchain for display. This is why the two pipeline diagrams above converge on the same `Target Image` node — the pipeline choice affects *how* pixels are produced, not *where* they end up.
+
+```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: "#ECEFF1"
+    primaryTextColor: "#000000"
+    primaryBorderColor: "#546E7A"
+    lineColor: "#546E7A"
+    clusterBkg: "#FAFAFA"
+    titleColor: "#000000"
+    textColor: "#000000"
+    clusterBorder: "#90A4AE"
+---
+flowchart LR
+    classDef output  fill:#FFE0B2,stroke:#E65100,color:#000
+    classDef process fill:#ECEFF1,stroke:#546E7A,color:#000
+    classDef present fill:#D1C4E9,stroke:#4527A0,color:#000
+
+    TGT["Target Image"]:::output --> TM["Tonemap"]:::process
+    TM --> CMP["Composite<br>with ImGui UI"]:::process
+    CMP --> SC["Swapchain<br>(Present)"]:::present
 ```
 
 ## Understanding Acceleration Structures: BLAS vs TLAS
@@ -223,42 +276,60 @@ This two-level hierarchy provides several key benefits:
 
 ```mermaid
 ---
-
 config:
-  theme: 'neutral'
+  theme: base
+  themeVariables:
+    primaryColor: "#ECEFF1"
+    primaryTextColor: "#000000"
+    primaryBorderColor: "#546E7A"
+    lineColor: "#546E7A"
+    clusterBkg: "#FAFAFA"
+    titleColor: "#000000"
+    textColor: "#000000"
+    clusterBorder: "#90A4AE"
 ---
 graph BT
-    subgraph "Scene Objects"
-        A[Teapot Mesh] --> B[Teapot BLAS]
-        C[Sphere Mesh] --> D[Sphere BLAS]
-        E[Cube Mesh] --> F[Cube BLAS]
+    classDef neutral   fill:#ECEFF1,stroke:#546E7A,color:#000
+    classDef lightBlue fill:#E1F5FE,stroke:#01579B,color:#000
+    classDef orange    fill:#FFF3E0,stroke:#E65100,color:#000
+    classDef purple    fill:#F3E5F5,stroke:#4A148C,color:#000
+    classDef frame     fill:transparent,stroke:#90A4AE,stroke-width:1px
+
+    subgraph outer [" "]
+    subgraph sceneObjects["Scene Objects"]
+        A[Teapot Mesh]:::neutral
+        B[Teapot BLAS]:::lightBlue
+        C[Sphere Mesh]:::neutral
+        D[Sphere BLAS]:::lightBlue
+        E[Cube Mesh]:::neutral
+        F[Cube BLAS]:::lightBlue
+        A --> B
+        C --> D
+        E --> F
     end
-    
-    subgraph "Scene Instances"
-        G["Teapot Instance 1<br/>Transform: Scale(2,2,2)<br/>Position: (0,0,0)"]
-        H["Teapot Instance 2<br/>Transform: Rotate(45°)<br/>Position: (5,0,0)"]
-        I["Sphere Instance<br/>Transform: Identity<br/>Position: (2,3,1)"]
-        J["Cube Instance<br/>Transform: Scale(0.5,0.5,0.5)<br/>Position: (-2,0,0)"]
+
+    subgraph sceneInstances["Scene Instances"]
+        G["Teapot Instance 1<br>Transform: Scale(2,2,2)<br>Position: (0,0,0)"]:::orange
+        H["Teapot Instance 2<br>Transform: Rotate(45°)<br>Position: (5,0,0)"]:::orange
+        I["Sphere Instance<br>Transform: Identity<br>Position: (2,3,1)"]:::orange
+        J["Cube Instance<br>Transform: Scale(0.5,0.5,0.5)<br>Position: (-2,0,0)"]:::orange
     end
-    
-    subgraph "Top-Level Acceleration Structure (TLAS)"
-        K[TLAS<br/>Contains all instances<br/>with their transforms]
+
+    subgraph tlas["Top-Level Acceleration Structure (TLAS)"]
+        K[TLAS<br>Contains all instances<br>with their transforms]:::purple
     end
-    
+
     B --> G
     B --> H
     D --> I
     F --> J
-    
+
     G --> K
     H --> K
     I --> K
     J --> K
-    
-    style B fill:#e1f5fe
-    style D fill:#e1f5fe
-    style F fill:#e1f5fe
-    style K fill:#f3e5f5
+    end
+    class outer frame
 ```
 
 ## Understanding the Shader Binding Table (SBT)
@@ -287,26 +358,45 @@ In ray tracing, a single ray can potentially hit any object in the scene, and di
 ```mermaid
 ---
 config:
-  theme: neutral
+  theme: base
   layout: elk
+  themeVariables:
+    primaryColor: "#ECEFF1"
+    primaryTextColor: "#000000"
+    primaryBorderColor: "#546E7A"
+    lineColor: "#546E7A"
+    clusterBkg: "#FAFAFA"
+    titleColor: "#000000"
+    textColor: "#000000"
+    clusterBorder: "#90A4AE"
 ---
 flowchart LR
+    classDef red     fill:#FFCDD2,stroke:#B71C1C,color:#000
+    classDef blue    fill:#BBDEFB,stroke:#0D47A1,color:#000
+    classDef green   fill:#C8E6C9,stroke:#1B5E20,color:#000
+    classDef magenta fill:#E1BEE7,stroke:#4A148C,color:#000
+    classDef orange  fill:#FFF3E0,stroke:#E65100,color:#000
+    classDef purple  fill:#F3E5F5,stroke:#4A148C,color:#000
+    classDef neutral fill:#ECEFF1,stroke:#546E7A,color:#000
+    classDef frame   fill:transparent,stroke:#90A4AE,stroke-width:1px
+
+ subgraph outer [" "]
  subgraph subGraph0["Ray Tracing Pipeline"]
-        RG["Ray Generation Shader<br>Creates primary rays"]
-        MS["Miss Shader<br>Background/Sky"]
-        CH["Closest Hit Shader<br>Material Shading"]
+        RG["Ray Generation Shader<br>Creates primary rays"]:::neutral
+        MS["Miss Shader<br>Background/Sky"]:::neutral
+        CH["Closest Hit Shader<br>Material Shading"]:::neutral
   end
  subgraph subGraph1["Shader Binding Table (SBT)"]
-        SBT_RG["RayGen Section<br>Shader Handle"]
-        SBT_MS["Miss Section<br>Shader Handle"]
-        SBT_HIT["Hit Section<br>Shader Handle + Data"]
-        SBT_CALL["Callable Section<br>Shader Handle"]
+        SBT_RG["RayGen Section<br>Shader Handle"]:::red
+        SBT_MS["Miss Section<br>Shader Handle"]:::blue
+        SBT_HIT["Hit Section<br>Shader Handle + Data"]:::green
+        SBT_CALL["Callable Section<br>Shader Handle"]:::magenta
   end
  subgraph subGraph2["Ray Tracing Process"]
-        RAY["Ray from Camera"]
-        HIT{"Intersection?"}
-        MISS["Miss Shader"]
-        HIT_SHADER["Hit Shader"]
+        RAY["Ray from Camera"]:::orange
+        HIT{"Intersection?"}:::purple
+        MISS["Miss Shader"]:::neutral
+        HIT_SHADER["Hit Shader"]:::neutral
   end
     RAY --> HIT
     HIT -- Yes --> HIT_SHADER
@@ -317,12 +407,8 @@ flowchart LR
     SBT_RG --> RG
     SBT_MS --> MS
     SBT_HIT --> CH
-    style SBT_RG fill:#FFCDD2
-    style SBT_MS fill:#BBDEFB
-    style SBT_HIT fill:#C8E6C9
-    style SBT_CALL fill:#E1BEE7
-    style RAY fill:#FFF3E0
-    style HIT fill:#F3E5F5
+ end
+    class outer frame
 
 ```
 
@@ -534,24 +620,40 @@ When creating acceleration structures, Vulkan uses three key structures that wor
 ```mermaid
 ---
 config:
-  theme: neutral
+  theme: base
+  themeVariables:
+    primaryColor: "#ECEFF1"
+    primaryTextColor: "#000000"
+    primaryBorderColor: "#546E7A"
+    lineColor: "#546E7A"
+    clusterBkg: "#FAFAFA"
+    titleColor: "#000000"
+    textColor: "#000000"
+    clusterBorder: "#90A4AE"
 ---
 flowchart TB
+    classDef neutral    fill:#ECEFF1,stroke:#546E7A,color:#000
+    classDef lightGreen fill:#E8F5E8,stroke:#1B5E20,color:#000
+    classDef orange     fill:#FFF3E0,stroke:#E65100,color:#000
+    classDef purple     fill:#F3E5F5,stroke:#4A148C,color:#000
+    classDef lightBlue  fill:#E1F5FE,stroke:#01579B,color:#000
+    classDef frame      fill:transparent,stroke:#90A4AE,stroke-width:1px
+
  subgraph subGraph0["Raw Geometry Data"]
-        A["Vertex Buffer<br>Device Address + Offset"]
-        B["Index Buffer<br>Device Address + Offset"]
+        A["Vertex Buffer<br>Device Address + Offset"]:::neutral
+        B["Index Buffer<br>Device Address + Offset"]:::neutral
   end
  subgraph subGraph1["GeometryTrianglesDataKHR"]
-        C["WHERE &amp; HOW<br>• Device addresses<br>• Format (R32G32B32_SFLOAT)<br>• Stride, max vertex<br>• Index type"]
+        C["WHERE &amp; HOW<br>• Device addresses<br>• Format (R32G32B32_SFLOAT)<br>• Stride, max vertex<br>• Index type"]:::lightGreen
   end
  subgraph subGraph2["GeometryKHR"]
-        D["WHAT<br>• Geometry type (triangles)<br>• Build flags<br>• Opaque/No-duplicate flags"]
+        D["WHAT<br>• Geometry type (triangles)<br>• Build flags<br>• Opaque/No-duplicate flags"]:::orange
   end
  subgraph subGraph3["BuildRangeInfoKHR"]
-        E["WHICH<br>• Primitive count<br>• Data offsets<br>• Range information"]
+        E["WHICH<br>• Primitive count<br>• Data offsets<br>• Range information"]:::purple
   end
  subgraph subGraph4["Final Result"]
-        F["AccelerationStructureGeometryInfo<br>Ready for BLAS building"]
+        F["AccelerationStructureGeometryInfo<br>Ready for BLAS building"]:::lightBlue
   end
  subgraph subGraph5["Three-Structure Data Flow"]
         subGraph0
@@ -565,10 +667,7 @@ flowchart TB
     C --> D
     D --> E
     E --> F
-    style C fill:#e8f5e8
-    style D fill:#fff3e0
-    style E fill:#f3e5f5
-    style F fill:#e1f5fe
+    class subGraph5 frame
 ```
 
 **1. VkAccelerationStructureGeometryTrianglesDataKHR:**
@@ -1696,7 +1795,7 @@ void raytraceScene(VkCommandBuffer cmd)
 }
 ```
 
-This function begins by binding the ray tracing pipeline, followed by binding the descriptor set that provides the scene's textures to the shaders. Next, it uses a push descriptor set to specify the top-level acceleration structure (TLAS) and the output image where the ray tracing results will be written. Unlike rasterization, where this image is attached as a framebuffer, in ray tracing we write directly to it. The push constant is set up similarly to graphics, providing per-frame data to the shaders. The function then calls `vkCmdTraceRaysKHR`, which dispatches the ray tracing pipeline and executes the associated shaders. Finally, a memory barrier ensures that the ray traced image is fully written and ready before it is post-processed by the tonemapper.
+This function begins by binding the ray tracing pipeline, followed by binding the descriptor set that provides the scene's textures to the shaders. Next, it uses a push descriptor set to specify the top-level acceleration structure (TLAS) and the output image where the ray tracing results will be written. Both pipelines write to the same target image — rasterization via a framebuffer color attachment, ray tracing via a storage-image binding — as introduced in [Where the Pixels Actually Go: The Target Image](#where-the-pixels-actually-go-the-target-image). The push constant is set up similarly to graphics, providing per-frame data to the shaders. The function then calls `vkCmdTraceRaysKHR`, which dispatches the ray tracing pipeline and executes the associated shaders. Finally, a memory barrier ensures that the ray traced image is fully written and ready before it is post-processed by the tonemapper.
 
 #### Step 6.2: Update Scene Buffer for Ray Tracing
 
